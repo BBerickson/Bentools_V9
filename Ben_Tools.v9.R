@@ -1,6 +1,7 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
 # load/save data tab
+#   
 #   load other gene list
 #   remove gene list (excluded Main list)
 #   reset app
@@ -22,6 +23,8 @@ suppressPackageStartupMessages(my_packages(
     "shinyjs",
     "RColorBrewer")
 ))
+
+source("R_scripts/functions.R",local = TRUE)
 
 # By default, the file size limit is 5MB. It can be changed by
 # setting this option. Here we'll raise limit to 500MB. ----
@@ -94,14 +97,14 @@ server <- function(input, output, session) {
       ))
       return()
     }
-    updateSelectInput(
+    updatePickerInput(
       session,
       "selectgenelistoptions",
       choices = names(LIST_DATA$gene_file),
       selected = names(LIST_DATA$gene_file)[1]
     )
     ff <- distinct(LIST_DATA$table_file, set)$set
-    updateSelectInput(session,
+    updatePickerInput(session,
                       "selectdataoption",
                       choices = ff)
     # first time starting
@@ -130,7 +133,7 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
-                   # load info, update select boxes, switching works and chaning info and ploting
+                   # load info, update select boxes, switching works and changing info and plotting
                    LD <- LoadGeneFile(
                      input$filegene1$datapath,
                      input$filegene1$name,
@@ -141,7 +144,7 @@ server <- function(input, output, session) {
       LIST_DATA <<- LD
     }
     shinyjs::reset("filegene1")
-    updateSelectInput(
+    updatePickerInput(
       session,
       "selectgenelistoptions",
       choices = names(LIST_DATA$gene_file),
@@ -182,10 +185,11 @@ ui <- dashboardPage(
               box(status = "navy",
                   solidHeader = TRUE,
                   title = "Load .table/URL.txt file",
-                  width = 5,
-                  style = "height: 200px;",
+                  width = 6,
+                  style = "height: 150px;",
+                  align="center",
                   fileInput(
-                    "filetable",
+                    "filetable", width = "75%",
                     label = "",
                     accept = c('.table'),
                     multiple = TRUE
@@ -195,42 +199,41 @@ ui <- dashboardPage(
               hidden(div(
                 id = "startoff",
               box(
-                title = "Select Gene list",
-                width = 7,
-                style = "height: 200px;" ,
+                title = "Load Gene list",
+                width = 6,
+                style = "height: 150px;" ,
                 solidHeader = TRUE,
                 status = "navy",
-                sidebar = boxSidebar(
-                  id = "sidebarGenelistColor",
-                  icon = icon("palette"),
-                  width = 50,
-                  pickerInput(inputId = "kbrewer",
-                              label = "color brewer theme",
-                              choices = c("select", kBrewerList),
-                              selected = "select"
-                  ),
-                  actionButton("BttnNewColor", "Set color same as Compleat")
-                ),
-                fileInput("filegene1",
-                          label = "Load gene list",
+                align="center",
+                fileInput("filegene1", width = "75%",
+                          label = "",
                           accept = c('.txt')),
-                fluidRow(align="center",
-                         pickerInput("selectgenelistoptions", "",
-                            width = 300, choices = "Compleat"),
-                actionButton("actionremovegene", "Remove Gene list"))
-              
+                helpText("load gene list")
               )))
       ),
       tabItem(tabName = "qcOptions",
               box(status = "purple",
                   solidHeader = TRUE,
                   title = "QC Options",
-                  fileInput(
-                    "filetable",
-                    label = "",
-                    accept = c('.table'),
-                    multiple = TRUE
-                  ))
+                  sidebar = boxSidebar(
+                    id = "sidebarGenelistColor",
+                    icon = icon("palette"),
+                    width = 50,
+                    pickerInput(inputId = "kbrewer",
+                                label = "color brewer theme",
+                                choices = c("select", kBrewerList),
+                                selected = "select"
+                    ),
+                    actionButton("BttnNewColor", "Set color same as Compleat")
+                  ),
+                  fluidRow(align="center",
+                           
+                           pickerInput("selectdataoption", "", 
+                                       width = 300, choices = "Load data file"),
+                           pickerInput("selectgenelistoptions", "",
+                                       width = 300, choices = "Compleat"),
+                           actionButton("actionremovegene", "Remove Gene list"))
+              )
       ),
       tabItem(tabName = "mainplot",
               box(status = "purple",
