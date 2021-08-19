@@ -1,0 +1,126 @@
+BenTools_v9
+
+Load Data tab
+
+  load file(s)
+    can read windowed bed/bedgraph files
+      col_names = c("gene", "bin", "score")
+      col_names = c("gene", "bin", "score", "set")
+    can load a file containg a list of file names ... requres file end in .url.txt
+      files can be local or remote
+      can supply info, file, type, nickname, color
+        b.table 5 b #00FF00
+    trys to set some defalt plot options based on the first file loaded
+    only first 3 files are automaticly selected to plot
+      
+  load gene lists 
+    one colunm, can have # comment lines
+      if no gene names match can re-try with partial matching,
+        if no gene names match auto re-try with partial matching
+      colors are a tint of thouse being used by default
+      
+  save gene/color list
+    save selected gene list to txt file
+      can split location from name(s)
+    when color tab selected color pallet for selected gene list is saved for loaded genes
+    remove all but main "common" gene list  
+    
+QC/Options tab      
+  
+  select gene list and file
+    select plot line and dot type
+    select color by rgb or hex
+    plot legend label "nickname", to reset leave blank when button is pushed
+    apply normilization factor that is applied as needed and passed on to children lists
+    remove file from all gene lists
+    
+  
+
+Norm tab
+
+  select a file and one to noromalize by
+    select divide gene by gene or bin by bin
+    select replacing #/0 = Inf with psudo count
+  or to combinde files  
+    adds new "data file"
+    
+Plot tab
+
+  first time runs plotting functions are run and a plot is produced
+  quick set default plot x axis bin lables
+  drop down selection(s) of data restricted to gene list to be plotted
+  sliders and selectors for x and y plot axis
+  set math and normalization to data for plotting
+  quick color setting
+  cusome set x axis bin lables
+  lines and labels tool helps place proper, can edit lable and posistion pairs
+
+Gene tool
+
+  compare gene lists and report intercected, unique, and total 
+  
+Sort tool
+
+  select gene list and file(s) for that list
+  select bin range to work on
+  select top/bottom rank % cut off or Quick sort button
+    Quick sort removes top and bottom % outliers
+  
+  returns data table
+    search data table
+    sort on each file
+    additional filter on rank % (0 results don't update)
+    results are added to gene lists
+    action button builds datatable and shows
+    
+Ratio tool
+  
+  select gene list and  2 files for that list
+  select bin range(s) to work on
+  select fold change cut off
+  can norm data to a bin
+  preforms a[1]/b[2] or (a[1]/a[2])/(b[1]/b[2])
+  
+  returns 3 data tables with fold cut off for each file and non fold cut off 
+    search and sort data table
+    additional filter on fold cut off (0 results don't update)
+    results are added to gene lists
+    
+  action button builds datatable and shows
+  
+cluster tool
+  
+  select gene list and 1 file form that list (must have at least 4 genes)
+  select bin range(s) to work on
+  select fold number of clusters/groups 1-4 
+  
+  preforms hierarchical clustering using ward method
+    search and sort data table
+    additional filter on fold cut off (0 results don't update)
+    results are added to gene lists 
+  
+  preforms grouping ...
+    search and sort data table
+    additional filter on fold cut off (0 results don't update)
+    results are added to gene lists 
+    
+    action button builds datatable and shows
+    action button shows plot results for selected file
+    
+Cumulative Distribution Function (CDF) tool
+  
+  select files from gene lists (except CDF)
+  select bin 5' and 3' ranges
+  select upper and lower percentages to exclude
+  select to use in common gene lists or not
+  
+  plots results
+    if 2 files are use a ks test p value is returned and the diffrence between the two in the data table
+    reactive to upper and lower percentages and updates gene list
+    if same file from differnt gene lists is used cdf plot colors will be auto replaced
+    
+  action button builds datatable and shows
+    search and sort data table
+    results are added to gene list and updates plot
+    
+  

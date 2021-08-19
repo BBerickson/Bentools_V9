@@ -50,6 +50,17 @@ RgbToHex <- function(x,
   }
 }
 
+# finds first partial match to gene list input 
+MatchGenes <- function(list_data, gene_list){
+  for(g in seq_along(gene_list$gene)){
+    gene_list$gene[g] <- str_subset(
+      list_data$gene_file[[1]]$use$gene, gene_list$gene[g]
+    )[1]
+  }
+  gene_list <- filter(gene_list, !is.na(gene))
+  return(gene_list)
+}
+
 # reads in table file(s), tests, fills out info and returns list_data
 LoadTableFile <-
   function(file_path,
@@ -266,17 +277,14 @@ LoadTableFile <-
     return(list_data)
   }
 
-# reads in 1 column gene list file(s), tests, fills out info and returns list_data
+# reads in gene list file(s), tests, fills out info and returns list_data
 LoadGeneFile <-
   function(file_path,
            file_name,
-           list_data) {
+           list_data,
+           gene_column =  1) {
     my_remote_file <- NULL
     legend_nickname <- NULL
-    if(length(list_data$table_file) < 1){
-      print("needed  or does shiny handle? add message?")
-      return(list_data)
-    }
     # shiny progress bar
     setProgress(1, detail = "start gathering information on file(s)")
     # tests if loading a file with a list of address to remote files, requires .url.txt in file name
@@ -331,18 +339,11 @@ LoadGeneFile <-
         #normal gene list
         col_names <- c("gene")
       } else {
-        showModal(
-          modalDialog(
-            title = "I dont know how to load this file",
-            "I expected a 1 colunm file",
-            size = "s",
-            easyClose = TRUE
-          )
-        )
-        next()
+        col_names <- 1:num_col
+        col_names[gene_column] <- "gene"
       }
       # reads in file
-      tablefile <-
+      tablefile <<-
         suppressMessages(read_tsv(file_path[x],
                                   comment = "#",
                                   col_names = col_names)) %>%
@@ -350,8 +351,8 @@ LoadGeneFile <-
       # shiny progress bar
       setProgress(3, detail = "Checking form problems")
       # checks gene list is a subset of what has been loaded
-      gene_names <-
-        semi_join(tablefile, list_data$gene_file[[1]]$use, by = "gene") %>% distinct(gene)
+      gene_names <<- tablefile %>% select(gene) %>% 
+        semi_join(., list_data$gene_file[[1]]$use, by = "gene") %>% distinct(gene)
       # test data is compatible with already loaded data
       if (n_distinct(gene_names$gene) == 0) {
         showModal(
@@ -365,13 +366,8 @@ LoadGeneFile <-
         # tries to grep lists and find matches
         # shiny progress bar
         setProgress(4, detail = "looking for gene name matches")
-        for(g in seq_along(tablefile$gene)){
-        tablefile$gene[g] <- str_subset(
-            list_data$gene_file[[1]]$use$gene, tablefile$gene[g]
-          )[1]
-        }
-        tablefile <- filter(tablefile, !is.na(gene))
-        if (n_distinct(tablefile$gene) == 0) {
+        gene_names <- MatchGenes(list_data, tablefile %>% select(gene))
+        if (n_distinct(gene_names$gene) == 0) {
           showModal(
             modalDialog(
               title = "Information message",
@@ -381,10 +377,19 @@ LoadGeneFile <-
             )
           )
           return()
+        } else {
+          showModal(
+            modalDialog(
+              title = "Information message",
+              paste("Found", n_distinct(gene_names$gene), "genes after pattern matching search"),
+              size = "s",
+              easyClose = TRUE
+            )
+          )
         }
       }
       # adds full n count to nickname
-      my_name <- paste0(legend_nickname[x], "\nn = ", n_distinct(tablefile$gene))
+      my_name <- paste0(legend_nickname[x], "\nn = ", n_distinct(gene_names$gene))
       # preps meta data
       gene_info <- list_data$gene_info %>% 
         dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
@@ -393,7 +398,7 @@ LoadGeneFile <-
       # shiny progress bar
       setProgress(5, detail = "building data and adding list")
       # saves data in list of lists
-      list_data$gene_file[[my_name]]$use <- distinct(tablefile, gene)
+      list_data$gene_file[[my_name]]$use <- distinct(gene_names, gene)
       list_data$gene_file[[my_name]]$full <- tablefile
       list_data$gene_file[[my_name]]$info <-
         paste("Loaded gene list from file",
