@@ -1,12 +1,13 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
 # load/save data tab
-#   
-#   load other gene list
-#   remove gene list (excluded Main list)
-#   reset app
-#   save gene lists, options for list, bed, tool
+#
+#   show table of files loaded and number of genes with a total number of genes and common number of genes
+#   show a table of loaded genes list with total number of genes and common number of genes
 # data options and QC tab
+#   remove data file
+#   remove gene list (excluded Main list)
+#   save gene lists, options for list, bed, tool
 # plot tab
 # set observeEvents for all items, icon size/color?
 # work on adding other boxes and sizes and functions
