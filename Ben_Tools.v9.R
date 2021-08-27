@@ -2,8 +2,7 @@
 
 # load/save data tab
 #
-#   show table of files loaded and number of genes with a total number of genes and common number of genes
-#   show a table of loaded genes list with total number of genes and common number of genes
+#   #   show a table of loaded genes list with total number of genes and common number of genes
 # data options and QC tab
 #   remove data file
 #   remove gene list (excluded Main list)
@@ -22,7 +21,8 @@ suppressPackageStartupMessages(my_packages(
     "shinydashboardPlus",
     "shinyWidgets",
     "shinyjs",
-    "RColorBrewer")
+    "RColorBrewer",
+    "DT")
 ))
 
 source("R_scripts/functions.R",local = TRUE)
@@ -124,6 +124,102 @@ server <- function(input, output, session) {
     removeCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
+    
+    
+      gts <- LIST_DATA$table_file %>% group_by(set) %>% 
+        summarise(number_of_genes = n_distinct(gene)) %>% 
+        rename(File = set)
+      dt <- datatable(
+        gts,
+        colnames = names(gts),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = TRUE,
+          width = 20,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = FALSE,
+          lengthChange = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 25 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
+                "}"
+              )
+            )
+          )
+        )
+      )
+      output$loadedfilestable <- DT::renderDataTable(dt)
+      gts2 <- LIST_DATA$gene_file[[1]]$use %>% summarise(total_number_distinct_genes = n_distinct(gene)) 
+      dt2 <- datatable(
+        gts2,
+        colnames = names(gts2),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = T,
+          width = 30,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = FALSE,
+          lengthChange = FALSE,
+          ordering = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all")
+          )
+        )
+      )
+      output$loadedfilestotaltable <- DT::renderDataTable(dt2)
+     if(length(LIST_DATA$gene_file)>1){
+       gg <- LIST_DATA$gene_info %>% select(gene_list) %>% filter(!str_detect(gene_list,"Compleat\nn")) %>% 
+         distinct() %>% separate(.,gene_list,into=c("file","genes"),sep="\n") 
+       ggg <- NULL
+       for(i in names(LIST_DATA$gene_file)[-1]){
+         ggg <- c(ggg, sapply(LIST_DATA$gene_file[i], "[[", "full") %>% unlist() %>% n_distinct()) }
+       ggg <- mutate(gg,"total_in_file" = ggg) 
+       dtg <- datatable(
+         ggg,
+         colnames = names(ggg),
+         rownames = FALSE,
+         filter = "none",
+         class = 'cell-border stripe compact',
+         options = list(
+           scrollX = TRUE,
+           scrollY = TRUE,
+           autoWidth = TRUE,
+           width = 20,
+           sDom  = '<"top">lrt<"bottom">ip',
+           info = FALSE,
+           paging = FALSE,
+           lengthChange = FALSE,
+           columnDefs = list(
+             list(className = 'dt-center ', targets = "_all"),
+             list(
+               targets = 0,
+               render = JS(
+                 "function(data, type, row, meta) {",
+                 "return type === 'display' && data.length > 19 ?",
+                 "'<span title=\"' + data + '\">' + data.substr(0, 20) + '...</span>' : data;",
+                 "}"
+               )
+             )
+           )
+         )
+       )
+       output$loadedgenetable <- DT::renderDataTable(dtg)
+     }
   })
   
   
@@ -151,6 +247,42 @@ server <- function(input, output, session) {
       choices = names(LIST_DATA$gene_file),
       selected = last(names(LIST_DATA$gene_file))
     )
+      gg <- LIST_DATA$gene_info %>% select(gene_list) %>% filter(!str_detect(gene_list,"Compleat\nn")) %>% 
+        distinct() %>% separate(.,gene_list,into=c("file","genes"),sep="\n") 
+      ggg <- NULL
+      for(i in names(LIST_DATA$gene_file)[-1]){
+        ggg <- c(ggg, sapply(LIST_DATA$gene_file[i], "[[", "full") %>% unlist() %>% n_distinct()) }
+      ggg <- mutate(gg,"total_in_file" = ggg) 
+      dtg <- datatable(
+        ggg,
+        colnames = names(ggg),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = TRUE,
+          width = 20,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = FALSE,
+          lengthChange = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 19 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 20) + '...</span>' : data;",
+                "}"
+              )
+            )
+          )
+        )
+      )
+      output$loadedgenetable <- DT::renderDataTable(dtg)
   })
   
 }
@@ -195,7 +327,10 @@ ui <- dashboardPage(
                     accept = c('.table'),
                     multiple = TRUE
                   ),
-                  helpText("load windowed bedGraph file(s)")
+                  helpText("load windowed bedGraph file(s)"),
+                  br(),
+                  DT::dataTableOutput('loadedfilestable'),
+                  DT::dataTableOutput('loadedfilestotaltable')
               ),
               hidden(div(
                 id = "startoff",
@@ -209,7 +344,9 @@ ui <- dashboardPage(
                 fileInput("filegene1", width = "75%",
                           label = "",
                           accept = c('.txt')),
-                helpText("load gene list")
+                helpText("load gene list"),
+                br(),
+                DT::dataTableOutput('loadedgenetable')
               )))
       ),
       tabItem(tabName = "qcOptions",
