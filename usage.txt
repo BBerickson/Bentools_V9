@@ -14,16 +14,13 @@ Load Data tab
     only first 3 files are automaticly selected to plot
       
   load gene lists 
-    one colunm, can have # comment lines
+    one colunm.txt/.bed or must have a "gene" named column, can have # comment lines
       if no gene names match can re-try with partial matching,
         if no gene names match auto re-try with partial matching
       colors are a tint of thouse being used by default
       
   save gene/color list
-    save selected gene list to txt file
-      can split location from name(s)
-    when color tab selected color pallet for selected gene list is saved for loaded genes
-    remove all but main "common" gene list  
+    save selected gene list to txt file, keeping values from tool
     
 QC/Options tab      
   
