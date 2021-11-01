@@ -368,13 +368,13 @@ ui <- dashboardPage(
         tabName = "qcOptions",
         icon = icon("clipboard-check")
       ),
-      menuItem("Plot", tabName = "mainplot", icon = icon("area-chart")),
-      menuItem("Norm data", tabName = "filenorm", icon = icon("files-o")),
-      menuItem("Compare Lists", tabName = "genelists", icon = icon("gears")),
-      menuItem("Filter Tool", tabName = "sorttool", icon = icon("gears")),
-      menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("gears")),
-      menuItem("Cluster Tools", tabName = "clustertool", icon = icon("gears")),
-      menuItem("CDF Tools", tabName = "cdftool", icon = icon("gears"))
+      menuItem("Plot", tabName = "mainplot", icon = icon("chart-area")),
+      menuItem("Norm data", tabName = "filenorm", icon = icon("copy")),
+      menuItem("Compare Lists", tabName = "genelists", icon = icon("cogs")),
+      menuItem("Filter Tool", tabName = "sorttool", icon = icon("cogs")),
+      menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("cogs")),
+      menuItem("Cluster Tools", tabName = "clustertool", icon = icon("cogs")),
+      menuItem("CDF Tools", tabName = "cdftool", icon = icon("cogs"))
     )
   ),
   body = dashboardBody(
@@ -497,7 +497,7 @@ ui <- dashboardPage(
               actionButton(
                 "actionmyplot",
                 "Update Plot",
-                icon = icon("area-chart"),
+                icon = icon("chart-area"),
                 style = "color: #fff; background-color: #337ab7; border-color: #2e6da4;"
               )
             )
