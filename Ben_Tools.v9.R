@@ -337,6 +337,275 @@ server <- function(input, output, session) {
     shinyjs::hide("actionmyplotshow")
   })
   
+  # updates plot ----
+  observeEvent(input$actionButtonUpDatePlot, ignoreInit = T, {
+    print("actionButtonUpDatePlot")
+    updateBoxSidebar(id = "sidebarmath")
+  })
+  
+  # opens color select diolog box
+  observeEvent(input$dropcolor, ignoreInit = T, {
+    showModal(modalDialog(
+      title = "Information message",
+      " Don't forget to save the gene list for future use",
+      size = "l",
+      easyClose = F,
+      footer = tagList(
+        box(
+          width = 12,
+          status = "primary",
+          solidHeader = T,
+          collapsible = FALSE,
+          collapsed = FALSE,
+          div(
+            style = "padding-left: 25px; display:inline-block;",
+            selectInput(
+              selectize = T,
+              "selectlineslabels",
+              width = "200px",
+              label = "quick set lines and labels",
+              choices = c("Choose one" = "",
+                          kLinesandlabels)
+            )
+          ),
+          column(12,
+                 div(
+                   style = "padding:2px; display:inline-block;",
+                   numericInput(
+                     "numerictss",
+                     "TSS bin",
+                     value = 15,
+                     min = 0,
+                     max = 100
+                   )
+                 ),
+                 div(
+                   style = "padding:2px; display:inline-block;",
+                   textInput("numerictssname", value = "TSS", label = "lable",width = "50px"),
+                 ),
+                 div(
+                   style = "padding:2px; display:inline-block;",
+                   numericInput(
+                     "numericbody1",
+                     "5|4 bin",
+                     value = 20,
+                     min = 0,
+                     max = 100
+                   )
+                 ),
+                 div(
+                   style = "padding:2px; display:inline-block;",
+                   numericInput(
+                     "numericbody2",
+                     "4|3 bin",
+                     value = 40,
+                     min = 0,
+                     max = 100
+                   )
+                 ),
+                 div(
+                   style = "padding:2px; display:inline-block;",
+                   numericInput(
+                     "numerictes",
+                     "pA bin",
+                     value = 45,
+                     min = 0,
+                     max = 100
+                   )
+                 ),
+                 div(
+                   style = "padding:2px; display:inline-block;",
+                   textInput("numerictesname", value = "pA", label = "lable",width = "50px"),
+                 ),
+                 div(
+                   style = "padding:2px; display:inline-block;",
+                   numericInput(
+                     "numericbinsize",
+                     "bp/bin",
+                     value = 100,
+                     min = 20,
+                     max = 1000,
+                     step = 5
+                   )
+                 ),
+                 div(
+                   style = "padding:2px 8px 2px 2px; display:inline-block;",
+                   numericInput(
+                     "numericlabelspaceing",
+                     "every bin",
+                     value = 5,
+                     min = 0,
+                     max = 100
+                   )
+                 ),
+                 actionButton("actionlineslabels", "UPDATE PLOT")
+          ),
+          helpText("For 543 style 0 > TSS < 5|4 < 4|3 < pA < max bin"),
+          div(
+            textInput("landlnames", "", label = "Yaxis labels"),
+            textInput("landlposition", "", label = "Yaxis lable position (numbers only)")
+          ),
+          helpText("select buttons for more options"),
+          column(
+            12,
+            div(
+              style = "padding-left: -5px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set TSS Options"),
+                
+                selectInput(
+                  inputId = 'selecttsscolor',
+                  label = 'TSS line and lable color',
+                  choices = c("red", "green", "blue", "brown", "black", "white"),
+                  selected = "green"
+                ),
+                selectInput(
+                  inputId = 'selecttssline',
+                  label = 'TSS line type',
+                  choices = c("dotted", "solid"),
+                  selected = "dotted"
+                ),
+                icon = icon("sliders-h"),
+                status = "success",
+                tooltip = tooltipOptions(title = "TSS Options")
+              )
+            ),
+            div(
+              style = "padding-left: 20px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set 5|4 Options"),
+                
+                selectInput(
+                  inputId = 'selectbody1color',
+                  label = '5|4 line and lable color',
+                  choices = c("red", "green", "blue", "brown", "black", "white"),
+                  selected = "black"
+                ),
+                selectInput(
+                  inputId = 'selectbody1line',
+                  label = '5|4 line type',
+                  choices = c("dotted", "solid"),
+                  selected = "solid"
+                ),
+                icon = icon("sliders-h"),
+                tooltip = tooltipOptions(title = "5|4 Options")
+              )
+            ),
+            div(
+              style = "padding-left: 20px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set 4|3 Options"),
+                
+                selectInput(
+                  inputId = 'selectbody2color',
+                  label = '4|3 line and lable color',
+                  choices = c("red", "green", "blue", "brown", "black", "white"),
+                  selected = "black"
+                ),
+                selectInput(
+                  inputId = 'selectbody2line',
+                  label = '4|3 line type',
+                  choices = c("dotted", "solid"),
+                  selected = "solid"
+                ),
+                icon = icon("sliders-h"),
+                tooltip = tooltipOptions(title = "4|3 Options")
+              )
+            ),
+            div(
+              style = "padding-left: 25px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set TES Options"),
+                
+                selectInput(
+                  inputId = 'selecttescolor',
+                  label = 'TES line and lable color',
+                  choices = c("red", "green", "blue", "brown", "black", "white"),
+                  selected = "red"
+                ),
+                selectInput(
+                  inputId = 'selecttesline',
+                  label = 'TES line type',
+                  choices = c("dotted", "solid"),
+                  selected = "dotted"
+                ),
+                icon = icon("sliders-h"),
+                status = "danger",
+                tooltip = tooltipOptions(title = "TES Options")
+              )
+            ),
+            div(
+              style = "padding-left: 25px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set font Options"),
+                
+                numericInput(
+                  inputId = 'selectvlinesize',
+                  "Set vertcal line size",
+                  value = 2,
+                  min = .5,
+                  max = 10,
+                  step = .5
+                ),
+                numericInput(
+                  inputId = 'selectfontsizex',
+                  "Set X axis font size",
+                  value = 13,
+                  min = 1,
+                  max = 30,
+                  step = 1
+                ),
+                numericInput(
+                  inputId = 'selectfontsizey',
+                  "Set Y axis font size",
+                  value = 13,
+                  min = 1,
+                  max = 30,
+                  step = 1
+                ),
+                icon = icon("sliders-h"),
+                status = "warning",
+                tooltip = tooltipOptions(title = "Font Options")
+              )
+            ),
+            div(
+              style = "padding-left: 25px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set line Options"),
+                
+                numericInput(
+                  inputId = 'selectlinesize',
+                  "Set plot line size",
+                  value = 2.5,
+                  min = .5,
+                  max = 10,
+                  step = .5
+                ),
+                numericInput(
+                  inputId = 'selectlegendsize',
+                  "Set plot line size",
+                  value = 10,
+                  min = 1,
+                  max = 20,
+                  step = 1
+                ),
+                icon = icon("sliders-h"),
+                status = "warning",
+                tooltip = tooltipOptions(title = "Line Options")
+              )
+            )
+          )
+        ),
+        modalButton("Cancel"),
+        actionButton("ok", "OK")
+      )
+    ))
+  })
+  
+  observeEvent(input$ok, {
+    colorModal()
+    removeModal()
+  })
   
 }
 
@@ -358,17 +627,9 @@ ui <- dashboardPage(
     # disables tabs on start
     sidebarMenu(
       id = "leftSideTabs",
-      menuItem(
-        "Load Data",
-        tabName = "loaddata",
-        icon = icon("file-import")
-      ),
-      menuItem(
-        "QC/Options",
-        tabName = "qcOptions",
-        icon = icon("clipboard-check")
-      ),
+      menuItem("Load Data", tabName = "loaddata", icon = icon("file-import")),
       menuItem("Plot", tabName = "mainplot", icon = icon("chart-area")),
+      menuItem("QC/Options", tabName = "qcOptions", icon = icon("clipboard-check")),
       menuItem("Norm data", tabName = "filenorm", icon = icon("copy")),
       menuItem("Compare Lists", tabName = "genelists", icon = icon("cogs")),
       menuItem("Filter Tool", tabName = "sorttool", icon = icon("cogs")),
@@ -442,6 +703,180 @@ ui <- dashboardPage(
                 )
               ))),
       tabItem(
+        # mainplot ----
+        tabName = "mainplot",
+        fluidRow(box(
+          width = 12, 
+          status = "navy",
+          solidHeader = TRUE,
+          title = "", 
+          sidebar = boxSidebar(
+            id = "sidebarmath",
+            width = 50,
+            icon = icon("cogs"),
+            fluidRow(
+              column(
+              4,
+            selectInput("myMath",
+                        label = "Math",
+                        choices = c("mean", "sum", "median", "var"),
+                        selected = "mean"
+            )),
+            column(
+              4,
+              selectInput(
+              "selectplotnrom",
+              label = "Y Normalization",
+              choices = c("none", "relative frequency", "rel gene frequency"),
+              selected = "none"
+            )),
+            column(
+             3,
+              selectInput(
+              "selectplotBinNorm",
+              label = "Bin Norm:",
+              choices = c(0:80),
+              selected = 0
+            )),
+            column(
+              3,
+            awesomeCheckbox("checkboxsmooth", label = "smooth")),
+            column(
+              2,
+              awesomeCheckbox("checkboxlog2", label = "log2")),
+            column(
+              3,
+              numericInput("numericYRangeLow", label = "Plot Y min:", value = 0)
+            ),
+            column(
+              3,
+              numericInput("numericYRangeHigh", label = "Plot Y max:", value = 0)
+            ),
+            column(
+              11,
+            sliderInput(
+              "sliderplotBinRange",
+              label = "Plot Bin Range:",
+              min = 0,
+              max = 80,
+              value = c(0, 80)
+            )),
+            column(
+              6,offset = 4,
+            actionBttn(
+              inputId = "actionButtonUpDatePlot",
+              label = "Update Plot",
+              style = "unite",
+              color = "default",
+              size = "sm"
+            )
+            )
+            )
+          ),
+          shinycssloaders::withSpinner(plotOutput("plot"), type = 4),
+          hidden(
+            div(
+              id = "actionmyplotshow",
+              style = "position: absolute; z-index: 1; left: 45%; top: 50%;",
+              actionButton(
+                "actionmyplot",
+                "Update Plot",
+                icon = icon("chart-area"),
+                style = "color: #fff; background-color: #337ab7; border-color: #2e6da4;"
+              )
+            )
+          )
+        )),
+        fluidRow(box(
+          width = 12, 
+          status = "navy",
+          solidHeader = TRUE,
+          title = "", 
+          dropdownMenu = boxDropdown(
+            boxDropdownItem("Update sample color", id = "dropcolor", icon = icon("palette")),
+            dropdownDivider(),
+            boxDropdownItem("Lines and Labels", id = "droplinesandlabels", icon = icon("chart-bar")),
+            dropdownDivider(),
+            boxDropdownItem("t-Test", id = "dropttest", icon = icon("chart-line")),
+            dropdownDivider(),
+            boxDropdownItem("Font and line size", id = "dropfontsize", icon = icon("font"))
+          ),
+            box(title = "Main",
+                           width = 6,
+                           status = "primary",
+                           solidHeader = T,
+                           collapsible = T,
+                           collapsed = F,
+                           uiOutput("DynamicGenePicker_main")
+                       ),
+                     hidden(
+                       div(
+                         id = "showpickersort",
+                         box(
+                           title = "Filter (max 4 lists)",
+                           width = 6,
+                           status = "primary",
+                           solidHeader = T,
+                           collapsible = T,
+                           collapsed = F,
+                           uiOutput("DynamicGenePicker_sort")
+                         )
+                       )),
+                     hidden(
+                       div(
+                         id = "showpickercomparisons",
+                         box(
+                           title = "Gene comparisons",
+                           width = 6,
+                           status = "primary",
+                           solidHeader = T,
+                           collapsible = T,
+                           collapsed = F,
+                           uiOutput("DynamicGenePicker_comparisons")
+                         )
+                       )),
+                     hidden(
+                       div(
+                         id = "showpickerratio",
+                         box(
+                           title = "Ratio",
+                           width = 6,
+                           status = "primary",
+                           solidHeader = T,
+                           collapsible = T,
+                           collapsed = F,
+                           uiOutput("DynamicGenePicker_ratio")
+                         )
+                       )),
+                     hidden(
+                       div(
+                         id = "showpickercluster",
+                         box(
+                           title = "Clusters/Groups",
+                           width = 6,
+                           status = "primary",
+                           solidHeader = T,
+                           collapsible = T,
+                           collapsed = F,
+                           uiOutput("DynamicGenePicker_clusters")
+                         )
+                       )),
+                     hidden(
+                       div(
+                         id = "showpickercdf",
+                         box(
+                           title = "CDF",
+                           width = 6,
+                           status = "primary",
+                           solidHeader = T,
+                           collapsible = T,
+                           collapsed = F,
+                           uiOutput("DynamicGenePicker_cdf")
+                         )
+                       ))
+            ))
+      ),
+      tabItem(
         # QC ----
         tabName = "qcOptions",
         box(
@@ -473,36 +908,6 @@ ui <- dashboardPage(
             ),
             actionButton("actionremovegene", "Remove Gene list")
           )
-        )
-      ),
-      tabItem(
-        # mainplot ----
-        tabName = "mainplot",
-        fluidRow(box(
-          width = 12, 
-          status = "navy",
-          solidHeader = TRUE,
-          title = "", dropdownMenu = boxDropdown(colourInput("colourhex1", "Select color HEX"),
-                                                 boxDropdownItem(colourInput("colourhex2", "Select color HEX"))),
-          sidebar = boxSidebar(
-            id = "sidebarcolor",
-            width = 25,
-            colourInput("colourhex", "Select color HEX")
-          ),
-          shinycssloaders::withSpinner(plotOutput("plot"), type = 4),
-          hidden(
-            div(
-              id = "actionmyplotshow",
-              style = "position: absolute; z-index: 1; left: 45%; top: 50%;",
-              actionButton(
-                "actionmyplot",
-                "Update Plot",
-                icon = icon("chart-area"),
-                style = "color: #fff; background-color: #337ab7; border-color: #2e6da4;"
-              )
-            )
-          )
-        )
         )
       ),
       tabItem(

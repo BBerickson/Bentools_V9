@@ -441,3 +441,9 @@ LoadGeneFile <-
     }
     return(list_data)
   }
+
+# color module dialog box
+colorModal <- function(){
+  
+  print("ok")
+}
