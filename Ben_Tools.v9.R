@@ -343,8 +343,56 @@ server <- function(input, output, session) {
     updateBoxSidebar(id = "sidebarmath")
   })
   
-  # opens color select diolog box
+  # opens color select dialog box ----
   observeEvent(input$dropcolor, ignoreInit = T, {
+    showModal(modalDialog(
+      title = "Information message",
+      " Update Nickname and color of samples",
+      size = "l",
+      easyClose = F,
+      footer = tagList(
+        box(
+          title = "File Options",
+          solidHeader = T,
+          width = 12,
+          box(
+            title =  "Set Plot Color Options",
+            width = 4,
+            status = "primary",
+            solidHeader = T,
+            fluidRow(
+              box(
+                width = 12,
+                solidHeader = T,
+                status = "info",
+                background = "light-blue",
+                colourInput("colourhex", "Select color HEX"),
+                tags$hr(),
+                textInput("textrgbtohex", "RGB"),
+                actionButton("actionmyrgb", "Update color",width = 100)
+              )
+            )
+          ),
+          box(
+            title =  "Set Plot Options",
+            width = 8,
+            status = "primary",
+            solidHeader = T,
+            pickerInput("selectgenelistoptions", "", width = 300, choices = "Complete"),
+            selectInput("selectdataoption", "", choices = "Load data file"),
+            tags$hr(style = "color: #2e6da4; background-color: #2e6da4; border-color: #2e6da4;"),
+            textInput("textnickname", "Update Nickname"),
+            actionButton("actionoptions", "Set Nickname"),
+            helpText("Need to press to update")
+          )
+        ),
+        modalButton("Cancel")
+      )
+    ))
+  })
+  
+  # opens color select dialog box ----
+  observeEvent(input$droplinesandlabels, ignoreInit = T, {
     showModal(modalDialog(
       title = "Information message",
       " Don't forget to save the gene list for future use",
@@ -437,8 +485,7 @@ server <- function(input, output, session) {
                      min = 0,
                      max = 100
                    )
-                 ),
-                 actionButton("actionlineslabels", "UPDATE PLOT")
+                 )
           ),
           helpText("For 543 style 0 > TSS < 5|4 < 4|3 < pA < max bin"),
           div(
@@ -597,14 +644,123 @@ server <- function(input, output, session) {
           )
         ),
         modalButton("Cancel"),
-        actionButton("ok", "OK")
+        actionButton("actionlineslabels", "UPDATE PLOT")
       )
     ))
   })
   
-  observeEvent(input$ok, {
-    colorModal()
+  # color modal dialog update changes ---- 
+  observeEvent(input$actionlineslabels, {
+    LIST_DATA <<- colorModal(LIST_DATA, input$selectlinesize)
     removeModal()
+  })  
+
+  # opens color select dialog box ----
+  observeEvent(input$dropttest, ignoreInit = T, {
+    showModal(modalDialog(
+      title = "Information message",
+      " Update Nickname and color of samples",
+      size = "l",
+      easyClose = F,
+      footer = tagList(
+        box(
+          collapsed = F,
+          collapsible = F,
+          width = 12,
+          status = "primary",
+          solidHeader = T,
+          column(3,
+                 selectInput(inputId = "switchttest",
+                             label = "Plot t.test",
+                             choices = c("none","by files", "by lists"),
+                             selected = "none"
+                 )
+          ),
+          column(3,
+                 selectInput(inputId = "switchttesttype",
+                             label = "pick test",
+                             choices = c("t.test","ks.test", "wilcox.test"),
+                             selected = "wilcox.test")
+          ),
+          column(3,
+                 selectInput(inputId = "selectttestalt",
+                             label = "alternative",
+                             choices = c("two.sided", "less", "greater"),
+                             selected = "two.sided")
+          ),
+          column(3,
+                 selectInput(inputId = "selectttestpaired",
+                             label = "Paired",
+                             choices = c("TRUE", "FALSE"),
+                             selected = "FALSE")
+          ),
+          column(3,
+                 selectInput(inputId = "selectttestexact",
+                             label = "exact",
+                             choices = c("NULL", "TRUE", "FALSE"),
+                             selected = "FALSE")
+          ),
+          column(3,
+                 selectInput(inputId = "selectttestlog",
+                             label = "log p.value",
+                             # choices = c("none","log","-log", "log2", "log10"),
+                             choices = c("none","-log", "-log10"),
+                             selected = "-log10")
+          ),
+          column(2,
+                 selectInput("padjust",
+                             label = "p.adjust?",
+                             choices = c("NO", "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
+                                         "fdr", "none"),
+                             selected = "fdr")
+          ),
+          column(
+            2,
+            numericInput("numericYRangeLowpval", label = "p.value Y min:", value = 0)
+          ),
+          column(
+            2,
+            numericInput("numericYRangeHighpval", label = "p.value Y max:", value = 0)
+          ),
+          column(4,
+                 sliderInput(
+                   "sliderplotOccupancy",
+                   label = "p.value plot occupancy",
+                   min = 1,
+                   max = 3,
+                   step = 0.5,
+                   value = 1)
+          ),
+          column(6,
+                 selectInput(inputId = "selectttestitem",
+                             label = "Select to modify",
+                             choices = c("none"),
+                             selected = "none"),
+                 numericInput(
+                   inputId = 'selectttestlinesize',
+                   "Set plot line size",
+                   value = 2.5,
+                   min = .5,
+                   max = 10,
+                   step = .5)
+                 
+          ),
+          column(2,
+                 colourInput("selectcolorttest", "Select color")
+          ),
+          column(3,
+                 numericInput("hlinettest",
+                              "horizontal line p.val 0.05",
+                              value = 0.05,
+                              min = -50,
+                              max = 50,
+                              step = .5)
+          )
+        ),
+        actionButton("actionttest","Update Plot"),
+        modalButton("Cancel")
+      )
+    ))
   })
   
 }
@@ -797,9 +953,7 @@ ui <- dashboardPage(
             dropdownDivider(),
             boxDropdownItem("Lines and Labels", id = "droplinesandlabels", icon = icon("chart-bar")),
             dropdownDivider(),
-            boxDropdownItem("t-Test", id = "dropttest", icon = icon("chart-line")),
-            dropdownDivider(),
-            boxDropdownItem("Font and line size", id = "dropfontsize", icon = icon("font"))
+            boxDropdownItem("t-Test", id = "dropttest", icon = icon("chart-line"))
           ),
             box(title = "Main",
                            width = 6,
@@ -905,8 +1059,7 @@ ui <- dashboardPage(
               "",
               width = 300,
               choices = "Complete"
-            ),
-            actionButton("actionremovegene", "Remove Gene list")
+            )
           )
         )
       ),

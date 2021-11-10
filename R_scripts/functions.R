@@ -175,7 +175,29 @@ LoadTableFile <-
         my_color[x] <- RgbToHex(my_color[x], convert = "hex")
       }
       
-      if (num_col == 4) {
+      # matirix file
+      if(length(grep(".matrix.gz", file_path[x])) == 1){
+        num_bins <-
+          count_fields(file_path[x],
+                       n_max = 1,
+                       skip = 1,
+                       tokenizer = tokenizer_tsv())
+        tablefile <- suppressMessages(
+          read_tsv(
+            file_path[x],
+            comment = "#",
+            col_names = c("chr", "start", "end","gene", "value", "sign", 1:(num_bins - 6)),
+            skip = 1)) %>%
+          dplyr::select(-chr, -start, -end, -sign, -value) %>% 
+          gather(., bin, score, 2:(num_bins-5)) %>%
+          dplyr::mutate(bin = as.numeric(bin),
+                        score = as.numeric(score),
+                        set = legend_nickname[x]) %>%
+          na_if(Inf) %>%
+          replace_na(list(score = 0)) %>% 
+          distinct(gene,bin,.keep_all = T)
+      } else { 
+        if (num_col == 4) {
         # settings for new style with meta data info
         col_names <- c("gene", "bin", "score", "set")
         # settings for reading in bedGraph file style
@@ -202,6 +224,7 @@ LoadTableFile <-
                                   col_names = col_names)) %>%
         dplyr::mutate(set = legend_nickname[x]) %>% na_if(Inf) %>%
         replace_na(list(score = 0)) %>% distinct(gene,bin,.keep_all = T)
+        }
       num_bins <- n_distinct(tablefile$bin)
       # shiny progress bar
       setProgress(4, detail = "Checking form problems")
@@ -442,8 +465,8 @@ LoadGeneFile <-
     return(list_data)
   }
 
-# color module dialog box
-colorModal <- function(){
-  
-  print("ok")
+# color module dialog box update
+colorModal <- function(list_data, tt){
+  list_data$test <- tt
+  return(list_data)
 }
