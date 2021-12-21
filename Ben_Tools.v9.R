@@ -1,6 +1,6 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
-# load/save/remove data tab
+# basic plot with button
 #
 # data options and QC tab
 #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
@@ -333,7 +333,32 @@ server <- function(input, output, session) {
   # plots when action button is pressed ----
   observeEvent(input$actionmyplot, ignoreInit = TRUE, {
     print("plot button")
-    
+    withProgress(message = 'Calculation in progress',
+                        detail = 'This may take a while...',
+                        value = 0,
+                        {
+                          list_data_frame <- Active_list_data(LIST_DATA)
+                          if (!is_empty(list_data_frame)) {
+                            LIST_DATA$gene_info <<- list_data_frame %>% 
+                              distinct(set,gene_list,plot_set) %>%
+                              full_join(LIST_DATA$gene_info,.,by=c("set","gene_list")) %>% 
+                              dplyr::filter(!is.na(set)) %>% 
+                              dplyr::mutate(plot_set=if_else(is.na(plot_set.y),plot_set.x,plot_set.y)) %>% 
+                              dplyr::select(-plot_set.y,-plot_set.x) %>%
+                              distinct()
+                            # reactive_values$Apply_Math <-
+                            LL <<- ApplyMath(
+                                list_data_frame,
+                                input$myMath,
+                                input$selectplotnrom,
+                                as.numeric(input$selectplotBinNorm)
+                              )
+                            
+                            # reactive_values$Y_Axis_Lable <- YAxisLable()
+                            # reactive_values$Plot_Options <-
+                            #   MakePlotOptionFrame(LIST_DATA)
+                          }
+                          })
     shinyjs::hide("actionmyplotshow")
   })
   
@@ -930,7 +955,7 @@ ui <- dashboardPage(
             )
           ),
           shinycssloaders::withSpinner(plotOutput("plot"), type = 4),
-          hidden(
+          # hidden(
             div(
               id = "actionmyplotshow",
               style = "position: absolute; z-index: 1; left: 45%; top: 50%;",
@@ -941,7 +966,7 @@ ui <- dashboardPage(
                 style = "color: #fff; background-color: #337ab7; border-color: #2e6da4;"
               )
             )
-          )
+          # )
         )),
         fluidRow(box(
           width = 12, 

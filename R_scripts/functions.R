@@ -470,3 +470,65 @@ colorModal <- function(list_data, tt){
   list_data$test <- tt
   return(list_data)
 }
+
+Active_list_data <-
+  function(list_data) {
+    table_file <- list_data$table_file
+    gene_file <- list_data$gene_file
+    gene_info <- list_data$gene_info
+    list_data_out <- NULL
+    print("active data function")
+    for ( i in names(gene_file) ){
+      # checks to see if at least one file in list is active
+      if (gene_info %>% dplyr::filter(gene_list == i & onoff != 0) %>% nrow() == 0) {
+        next()
+      } else {
+        my_sel <- gene_info %>% dplyr::filter(gene_list == i & onoff != 0)
+        list_data_out[[i]] <-
+          table_file %>% 
+          dplyr::filter(set %in% my_sel$onoff) %>%
+          semi_join(., gene_file[[i]]$use, by = "gene") %>% 
+          dplyr::mutate(., gene_list = i)
+        my_sel2 <- my_sel %>% dplyr::mutate(.,plot_set = paste(
+          gsub("(.{20})", "\\1\n", 
+               str_split_fixed(i, "\nn = ", n=2)[,1]),
+          paste0("n = ", n_distinct(list_data_out[[i]]$gene)),
+          gsub("(.{20})", "\\1\n", set),
+          sep = '\n'
+        )) %>% select(set,plot_set)
+        list_data_out[[i]] <- list_data_out[[i]] %>% inner_join(.,my_sel2,by="set")
+      }
+    }
+    return(bind_rows(list_data_out))
+  }
+
+ApplyMath <-
+  function(list_data,
+           use_math,
+           relative_frequency,
+           normbin) {
+    print("apply math fun")
+    setProgress(1, detail = paste("Gathering info"))
+    # applys math to data file
+    if (relative_frequency == "rel gene frequency") {
+      list_data <- list_data %>% group_by(plot_set, gene) %>%
+        dplyr::mutate(score = score / sum(score, na.rm = TRUE)) %>%
+        ungroup()
+    }
+    list_data <- list_data %>% group_by(plot_set, bin) %>%
+      summarise(value = get(use_math)(score, na.rm = T), .groups="drop")
+    
+    if (normbin > 0) {
+      list_data <- list_data %>% 
+        group_by(plot_set) %>%
+        arrange(bin) %>%
+        dplyr::mutate(value = value / nth(value, normbin)) %>%
+        ungroup()
+    } else if (relative_frequency == "relative frequency") {
+      list_data <- list_data %>%
+        group_by(plot_set) %>%
+        dplyr::mutate(value = value / sum(value)) %>%
+        ungroup()
+    }
+    return(list_data %>% dplyr::mutate(set=plot_set))
+  }
