@@ -1,15 +1,5 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
-# basic plot with button
-#
-# data options and QC tab
-#     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
-#     ability to find and remove outliers and filter (add to server R RNAseq filtering outliers )
-# plot tab , start with empty UI, apply math fun, plot fun, lines and labels funs,
-#   plot box, file and gene list selections, plot math and axis options, color and font size, ordering, lines and labels, ttest,
-# set observeEvents for all items, icon size/color?
-# work on adding other boxes and sizes and functions
-
 source("R_scripts/helpers.R", local = TRUE)
 
 # run load needed packages using my_packages(x) ----
@@ -24,7 +14,8 @@ suppressPackageStartupMessages(my_packages(
     "shinyjs",
     "RColorBrewer",
     "colourpicker",
-    "DT"
+    "DT",
+    "ggpubr"
   )
 ))
 
@@ -60,6 +51,15 @@ server <- function(input, output, session) {
   # remove on non-local deployment
   session$onSessionEnded(stopApp)
   
+  # reactive values ----
+  reactive_values <- reactiveValues(
+    Apply_Math = NULL,
+    Plot_Options = NULL,
+    Y_Axis_numbers = c(0,100),
+    Lines_Labels_List = list(mybrakes="",mylabels=""),
+    Picker_controler = NULL,
+  )
+  
   output$user <- renderUser({
     dashboardUser(
       name = "BenTools V9.a",
@@ -68,9 +68,9 @@ server <- function(input, output, session) {
       subtitle = "BBErickson@gmail.com"
     )
   })
-  # disables tabs on start
+  # disables tabs on start ----
+  addCssClass(selector = "a[data-value='mainplot']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='qcOptions']", class = "inactiveLink")
-  # addCssClass(selector = "a[data-value='mainplot']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='filenorm']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='genelists']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
@@ -117,9 +117,28 @@ server <- function(input, output, session) {
                       choices = ff)
     # first time starting
     if (LIST_DATA$STATE[1] == 0) {
-      LIST_DATA$STATE[1] <<- 1
       shinyjs::show("startoff")
       shinyjs::show("startoff2")
+      # sets lines and labels
+      # tries to guess lines and labels type
+      num_bins <- LIST_DATA$x_plot_range[2]
+      if (num_bins == 80 & LIST_DATA$STATE[3] == '543') {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[1]
+      } else if (num_bins == 80 & LIST_DATA$STATE[3] == '5') {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[2]
+      } else if (num_bins <= 60 & LIST_DATA$STATE[3] == '543') {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[3]
+      } else if (num_bins == 205 & LIST_DATA$STATE[3] == '5') {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[4]
+      } else if (LIST_DATA$STATE[3] == '5') {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[5]
+      } else if (LIST_DATA$STATE[3] == '4') {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[6]
+      } else if (LIST_DATA$STATE[3] == '3') {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[7]
+      } else {
+        LIST_DATA$STATE[3] <<- kLinesandlabels[8]
+      }
     }
     # enables tabs after loading file
     shinyjs::enable("startoff")
@@ -133,7 +152,6 @@ server <- function(input, output, session) {
     removeCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
-    
     
     gts <- LIST_DATA$table_file %>% group_by(set) %>%
       summarise(number_of_genes = n_distinct(gene)) %>%
@@ -290,6 +308,9 @@ server <- function(input, output, session) {
     output$loadedgenetable <- DT::renderDataTable(dtg)
     updateSelectInput(session, "selectsave",
                       choices = names(LIST_DATA$gene_file))
+    if( LIST_DATA$STATE[1] != 0){
+      LIST_DATA$STATE[1] <<- .5
+    }
   })
   
   # save functions, gene list ----
@@ -330,8 +351,8 @@ server <- function(input, output, session) {
     }
   )
   
-  # plots when action button is pressed ----
-  observeEvent(input$actionmyplot, ignoreInit = TRUE, {
+  # observe and update apply_Math ----
+  observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$mymath), ignoreInit = TRUE, {
     print("plot button")
     withProgress(message = 'Calculation in progress',
                         detail = 'This may take a while...',
@@ -339,33 +360,126 @@ server <- function(input, output, session) {
                         {
                           list_data_frame <- Active_list_data(LIST_DATA)
                           if (!is_empty(list_data_frame)) {
-                            LIST_DATA$gene_info <<- list_data_frame %>% 
-                              distinct(set,gene_list,plot_set) %>%
-                              full_join(LIST_DATA$gene_info,.,by=c("set","gene_list")) %>% 
-                              dplyr::filter(!is.na(set)) %>% 
-                              dplyr::mutate(plot_set=if_else(is.na(plot_set.y),plot_set.x,plot_set.y)) %>% 
-                              dplyr::select(-plot_set.y,-plot_set.x) %>%
-                              distinct()
-                            # reactive_values$Apply_Math <-
-                            LL <<- ApplyMath(
+                            reactive_values$Plot_Options <- NULL
+                            LIST_DATA$gene_info <<- rows_update(LIST_DATA$gene_info,
+                                                                list_data_frame %>% 
+                                                                  distinct(set,gene_list,plot_set), 
+                                                                by=c("set","gene_list"))
+                            reactive_values$Apply_Math <- ApplyMath(
                                 list_data_frame,
                                 input$myMath,
                                 input$selectplotnrom,
                                 as.numeric(input$selectplotBinNorm)
                               )
+                            reactive_values$Y_Axis_numbers <-
+                              YAxisValues(
+                                reactive_values$Apply_Math,
+                                input$sliderplotBinRange,
+                                c(0,100),
+                                input$checkboxlog2
+                              )
+                            #### here ---- 
+                            # if ttest > applyttest > update options
+                            reactive_values$Plot_Options <-
+                              MakePlotOptionFrame(LIST_DATA$gene_info)
                             
-                            # reactive_values$Y_Axis_Lable <- YAxisLable()
-                            # reactive_values$Plot_Options <-
-                            #   MakePlotOptionFrame(LIST_DATA)
                           }
                           })
     shinyjs::hide("actionmyplotshow")
   })
+  # YRange ====
+  observeEvent(c(reactive_values$YRange), ignoreInit = TRUE, {
+    print("plot YRange")
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   reactive_values$Y_Axis_numbers <-
+                     c(input$numericYRangeLow,input$numericYRangeHigh)
+                   if (!is_empty(reactive_values$Apply_Math)) {
+                     reactive_values$Plot_Options <- NULL
+                     reactive_values$Plot_Options <-
+                       MakePlotOptionFrame(LIST_DATA$gene_info)
+                     
+                   }
+                 })
+    shinyjs::hide("actionmyplotshow")
+  })
   
-  # updates plot ----
-  observeEvent(input$actionButtonUpDatePlot, ignoreInit = T, {
-    print("actionButtonUpDatePlot")
+  # updates mymath plot ----
+  observeEvent(input$actionMathUpDatePlot, ignoreInit = T, {
+    print("actionMathUpDatePlot")
+    reactive_values$mymath <- c(input$myMath,
+                                input$selectplotnrom,
+                                input$selectplotBinNorm,
+                                input$checkboxsmooth,
+                                input$checkboxlog2,
+                                input$sliderplotBinRange
+                                )
+    reactive_values$YRange <- c(input$numericYRangeLow,
+                                input$numericYRangeHigh)
     updateBoxSidebar(id = "sidebarmath")
+  })
+
+  # reactive Apply_Math, sets Y axis min max ----
+  observeEvent(reactive_values$Y_Axis_numbers, {
+    print("updates reactive_values$Y_Axis_numbers")
+    my_step <-
+      (max(reactive_values$Y_Axis_numbers) - min(reactive_values$Y_Axis_numbers)) /
+      20
+    updateNumericInput(session,
+                       "numericYRangeHigh",
+                       value = round(max(reactive_values$Y_Axis_numbers), 4),
+                       step = my_step)
+    updateNumericInput(session,
+                       "numericYRangeLow",
+                       value = round(min(reactive_values$Y_Axis_numbers), 4),
+                       step = my_step)
+  })
+  
+  # reactive Plot_Options, triggers plot ----
+  observeEvent(reactive_values$Plot_Options, ignoreInit = T, ignoreNULL = T, {
+    print("plot")
+    Y_Axis_Label <- YAxisLabel(input$myMath,
+                               input$selectplotnrom,
+                               as.numeric(input$selectplotBinNorm),
+                               input$checkboxsmooth,
+                               input$checkboxlog2)
+    reactive_values$Plot_controler <-
+      GGplotLineDot(
+        reactive_values$Apply_Math,
+        input$sliderplotBinRange,
+        reactive_values$Plot_Options,
+        reactive_values$Y_Axis_numbers,
+        reactive_values$Lines_Labels_List,
+        input$checkboxsmooth, reactive_values$Plot_Options_ttest,
+        input$checkboxlog2,
+        Y_Axis_Label,
+        input$sliderplotOccupancy
+      )
+  })
+  
+  # checks that number of names == position ----
+  observeEvent(c(input$landlnames, input$landlposition), ignoreInit = TRUE, {
+    if(LIST_DATA$STATE[2] > 0){
+    print("names == position")
+    my_pos <-
+      suppressWarnings(as.numeric(unlist(
+        strsplit(input$landlposition, split = "\\s+")
+      )))
+    my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
+    if (any(is.na(my_pos))) {
+      my_pos <- my_pos[is.na(my_pos)]
+      updateTextInput(session, "landlposition", value = my_pos)
+    }
+    if (length(my_pos) == length(my_label)) {
+      shinyjs::enable("actionlineslabels")
+      updateActionButton(session, "actionlineslabels", label = "SET and Plot")
+    } else {
+      updateActionButton(session, "actionlineslabels", label = "Labels must equel # of positions")
+      shinyjs::disable("actionlineslabels")
+    }
+    }
   })
   
   # opens color select dialog box ----
@@ -416,12 +530,13 @@ server <- function(input, output, session) {
     ))
   })
   
-  # opens color select dialog box ----
-  observeEvent(input$droplinesandlabels, ignoreInit = T, {
+  # droplinesandlabels ----
+  observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, {
+    print("droplinesandlabels")
     showModal(modalDialog(
       title = "Information message",
-      " Don't forget to save the gene list for future use",
-      size = "l",
+      " Set Lines and Labels for plot ",
+      size = "xl",
       easyClose = F,
       footer = tagList(
         box(
@@ -431,19 +546,19 @@ server <- function(input, output, session) {
           collapsible = FALSE,
           collapsed = FALSE,
           div(
-            style = "padding-left: 25px; display:inline-block;",
+            style = "padding-left:25px; display:inline-block; text-align:left !important;",
             selectInput(
               selectize = T,
               "selectlineslabels",
               width = "200px",
               label = "quick set lines and labels",
-              choices = c("Choose one" = "",
-                          kLinesandlabels)
+              choices = kLinesandlabels,
+              selected = LIST_DATA$STATE[3]
             )
           ),
           column(12,
                  div(
-                   style = "padding:2px; display:inline-block;",
+                   style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numerictss",
                      "TSS bin",
@@ -453,8 +568,8 @@ server <- function(input, output, session) {
                    )
                  ),
                  div(
-                   style = "padding:2px; display:inline-block;",
-                   textInput("numerictssname", value = "TSS", label = "lable",width = "50px"),
+                   style = "padding:2px; display:inline-block; text-align:center;",
+                   textInput("numerictssname", value = "TSS", label = "TSS label",width = "60px"),
                  ),
                  div(
                    style = "padding:2px; display:inline-block;",
@@ -467,7 +582,7 @@ server <- function(input, output, session) {
                    )
                  ),
                  div(
-                   style = "padding:2px; display:inline-block;",
+                   style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numericbody2",
                      "4|3 bin",
@@ -477,7 +592,7 @@ server <- function(input, output, session) {
                    )
                  ),
                  div(
-                   style = "padding:2px; display:inline-block;",
+                   style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numerictes",
                      "pA bin",
@@ -487,11 +602,11 @@ server <- function(input, output, session) {
                    )
                  ),
                  div(
-                   style = "padding:2px; display:inline-block;",
-                   textInput("numerictesname", value = "pA", label = "lable",width = "50px"),
+                   style = "padding:2px; display:inline-block; text-align:center;",
+                   textInput("numerictesname", value = "pA", label = " TES label",width = "60px"),
                  ),
                  div(
-                   style = "padding:2px; display:inline-block;",
+                   style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numericbinsize",
                      "bp/bin",
@@ -502,7 +617,7 @@ server <- function(input, output, session) {
                    )
                  ),
                  div(
-                   style = "padding:2px 8px 2px 2px; display:inline-block;",
+                   style = "padding:2px 8px 2px 2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numericlabelspaceing",
                      "every bin",
@@ -514,8 +629,8 @@ server <- function(input, output, session) {
           ),
           helpText("For 543 style 0 > TSS < 5|4 < 4|3 < pA < max bin"),
           div(
-            textInput("landlnames", "", label = "Yaxis labels"),
-            textInput("landlposition", "", label = "Yaxis lable position (numbers only)")
+            textInput("landlnames", reactive_values$Lines_Labels_List$mylabels, label = "Yaxis labels"),
+            textInput("landlposition", reactive_values$Lines_Labels_List$mybrakes, label = "Yaxis label position (numbers only)")
           ),
           helpText("select buttons for more options"),
           column(
@@ -527,7 +642,7 @@ server <- function(input, output, session) {
                 
                 selectInput(
                   inputId = 'selecttsscolor',
-                  label = 'TSS line and lable color',
+                  label = 'TSS line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
                   selected = "green"
                 ),
@@ -549,7 +664,7 @@ server <- function(input, output, session) {
                 
                 selectInput(
                   inputId = 'selectbody1color',
-                  label = '5|4 line and lable color',
+                  label = '5|4 line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
                   selected = "black"
                 ),
@@ -570,7 +685,7 @@ server <- function(input, output, session) {
                 
                 selectInput(
                   inputId = 'selectbody2color',
-                  label = '4|3 line and lable color',
+                  label = '4|3 line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
                   selected = "black"
                 ),
@@ -591,7 +706,7 @@ server <- function(input, output, session) {
                 
                 selectInput(
                   inputId = 'selecttescolor',
-                  label = 'TES line and lable color',
+                  label = 'TES line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
                   selected = "red"
                 ),
@@ -668,19 +783,182 @@ server <- function(input, output, session) {
             )
           )
         ),
-        modalButton("Cancel"),
-        actionButton("actionlineslabels", "UPDATE PLOT")
+        actionButton("actionlineslabels", "SET and Plot"),
       )
     ))
   })
-  
-  # color modal dialog update changes ---- 
-  observeEvent(input$actionlineslabels, {
-    LIST_DATA <<- colorModal(LIST_DATA, input$selectlinesize)
-    removeModal()
-  })  
 
-  # opens color select dialog box ----
+  # observe switching tabs ----
+  observeEvent(input$leftSideTabs, ignoreInit = TRUE, {
+    print("switch tab")
+    if (input$leftSideTabs == "mainplot") {
+      reactive_values$Picker_controler <- 
+        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$table_file, set)$set)
+      if(LIST_DATA$STATE[1] == 0){
+          LIST_DATA$STATE[1] <<- 1
+          reactive_values$droplinesandlabels <- 1
+      }
+    }
+  })
+  
+  # action button update lines and labels ----
+  observeEvent(input$actionlineslabels, ignoreInit = TRUE, {
+    print("action lines and labels")
+    LIST_DATA$STATE[3] <<- input$selectlineslabels
+    my_pos <-
+      suppressWarnings(as.numeric(unlist(
+        strsplit(input$landlposition, split = "\\s+")
+      )))
+    my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
+    if (length(my_pos) == 0) {
+      my_label <- "none"
+      my_pos <- LIST_DATA$x_plot_range[2] * 2
+    }
+    
+    # if tss or tes location make sure there is text
+    if(nchar(trimws(input$numerictssname)) == 0 & input$numerictss > 0){
+      updateTextInput(session, "numerictssname", value = "TSS")
+    }
+    if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
+      updateTextInput(session, "numerictesname", value = "pA")
+    }
+    
+    reactive_values$Lines_Labels_List <-
+      LinesLabelsListPlot(
+        input$numericbody1,
+        input$selectbody1color,
+        input$selectbody1line,
+        input$numericbody2,
+        input$selectbody2color,
+        input$selectbody2line,
+        input$numerictss,
+        input$selecttsscolor,
+        input$selecttssline,
+        input$numerictes,
+        input$selecttescolor,
+        input$selecttesline,
+        my_label,
+        my_pos,
+        input$selectvlinesize,
+        input$selectlinesize,
+        input$selectfontsizex,
+        input$selectfontsizey,
+        input$selectlegendsize,
+        input$selectttestlinesize
+      )
+    removeModal()
+  })
+
+  # quick lines and labels preset change ----
+  observeEvent(input$selectlineslabels, ignoreInit = TRUE, {
+    if (input$selectlineslabels == "") {
+      return()
+    }
+    print("quick Lines & Labels")
+    myset <- LinesLabelsPreSet(input$selectlineslabels)
+    updateNumericInput(session, "numericbody1", value = myset[1])
+    updateNumericInput(session, "numericbody2", value = myset[2])
+    updateNumericInput(session, "numerictss", value = myset[3])
+    updateNumericInput(session, "numerictes", value = myset[4])
+    updateNumericInput(session, "numericbinsize", value = myset[5])
+    updateNumericInput(session, "numericlabelspaceing", value = myset[7])
+    
+  })
+  
+  # keep sizes real numbers lines and labels ----
+  observeEvent(
+    c(
+      input$selectvlinesize,
+      input$selectlinesize,
+      input$selectfontsizex,
+      input$selectfontsizey,
+      input$selectlegendsize
+    ),
+    ignoreInit = TRUE,
+    {
+      if(LIST_DATA$STATE[2] > 0){
+      print("keep bin positions in bounds > 0")
+      mynum <- c(2, 2.5, 13, 13, 10)
+      myset <- c(
+        input$selectvlinesize,
+        input$selectlinesize,
+        input$selectfontsizex,
+        input$selectfontsizey,
+        input$selectlegendsize
+      )
+      # keep bin positions in bounds > 0
+      for (i in seq_along(myset)) {
+        if (is.na(myset[i]) | myset[i] < 0) {
+          myset[i] <- mynum[i]
+          updateNumericInput(session, "selectvlinesize", value = myset[1])
+          updateNumericInput(session, "selectlinesize", value = myset[2])
+          updateNumericInput(session, "selectfontsizex", value = myset[3])
+          updateNumericInput(session, "selectfontsizey", value = myset[4])
+          updateNumericInput(session, "selectlegendsize", value = myset[5])
+        }
+      }
+    }
+  })
+
+  # Update lines and labels box's ----
+  observeEvent(
+    c(
+      input$numericbody1,
+      input$numericbody2,
+      input$numerictss,
+      input$numerictssname,
+      input$numerictes,
+      input$numerictesname,
+      input$numericbinsize,
+      input$numericlabelspaceing
+    ),
+    ignoreInit = TRUE,
+    {
+      if(LIST_DATA$STATE[2] > 0){
+      print("observe line and labels")
+      myset <- c(
+        input$numericbody1,
+        input$numericbody2,
+        input$numerictss,
+        input$numerictes,
+        input$numericbinsize,
+        input$numericlabelspaceing
+      )
+      # keep bin positions in bounds > 0
+      for (i in seq_along(myset)) {
+        if (is.na(myset[i]) | myset[i] < 0) {
+          myset[i] <- 0
+          updateNumericInput(session, "numericbody1", value = myset[1])
+          updateNumericInput(session, "numericbody2", value = myset[2])
+          updateNumericInput(session, "numerictss", value = myset[3])
+          updateNumericInput(session, "numerictes", value = myset[4])
+          updateNumericInput(session, "numericbinsize", value = myset[5])
+          updateNumericInput(session, "numericlabelspaceing", value = myset[6])
+        }
+      }
+      Lines_Labels_List <- LinesLabelsListset(myset[1],
+                                              myset[2],
+                                              myset[3],
+                                              myset[4],
+                                              myset[5],
+                                              LIST_DATA$x_plot_range[2],
+                                              myset[6],
+                                              input$numerictssname,
+                                              input$numerictesname)
+      
+      # set label and position numbers
+      updateTextInput(session,
+                      "landlnames",
+                      value = paste(Lines_Labels_List$mylabels, collapse = " "))
+      updateTextInput(session,
+                      "landlposition",
+                      value = paste(Lines_Labels_List$mybrakes , collapse = " "))
+      } else {
+        LIST_DATA$STATE[2] <<- 1
+      }
+    })
+  
+  # dropttest ----
   observeEvent(input$dropttest, ignoreInit = T, {
     showModal(modalDialog(
       title = "Information message",
@@ -788,6 +1066,134 @@ server <- function(input, output, session) {
     ))
   })
   
+  # renders plot ----
+  output$plot <- renderPlot({
+    reactive_values$Plot_controler
+  })
+  
+  # reactive picker watcher (watches everything but grabs only gene lists with white space fix) ----
+  observeEvent(reactiveValuesToList(input)[gsub(" ", "-bensspace2-", gsub("\n", "-bensspace1-", names(LIST_DATA$gene_file)))],
+               ignoreNULL = FALSE,
+               ignoreInit = TRUE,
+               {
+                 reactive_values$picker <-
+                   reactiveValuesToList(input)[gsub(" ", "-bensspace2-", gsub("\n", "-bensspace1-", names(LIST_DATA$gene_file)))]
+               })
+  
+  # records check box on/off ----
+  observeEvent(reactive_values$picker,
+               ignoreNULL = FALSE,
+               ignoreInit = TRUE,
+               {
+                 # needed for controlling flow of first time auto plot
+                 if (LIST_DATA$STATE[1] > .9) {
+                   print("checkbox on/off")
+                   ttt <- reactive_values$picker
+                   checkboxonoff <- list()
+                   for(i in names(ttt)){
+                     onoff_name <-
+                       gsub("-bensspace2-", " ", gsub("-bensspace1-", "\n", i))
+                     if(!is_empty(ttt[[i]])){
+                       checkboxonoff <- bind_rows(checkboxonoff, tibble(gene_list = onoff_name,
+                                                                        onoff = ttt[[i]], set = ttt[[i]]))
+                     } else if(!all(is.na(names(ttt)))){
+                       checkboxonoff <- bind_rows(checkboxonoff, tibble(gene_list = onoff_name,
+                                                                        onoff = NA, set = NA))
+                     }
+                   }  
+                   LIST_DATA$gene_info <<-
+                     CheckBoxOnOff(checkboxonoff,
+                                   LIST_DATA$gene_info)
+                   if (LIST_DATA$STATE[2] > 0) {
+                     shinyjs::show("actionmyplotshow")
+                     LIST_DATA$STATE[2] <<- 2
+                   } 
+                   # keeps plot button showing up unnecessarily 
+                 } else if(LIST_DATA$STATE[2] > 0) {
+                   LIST_DATA$STATE[1] <<- as.numeric(LIST_DATA$STATE[1]) + .25
+                 }
+               })
+  
+  # Dynamic Gene Pickers update ----
+  observeEvent(
+    reactive_values$Picker_controler,
+    ignoreNULL = FALSE,
+    ignoreInit = TRUE,
+    {
+      print("Dynamic pickers update")
+      
+      pickerlist <- list()
+      for (i in names(LIST_DATA$gene_file)) {
+        pickerlist[[i]] <-
+          list(div(
+            style = "margin-bottom: -10px;",
+            pickerInput(
+              inputId = gsub(" ", "-bensspace2-", gsub("\n", "-bensspace1-", i)),
+              label = i,
+              width = "99%",
+              choices = distinct(LIST_DATA$gene_info, set)$set,
+              selected =  dplyr::select(dplyr::filter(LIST_DATA$gene_info, 
+                                                      gene_list == i & onoff != 0), 
+                                        onoff)$onoff,
+              multiple = T,
+              options = list(
+                `actions-box` = TRUE,
+                `selected-text-format` = "count > 0"),
+              choicesOpt = list(style = paste("color", 
+                                              dplyr::select(dplyr::filter(LIST_DATA$gene_info, 
+                                                                          gene_list == i), mycol)$mycol,
+                                              sep = ":"))
+            )
+          ))
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Filter"))){
+        output$DynamicGenePicker_sort <- renderUI({
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^Filter")]
+        })
+        shinyjs::show("showpickersort")
+      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Filter"))){
+        shinyjs::hide("showpickersort")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Gene_List_"))){
+        output$DynamicGenePicker_comparisons <- renderUI({
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^Gene_List_")]
+        })
+        shinyjs::show("showpickercomparisons")
+      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Gene_List_"))){
+        shinyjs::hide("showpickercomparisons")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Ratio_"))){
+        output$DynamicGenePicker_ratio <- renderUI({
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^Ratio_")]
+        })
+        shinyjs::show("showpickerratio")
+      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Ratio_"))){
+        shinyjs::hide("showpickerratio")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Group_|^Cluster_"))){
+        output$DynamicGenePicker_clusters <- renderUI({
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^Group_|^Cluster_")]
+        })
+        shinyjs::show("showpickercluster")
+      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Group_|^Cluster_"))){
+        shinyjs::hide("showpickercluster")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
+        output$DynamicGenePicker_cdf <- renderUI({
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^CDF")]
+        })
+        shinyjs::show("showpickercdf")
+      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
+        shinyjs::hide("showpickercdf")
+      }
+      output$DynamicGenePicker_main <- renderUI({
+        pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Group_|^Cluster_|^CDF")]
+      })
+      
+    }
+  )
+  
+  
 }
 
 # UI -----
@@ -890,11 +1296,21 @@ ui <- dashboardPage(
           width = 12, 
           status = "navy",
           solidHeader = TRUE,
-          title = "", 
+          title = "",
+          tags$style(".list {color:#00FF00}"),
+          dropdownMenu = boxDropdown(
+            icon = icon("list",class = "list"),
+            boxDropdownItem("Update sample color", id = "dropcolor", icon = icon("palette")),
+            dropdownDivider(),
+            boxDropdownItem("Lines and Labels", id = "droplinesandlabels", icon = icon("chart-bar")),
+            dropdownDivider(),
+            boxDropdownItem("t-Test", id = "dropttest", icon = icon("chart-line"))
+          ),
           sidebar = boxSidebar(
             id = "sidebarmath",
             width = 50,
-            icon = icon("cogs"),
+            tags$style(".calculator {color:#FF0000}"),
+            icon = icon("calculator", class = "calculator"),
             fluidRow(
               column(
               4,
@@ -945,7 +1361,7 @@ ui <- dashboardPage(
             column(
               6,offset = 4,
             actionBttn(
-              inputId = "actionButtonUpDatePlot",
+              inputId = "actionMathUpDatePlot",
               label = "Update Plot",
               style = "unite",
               color = "default",
@@ -973,13 +1389,6 @@ ui <- dashboardPage(
           status = "navy",
           solidHeader = TRUE,
           title = "", 
-          dropdownMenu = boxDropdown(
-            boxDropdownItem("Update sample color", id = "dropcolor", icon = icon("palette")),
-            dropdownDivider(),
-            boxDropdownItem("Lines and Labels", id = "droplinesandlabels", icon = icon("chart-bar")),
-            dropdownDivider(),
-            boxDropdownItem("t-Test", id = "dropttest", icon = icon("chart-line"))
-          ),
             box(title = "Main",
                            width = 6,
                            status = "primary",

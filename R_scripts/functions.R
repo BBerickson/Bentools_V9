@@ -472,6 +472,7 @@ colorModal <- function(list_data, tt){
 }
 
 Active_list_data <-
+  # input data list, output filtered and bound data with plot legend column
   function(list_data) {
     table_file <- list_data$table_file
     gene_file <- list_data$gene_file
@@ -489,11 +490,12 @@ Active_list_data <-
           dplyr::filter(set %in% my_sel$onoff) %>%
           semi_join(., gene_file[[i]]$use, by = "gene") %>% 
           dplyr::mutate(., gene_list = i)
+        # adds line brake at 20 character for legend spacing
         my_sel2 <- my_sel %>% dplyr::mutate(.,plot_set = paste(
+          gsub("(.{20})", "\\1\n", set),
           gsub("(.{20})", "\\1\n", 
                str_split_fixed(i, "\nn = ", n=2)[,1]),
           paste0("n = ", n_distinct(list_data_out[[i]]$gene)),
-          gsub("(.{20})", "\\1\n", set),
           sep = '\n'
         )) %>% select(set,plot_set)
         list_data_out[[i]] <- list_data_out[[i]] %>% inner_join(.,my_sel2,by="set")
@@ -507,9 +509,8 @@ ApplyMath <-
            use_math,
            relative_frequency,
            normbin) {
-    print("apply math fun")
     setProgress(1, detail = paste("Gathering info"))
-    # applys math to data file
+    # apply's math to data file
     if (relative_frequency == "rel gene frequency") {
       list_data <- list_data %>% group_by(plot_set, gene) %>%
         dplyr::mutate(score = score / sum(score, na.rm = TRUE)) %>%
@@ -532,3 +533,546 @@ ApplyMath <-
     }
     return(list_data %>% dplyr::mutate(set=plot_set))
   }
+
+# get min and max from apply math data set
+YAxisValues <-
+  function(apply_math,
+           xBinRange,
+           yBinRange = c(0, 100),
+           log_2 = F) {
+    tt <- group_by(apply_math, set) %>%
+      dplyr::filter(bin %in% xBinRange[1]:xBinRange[2]) %>%
+      ungroup() %>%
+      summarise(min(value, na.rm = T), max(value, na.rm = T),.groups="drop") %>%
+      unlist(., use.names = FALSE)
+    tt <-
+      c(tt[1] + (tt[1] * (yBinRange[1] / 100)), tt[2] + (tt[2] * ((yBinRange[2] -
+                                                                     100) / 100)))
+    if (log_2) {
+      tt <- log2((abs(tt))^(sign(tt)))
+    }
+    tt
+  }
+
+# Sets y label fix
+YAxisLabel <-
+  function(use_math = "mean",
+           relative_frequency = "none",
+           norm_bin = 0,
+           smoothed = F,
+           log_2 = F) {
+    use_y_label <- paste(use_math, "of bin counts")
+    if (relative_frequency == "rel gene frequency") {
+      use_y_label <- paste("RF per gene :", use_y_label)
+    } else if (relative_frequency == "relative frequency") {
+      use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
+                           "bins : RF")
+    }
+    if (norm_bin > 0) {
+      if (relative_frequency == "rel gene frequency") {
+        use_y_label <- paste(use_y_label, " : Norm bin ", norm_bin)
+      } else {
+        use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
+                             "bins : Normalize to bin ",
+                             norm_bin)
+      }
+    }
+    if (log_2) {
+      use_y_label <- paste0("log2(", use_y_label, ")")
+    }
+    if (smoothed) {
+      use_y_label <- paste0("smoothed(", use_y_label, ")")
+    }
+    use_y_label
+  }
+
+# gather relevant plot options from gene_info, outputs for ggplot
+MakePlotOptionFrame <- function(gene_info) {
+  print("plot options fun")
+  # checks to see if at least one file in list is active
+  if (gene_info %>% dplyr::filter(onoff != 0) %>% nrow() == 0) {
+    return(NULL)
+  } else {
+    gene_info <- gene_info %>% dplyr::filter(onoff != 0)
+    gene_info <- gene_info %>%
+      dplyr::mutate(
+        myline = 1,
+        mydot = 0,
+        mysizedot = 0.01,
+        set = plot_set
+      )
+  }
+  # tint if same color is used more then once
+  ldf <- duplicated(gene_info$mycol)
+  for (i in seq_along(gene_info$mycol)) {
+    if (ldf[i]) {
+      gene_info$mycol[i] <- RgbToHex(gene_info$mycol[i], convert = "hex", tint = log(i,10))
+    }
+  }
+  return(gene_info)
+}
+
+# main ggplot function
+GGplotLineDot <-
+  function(list_long_data_frame,
+           xBinRange,
+           plot_options,
+           yBinRange,
+           line_list,
+           use_smooth,
+           plot_ttest,
+           use_log2,
+           use_y_label,
+           plot_occupancy) {
+    list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
+    legend_space <- lengths(strsplit(sort(plot_options$set), "\n")) / 1.1
+    if (use_log2) {
+      gp <-
+        ggplot(
+          list_long_data_frame,
+          aes(
+            x = as.numeric(bin),
+            y = log2(value),
+            color = set,
+            shape = set,
+            size = set,
+            linetype = set
+          )
+        )
+    } else {
+      gp <-
+        ggplot(
+          list_long_data_frame,
+          aes(
+            x = as.numeric(bin),
+            y = value,
+            color = set,
+            shape = set,
+            size = set,
+            linetype = set
+          )
+        )
+    }
+    if (use_smooth) {
+      gp <- gp +
+        geom_smooth(se = FALSE,
+                    size = line_list$mysize[2],
+                    span = .2) 
+    } else{
+      gp <- gp +
+        geom_line(size = line_list$mysize[2],alpha=0.8)
+    }
+    gp <- gp +
+      geom_point(stroke = .001) +
+      scale_size_manual(values = plot_options$mysizedot) +
+      scale_color_manual(values = plot_options$mycol) +
+      scale_shape_manual(values = plot_options$mydot) +
+      scale_linetype_manual(values = plot_options$myline) +
+      ylab(use_y_label) +
+      geom_vline(
+        data = line_list$myline,
+        aes(xintercept = use_virtical_line),
+        size = line_list$mysize[1],
+        linetype = line_list$myline$use_virtical_line_type,
+        color = line_list$myline$use_virtical_line_color
+      ) +
+      theme_bw() +
+      theme(axis.title.x=element_blank(),
+            axis.text.x=element_blank(),
+            axis.ticks.x=element_blank())+
+      theme(panel.grid.minor = element_blank(),
+            panel.grid.major = element_blank()) +
+      theme(axis.title.y = element_text(size =  line_list$mysize[4] + 4, margin = margin(2, 10, 2, 2))) +
+      theme(axis.text.y = element_text(size = line_list$mysize[4],
+                                       face = 'bold')) 
+    if(!is_empty(LIST_DATA$ttest)){
+      use_col_tt <- plot_ttest$options_main_tt$mycol
+      use_line_tt <- plot_ttest$options_main_tt$myline
+      names(use_col_tt) <- plot_ttest$options_main_tt$set
+      names(use_line_tt) <- plot_ttest$options_main_tt$set
+      gp2 <- ggplot(LIST_DATA$ttest, aes(y=p.value,x=bin,
+                                         color=set,
+                                         shape = set,
+                                         size = set,
+                                         linetype = set)) + 
+        geom_line(size = line_list$mysize[6],alpha=0.8) +
+        scale_color_manual(values = use_col_tt) +
+        scale_linetype_manual(values = use_line_tt)+
+        geom_hline(yintercept = plot_ttest$hlineTT,color="blue") + 
+        theme_bw() +
+        geom_vline(
+          data = line_list$myline,
+          aes(xintercept = use_virtical_line),
+          size = line_list$mysize[1],
+          linetype = line_list$myline$use_virtical_line_type,
+          color = line_list$myline$use_virtical_line_color
+        ) +
+        xlab(paste(Sys.Date(), paste(unique(
+          plot_options$sub
+        ), collapse = ", "), collapse = ", ")) +
+        ylab(plot_ttest$ylabTT)+
+        scale_x_continuous(breaks = line_list$mybrakes[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
+                           labels = line_list$mylabels[between(line_list$mybrakes, xBinRange[1], xBinRange[2])]) +
+        theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) +
+        theme(axis.title.y = element_text(size =  line_list$mysize[4], margin = margin(2, 10, 2, 2))) +
+        theme(axis.text.y = element_text(size = line_list$mysize[4],
+                                         face = 'bold'))+
+        theme(
+          axis.text.x = element_text(
+            color = line_list$mycolors[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
+            size = line_list$mysize[3],
+            angle = -45,
+            hjust = .1,
+            vjust = .9,
+            face = 'bold'
+          )
+        ) +
+        theme(
+          legend.title = element_blank(),
+          legend.key = element_rect(size = line_list$mysize[5] / 2, color = 'white'),
+          legend.key.height = unit(legend_space/1.2, "line"),
+          legend.text = element_text(size = line_list$mysize[5]/1.2, face = 'bold')
+        ) +
+        coord_cartesian(xlim = xBinRange, ylim = plot_ttest$ylimTT)
+      my_occupancy <- c(6 - plot_occupancy, plot_occupancy + .5)
+      gp <- gp + coord_cartesian(xlim = xBinRange, ylim = unlist(yBinRange))
+      suppressMessages(print(gp + gp2 + plot_layout(ncol = 1, heights = my_occupancy)))
+      return(suppressMessages(gp+ gp2 + plot_layout(ncol = 1, heights = my_occupancy)))
+    } else{
+      gp <- gp + 
+        xlab(paste(Sys.Date(), paste(unique(
+          plot_options$sub
+        ), collapse = ", "), collapse = ", ")) +
+        scale_x_continuous(breaks = line_list$mybrakes[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
+                           labels = line_list$mylabels[between(line_list$mybrakes, xBinRange[1], xBinRange[2])]) +
+        theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) +
+        theme(
+          axis.text.x = element_text(
+            #fix for coord_cartesian [between(line_list$mybrakes, xBinRange[1], xBinRange[2])]
+            color = line_list$mycolors[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
+            size = line_list$mysize[3],
+            angle = -45,
+            hjust = .1,
+            vjust = .9,
+            face = 'bold'
+          )
+        ) +
+        theme(
+          legend.title = element_blank(),
+          legend.key = element_rect(size = line_list$mysize[5] / 2, color = 'white'),
+          legend.key.height = unit(legend_space, "line"),
+          legend.text = element_text(size = line_list$mysize[5], face = 'bold')
+        )  +
+        coord_cartesian(xlim = xBinRange, ylim = unlist(yBinRange))
+      
+      suppressMessages(print(gp))
+      return(suppressMessages(gp))
+    }
+  }
+
+# Sets lines and labels
+LinesLabelsListset <- function(body1bin = 20,
+                               body2bin = 40,
+                               tssbin = 15,
+                               tesbin = 45,
+                               binbp = 100,
+                               totbins = 80,
+                               everybin = 5,
+                               tssname = "TSS",
+                               tesname = "pA") {
+  # I create this in steps bin 1 to next land mark (TSS TES) then go from there to next land mark until end of bins
+  everybp <- everybin * binbp
+  if (everybp > 0) {
+    my_5prim <- NULL
+    my_3prim <- NULL
+    if (tssbin > 0) {
+      # set up 1 to TSS'
+      TSSname <- seq(-tssbin * binbp, 0, by = everybp)
+      TSSloc <- seq(1,  by = everybin, length.out = length(TSSname))
+      # make sure TSS is included
+      if (any(TSSname == 0)) {
+        TSSloc[TSSname == 0] <- tssbin + .5
+        TSSname[TSSname == 0] <- tssname
+      } else if(any(TSSloc == tssbin)){
+        TSSname[TSSloc == tssbin] <- tssname
+        TSSloc[TSSloc == tssbin] <- tssbin + .5
+      } else {
+        TSSloc <- sort(c(TSSloc, tssbin + .5))
+        TSSname <- append(TSSname, tssname)
+      }
+      my_5prim <-
+        tibble(lloc = TSSloc, lname = as.character(TSSname))
+      # keep distance between TSS and numbers
+      nextStart <- tssbin + everybin
+      if (body1bin > 0 & tesbin > 0 & body2bin > 0) {
+        nextEnd <- body1bin
+      } else if (tesbin == 0) {
+        nextEnd <- totbins
+      } else {
+        nextEnd <- 0
+      }
+      if (nextStart <= nextEnd) {
+        TSSname1 <- seq(everybp, (nextEnd - tssbin) * binbp, by = everybp)
+        TSSloc1 <-
+          seq(nextStart,
+              by = everybin,
+              length.out = length(TSSname1))
+        # make sure body brake is included
+        if (!any(TSSloc1 == nextEnd)) {
+          TSSname1 <- append(TSSname1, (nextEnd - tssbin) * binbp)
+          TSSloc1 <- c(TSSloc1, nextEnd)
+        }
+        my_5prim2 <-
+          tibble(lloc = TSSloc1, lname = as.character(TSSname1))
+        my_5prim <-
+          full_join(my_5prim, my_5prim2, by = c("lloc", "lname"))
+      } else if (nextEnd > 0) {
+        my_5prim2 <-
+          tibble(lloc = nextEnd, lname = as.character((nextEnd - tssbin) * binbp))
+        my_5prim <-
+          full_join(my_5prim, my_5prim2, by = c("lloc", "lname"))
+      }
+    }
+    if (tesbin > 0) {
+      # next to TES'
+      if (body1bin > 0 & tssbin > 0 & body2bin > 0) {
+        nextStart <- body2bin
+      } else if (tssbin == 0) {
+        nextStart <- 1
+      } else {
+        nextStart <- totbins
+      }
+      if (nextStart <= tesbin) {
+        TESname <-  abs(seq((nextStart - tesbin) * binbp, 0, by = everybp))
+        if(nextStart == 1){
+          TESname <- TESname + binbp
+        }
+        TESloc <-
+          seq(nextStart,
+              by = everybin,
+              length.out = length(TESname))
+        # make sure TES is included
+        if (any(TESname == 0)) {
+          TESloc[TESname == 0] <- tesbin + .5
+          TESname[TESname == 0] <- tesname
+        } else if(any(TESloc == tesbin)){
+          TESname[TESloc == tesbin] <- tesname
+          TESloc[TESloc == tesbin] <- tesbin + .5
+        }else {
+          TESloc <- sort(c(TESloc, tesbin + .5))
+          TESname <- append(TESname, tesname)
+        }
+        my_3prim <-
+          tibble(lloc = TESloc, lname = as.character(TESname))
+      } else {
+        my_3prim <- tibble(lloc = tesbin + .5, lname = tesname)
+      }
+      # TES to end
+      nextStart <- tesbin + everybin
+      if (nextStart < totbins) {
+        TESname1 <- seq(everybp, (totbins - tesbin) * binbp, by = everybp)
+        TESloc1 <-
+          seq(nextStart,
+              by = everybin,
+              length.out = length(TESname1))
+        if (!any(TESloc1 == totbins)) {
+          TESname1 <- append(TESname1, (totbins - tesbin) * binbp)
+          TESloc1 <- c(TESloc1, totbins)
+        }
+        my_3prim2 <-
+          tibble(lloc = TESloc1, lname = as.character(TESname1))
+        my_3prim <-
+          full_join(my_3prim, my_3prim2, by = c("lloc", "lname"))
+      }
+    }
+    if (!is.null(my_5prim) & !is.null(my_3prim)) {
+      my_53prim <-
+        arrange(full_join(my_5prim, my_3prim, by = c("lloc", "lname")), lloc)
+      use_plot_breaks <- my_53prim$lloc
+      use_plot_breaks_labels <- my_53prim$lname
+      use_plot_breaks_labels <-
+        use_plot_breaks_labels[seq_along(use_plot_breaks)]
+    } else if (!is.null(my_5prim)) {
+      use_plot_breaks <- my_5prim$lloc
+      use_plot_breaks_labels <- my_5prim$lname
+      use_plot_breaks_labels <-
+        use_plot_breaks_labels[seq_along(use_plot_breaks)]
+    } else if (!is.null(my_3prim)) {
+      use_plot_breaks <- my_3prim$lloc
+      use_plot_breaks_labels <- my_3prim$lname
+      use_plot_breaks_labels <-
+        use_plot_breaks_labels[seq_along(use_plot_breaks)]
+    } else {
+      # just print bin numbers
+      use_plot_breaks <-
+        seq(1,
+            by = everybin,
+            length.out = (totbins / everybin) + 1)
+      use_plot_breaks_labels <-
+        seq(1,
+            by = everybin,
+            length.out = (totbins / everybin) + 1)
+    }
+    # no bp bin labels
+  } else {
+    if (everybin > 0) {
+      use_plot_breaks <-
+        seq(1,
+            by = everybin,
+            length.out = (totbins / everybin) + 1)
+      use_plot_breaks_labels <-
+        seq(1,
+            by = everybin,
+            length.out = (totbins / everybin) + 1)
+    } else {
+      use_plot_breaks <- .5
+      use_plot_breaks_labels <- "none"
+    }
+  }
+  # virtical line set up
+  use_plot_breaks <- na_if(use_plot_breaks, 0.5)
+  use_plot_breaks_labels <-
+    use_plot_breaks_labels[!is.na(use_plot_breaks)]
+  use_plot_breaks <- use_plot_breaks[!is.na(use_plot_breaks)]
+  list(mybrakes = use_plot_breaks,
+       mylabels = use_plot_breaks_labels)
+}
+
+# Sets plot lines and labels colors
+LinesLabelsListPlot <-
+  function(body1bin,
+           body1color,
+           body1line,
+           body2bin,
+           body2color,
+           body2line,
+           tssbin,
+           tsscolor,
+           tssline,
+           tesbin,
+           tescolor,
+           tesline,
+           use_plot_breaks_labels,
+           use_plot_breaks,
+           vlinesize,
+           linesize,
+           fontsizex,
+           fontsizey,
+           legendsize,
+           ttestlinesize) {
+    print("lines and labels plot fun")
+    if (length(use_plot_breaks_labels) > 0) {
+      mycolors <- rep("black", length(use_plot_breaks))
+      use_virtical_line <- c(NA, NA, NA, NA)
+      if (tssbin > 0) {
+        mycolors[which(use_plot_breaks == tssbin  + .5)] <- tsscolor
+        use_virtical_line[1] <- tssbin  + .5
+        if (tssbin < body1bin &
+            body1bin < body2bin &
+            body2bin < tesbin & tesbin <= last(use_plot_breaks)) {
+          use_virtical_line[3:4] <- c(body1bin, body2bin)
+        }
+      }
+      if (tesbin > 0) {
+        mycolors[which(use_plot_breaks == tesbin  + .5)] <- tescolor
+        use_virtical_line[2] <- tesbin + .5
+      }
+    } else {
+      use_plot_breaks <- .5
+      use_plot_breaks_labels <- "none"
+      use_virtical_line <- c(NA, NA, NA, NA)
+    }
+    # vertical line set up
+    use_virtical_line_color <-
+      c(tsscolor, tescolor, body1color, body2color)
+    use_virtical_line_type <-
+      c(tssline, tesline, body1line, body2line)
+    use_plot_breaks <- na_if(use_plot_breaks, 0.5)
+    use_virtical_line <- na_if(use_virtical_line, 0.5)
+    use_plot_breaks_labels <-
+      use_plot_breaks_labels[!is.na(use_plot_breaks)]
+    use_plot_breaks <- use_plot_breaks[!is.na(use_plot_breaks)]
+    use_virtical_line_type <-
+      use_virtical_line_type[!is.na(use_virtical_line)]
+    use_virtical_line_color <-
+      use_virtical_line_color[!is.na(use_virtical_line)]
+    use_virtical_line <-
+      use_virtical_line[!is.na(use_virtical_line)]
+    list(
+      myline = virtical_line_data_frame <- data.frame(
+        use_virtical_line,
+        use_virtical_line_type,
+        use_virtical_line_color,
+        stringsAsFactors = FALSE
+      ),
+      mycolors = mycolors,
+      mybrakes = use_plot_breaks,
+      mylabels = use_plot_breaks_labels,
+      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, ttestlinesize)
+    )
+  }
+
+# lines and labels preset helper
+LinesLabelsPreSet <- function(mytype) {
+  # 5|4, 4|3, tss, pA, bp/bin, max bins, every bin
+  if (mytype == kLinesandlabels[1]) {
+    tt <- c(20, 40, 15, 45, 100, LIST_DATA$x_plot_range[2], 10)
+  } else if (mytype == kLinesandlabels[2]) {
+    tt <- c(0, 0, 40, 0, 25, LIST_DATA$x_plot_range[2], 20)
+  } else if (mytype == kLinesandlabels[3]) {
+    tt <- c(0, 0, 0, 10, 100, LIST_DATA$x_plot_range[2], 10)
+  } else if (mytype == kLinesandlabels[4]) {
+    tt <- c(0, 0, 5, 0, 50, LIST_DATA$x_plot_range[2], 10)
+  } else if (mytype == kLinesandlabels[5]) {
+    tt <- c(0,
+            0,
+            floor(LIST_DATA$x_plot_range[2] * .25),
+            0,
+            100,
+            LIST_DATA$x_plot_range[2],
+            10)
+  } else if (mytype == kLinesandlabels[6]) {
+    tt <- c(
+      0,
+      0,
+      floor(LIST_DATA$x_plot_range[2] * .25),
+      ceiling(LIST_DATA$x_plot_range[2] * .75),
+      100,
+      LIST_DATA$x_plot_range[2],
+      10
+    )
+  } else if (mytype == kLinesandlabels[7]) {
+    tt <- c(0,
+            0,
+            0,
+            ceiling(LIST_DATA$x_plot_range[2] * .75),
+            100,
+            LIST_DATA$x_plot_range[2],
+            10)
+  } else {
+    tt <-
+      c(
+        ceiling(LIST_DATA$x_plot_range[2] * .33),
+        floor(LIST_DATA$x_plot_range[2] * .66),
+        floor(LIST_DATA$x_plot_range[2] * .25),
+        ceiling(LIST_DATA$x_plot_range[2] * .75),
+        100,
+        LIST_DATA$x_plot_range[2],
+        ceiling(LIST_DATA$x_plot_range[2] * .1)
+      )
+  }
+  tt
+}
+
+# records check box on/off
+CheckBoxOnOff <- function(check_box, list_data) {
+  if(!all(is.na(names(check_box)))){
+    list_data <- full_join(list_data,check_box,by=c("set","gene_list")) %>%
+      dplyr::filter(!is.na(set)) %>% 
+      dplyr::mutate(onoff=if_else(is.na(onoff.y),"0",set)) %>% 
+      dplyr::select(-onoff.y,-onoff.x) %>%
+      distinct()
+  }
+  list_data
+}
+
