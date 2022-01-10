@@ -58,6 +58,7 @@ server <- function(input, output, session) {
     Y_Axis_numbers = c(0,100),
     Lines_Labels_List = list(mybrakes="",mylabels=""),
     Picker_controler = NULL,
+    mymath = c("mean", "none", "0", "FALSE", "FALSE", "0", "80")
   )
   
   output$user <- renderUser({
@@ -105,16 +106,7 @@ server <- function(input, output, session) {
       ))
       return()
     }
-    updatePickerInput(
-      session,
-      "selectgenelistoptions",
-      choices = names(LIST_DATA$gene_file),
-      selected = names(LIST_DATA$gene_file)[1]
-    )
-    ff <- distinct(LIST_DATA$table_file, set)$set
-    updatePickerInput(session,
-                      "selectdataoption",
-                      choices = ff)
+    
     # first time starting
     if (LIST_DATA$STATE[1] == 0) {
       shinyjs::show("startoff")
@@ -265,12 +257,7 @@ server <- function(input, output, session) {
       LIST_DATA <<- LD
     }
     shinyjs::reset("filegene1")
-    updatePickerInput(
-      session,
-      "selectgenelistoptions",
-      choices = names(LIST_DATA$gene_file),
-      selected = last(names(LIST_DATA$gene_file))
-    )
+    
     gg <-
       LIST_DATA$gene_info %>% filter(gene_list != "Complete") %>%
       select(., gene_list, count) %>%
@@ -352,7 +339,7 @@ server <- function(input, output, session) {
   )
   
   # observe and update apply_Math ----
-  observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$mymath), ignoreInit = TRUE, {
+  observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$myplot), ignoreInit = TRUE, {
     print("plot button")
     withProgress(message = 'Calculation in progress',
                         detail = 'This may take a while...',
@@ -378,6 +365,7 @@ server <- function(input, output, session) {
                                 c(0,100),
                                 input$checkboxlog2
                               )
+                            reactive_values$Y_Axis_numbers_set <- reactive_values$Y_Axis_numbers
                             #### here ---- 
                             # if ttest > applyttest > update options
                             reactive_values$Plot_Options <-
@@ -387,42 +375,36 @@ server <- function(input, output, session) {
                           })
     shinyjs::hide("actionmyplotshow")
   })
-  # YRange ====
-  observeEvent(c(reactive_values$YRange), ignoreInit = TRUE, {
-    print("plot YRange")
-    withProgress(message = 'Calculation in progress',
-                 detail = 'This may take a while...',
-                 value = 0,
-                 {
-                   reactive_values$Y_Axis_numbers <-
-                     c(input$numericYRangeLow,input$numericYRangeHigh)
-                   if (!is_empty(reactive_values$Apply_Math)) {
-                     reactive_values$Plot_Options <- NULL
-                     reactive_values$Plot_Options <-
-                       MakePlotOptionFrame(LIST_DATA$gene_info)
-                     
-                   }
-                 })
-    shinyjs::hide("actionmyplotshow")
-  })
   
   # updates mymath plot ----
   observeEvent(input$actionMathUpDatePlot, ignoreInit = T, {
     print("actionMathUpDatePlot")
-    reactive_values$mymath <- c(input$myMath,
+    mymath <- c(input$myMath,
                                 input$selectplotnrom,
                                 input$selectplotBinNorm,
                                 input$checkboxsmooth,
                                 input$checkboxlog2,
                                 input$sliderplotBinRange
                                 )
-    reactive_values$YRange <- c(input$numericYRangeLow,
-                                input$numericYRangeHigh)
+    Y_Axis_numbers <-
+      c(input$numericYRangeLow,input$numericYRangeHigh)
+    
+    if(sum(reactive_values$mymath == mymath) != 7){
+      reactive_values$mymath <- mymath
+      reactive_values$myplot <- mymath
+    } else if(sum(reactive_values$Y_Axis_numbers == Y_Axis_numbers) != 2){
+      reactive_values$Y_Axis_numbers <- Y_Axis_numbers
+      if (!is_empty(reactive_values$Apply_Math)) {
+        reactive_values$Plot_Options <- NULL
+        reactive_values$Plot_Options <-
+          MakePlotOptionFrame(LIST_DATA$gene_info)
+      }
+    }
     updateBoxSidebar(id = "sidebarmath")
   })
 
   # reactive Apply_Math, sets Y axis min max ----
-  observeEvent(reactive_values$Y_Axis_numbers, {
+  observeEvent(reactive_values$Y_Axis_numbers_set, ignoreInit = T, {
     print("updates reactive_values$Y_Axis_numbers")
     my_step <-
       (max(reactive_values$Y_Axis_numbers) - min(reactive_values$Y_Axis_numbers)) /
@@ -482,8 +464,9 @@ server <- function(input, output, session) {
     }
   })
   
-  # opens color select dialog box ----
+  # dropcolor opens color select dialog box ----
   observeEvent(input$dropcolor, ignoreInit = T, {
+    print("dropcolor")
     showModal(modalDialog(
       title = "Information message",
       " Update Nickname and color of samples",
@@ -505,9 +488,9 @@ server <- function(input, output, session) {
                 solidHeader = T,
                 status = "info",
                 background = "light-blue",
-                colourInput("colourhex", "Select color HEX"),
+                colourInput("colourhex", "Select color HEX",value = distinct(LIST_DATA$gene_info,mycol)$mycol[1]),
                 tags$hr(),
-                textInput("textrgbtohex", "RGB"),
+                textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(LIST_DATA$gene_info,mycol)$mycol[1], convert = "rgb")),
                 actionButton("actionmyrgb", "Update color",width = 100)
               )
             )
@@ -517,17 +500,109 @@ server <- function(input, output, session) {
             width = 8,
             status = "primary",
             solidHeader = T,
-            pickerInput("selectgenelistoptions", "", width = 300, choices = "Complete"),
-            selectInput("selectdataoption", "", choices = "Load data file"),
+            pickerInput("selectgenelistoptions", "", width = 300, choices = distinct(LIST_DATA$gene_info,gene_list)$gene_list,
+                        selected = distinct(LIST_DATA$gene_info,gene_list)$gene_list[1]),
+            pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info,set)$set, 
+                        selected = distinct(LIST_DATA$gene_info,set)$set[1]),
             tags$hr(style = "color: #2e6da4; background-color: #2e6da4; border-color: #2e6da4;"),
-            textInput("textnickname", "Update Nickname"),
+            textInput("textnickname", "Update Nickname",value = distinct(LIST_DATA$gene_info,set)$set[1]),
             actionButton("actionoptions", "Set Nickname"),
             helpText("Need to press to update")
           )
         ),
-        modalButton("Cancel")
+        modalButton("Close")
       )
     ))
+  })
+  
+  # update display selected item info ----
+  observeEvent(c(input$selectdataoption, input$selectgenelistoptions),
+               ignoreInit = TRUE,
+               {
+                 if (LIST_DATA$STATE[1] == 0) {
+                   return()
+                 }
+                 my_sel <- LIST_DATA$gene_info %>% 
+                   dplyr::filter(gene_list == input$selectgenelistoptions & 
+                                   set == input$selectdataoption)
+                 print("options update")
+                 updateColourInput(session, "colourhex", value = paste(my_sel$mycol))
+                 
+                 updateTextInput(session,
+                                 "textnickname",
+                                 value = paste(my_sel$set))
+               })
+
+  # update color based on rgb text input ----
+  observeEvent(input$actionmyrgb, {
+    print("color rgb")
+    updateColourInput(session, "colourhex", value = RgbToHex(input$textrgbtohex, convert = "hex"))
+  })
+  
+  # save color selected and update plot ----
+  observeEvent(input$colourhex, ignoreInit = TRUE, {
+    print("update text color")
+    updateTextInput(session,
+                    "textrgbtohex",
+                    value = RgbToHex(x = input$colourhex, convert = "rgb"))
+    if (!is.null(names(LIST_DATA$gene_file))) {
+      my_sel <- LIST_DATA$gene_info %>% 
+        dplyr::filter(gene_list == input$selectgenelistoptions & 
+                        set == input$selectdataoption)
+      if (input$colourhex != my_sel$mycol) {
+        print("color new")
+        LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+          dplyr::mutate(mycol=if_else(gene_list == input$selectgenelistoptions & 
+                                        set == input$selectdataoption,
+                                      input$colourhex, mycol))
+        
+        my_sel <- LIST_DATA$gene_info %>% 
+          dplyr::filter(gene_list == input$selectgenelistoptions) %>% 
+          dplyr::select(mycol)
+        reactive_values$Picker_controler <-
+          paste("color", unlist(my_sel), sep = ":")
+        
+        if (!is.null(reactive_values$Apply_Math)) {
+          reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
+        }
+      }
+    }
+  })
+  
+  # record new nickname  ----
+  observeEvent(input$actionoptions, ignoreInit = TRUE, {
+    # sets/resets nickname
+    if (nchar(input$textnickname) == 0) {
+      updateTextInput(session,
+                      "textnickname",
+                      value = paste(input$selectdataoption))
+    } else if (input$textnickname != input$selectdataoption) {
+        print("new nickname")
+        if (any(input$textnickname == distinct(LIST_DATA$gene_info, set)$set)) {
+          updateTextInput(session,
+                          "textnickname",
+                          value = paste0(input$selectdataoption,"-",input$textnickname,
+                                         "-dup"))
+        }
+        LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+          dplyr::mutate(set = if_else(set == input$selectdataoption,
+                                      input$textnickname, set)) %>% 
+          dplyr::mutate(onoff = if_else(onoff == input$selectdataoption,
+                                        input$textnickname, onoff)) %>% 
+          mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,paste0("^",input$selectdataoption),input$textnickname))
+        LIST_DATA$table_file <<- LIST_DATA$table_file %>%
+          dplyr::mutate(set = if_else(set == input$selectdataoption,
+                                      input$textnickname, set))
+        reactive_values$myplot <- LIST_DATA$gene_info
+      
+    ff <- distinct(LIST_DATA$table_file, set)$set
+    updatePickerInput(session,
+                      "selectdataoption",
+                      choices = ff,selected = input$textnickname)
+    LIST_DATA$STATE[2] <<- -10
+    reactive_values$Picker_controler <- 
+      c(names(LIST_DATA$gene_file), distinct(LIST_DATA$table_file, set)$set)
+    }
   })
   
   # droplinesandlabels ----
@@ -1107,7 +1182,11 @@ server <- function(input, output, session) {
                    if (LIST_DATA$STATE[2] > 0) {
                      shinyjs::show("actionmyplotshow")
                      LIST_DATA$STATE[2] <<- 2
-                   } 
+                     reactive_values$Apply_Math <- NULL
+                   } else if(LIST_DATA$STATE[2] == -10){
+                     shinyjs::hide("actionmyplotshow")
+                     LIST_DATA$STATE[2] <<- 1
+                   }
                    # keeps plot button showing up unnecessarily 
                  } else if(LIST_DATA$STATE[2] > 0) {
                    LIST_DATA$STATE[1] <<- as.numeric(LIST_DATA$STATE[1]) + .25
@@ -1471,29 +1550,11 @@ ui <- dashboardPage(
           status = "purple",
           solidHeader = TRUE,
           title = "QC Options",
-          sidebar = boxSidebar(
-            id = "sidebarGenelistColor",
-            icon = icon("palette"),
-            width = 50,
-            pickerInput(
-              inputId = "kbrewer",
-              label = "color brewer theme",
-              choices = c("select", kBrewerList),
-              selected = "select"
-            ),
-            actionButton("BttnNewColor", "Set color same as Complete")
-          ),
-          fluidRow(
-            align = "center",
-            
-            pickerInput("selectdataoption", "",
-                        width = 300, choices = "Load data file"),
-            pickerInput(
-              "selectgenelistoptions",
-              "",
-              width = 300,
-              choices = "Complete"
-            )
+          fileInput(
+            "filetable",
+            label = "",
+            accept = c('.table'),
+            multiple = TRUE
           )
         )
       ),
