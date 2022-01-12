@@ -15,7 +15,10 @@ suppressPackageStartupMessages(my_packages(
     "RColorBrewer",
     "colourpicker",
     "DT",
-    "ggpubr"
+    "patchwork",
+    "zip",
+    "ggpubr",
+    "fastcluster"
   )
 ))
 
@@ -58,7 +61,10 @@ server <- function(input, output, session) {
     Y_Axis_numbers = c(0,100),
     Lines_Labels_List = list(mybrakes="",mylabels=""),
     Picker_controler = NULL,
-    mymath = c("mean", "none", "0", "FALSE", "FALSE", "0", "80")
+    mymath = c("mean", "none", "0", "FALSE", "FALSE", "0", "80"),
+    ttest = NULL,
+    ttest_values = c("none", "wilcox.test", "two.sided", "FALSE", "FALSE", "-log10", "fdr"),
+    ttest_options = c(0, 0, 1, "select sample", 0.05)
   )
   
   output$user <- renderUser({
@@ -338,41 +344,71 @@ server <- function(input, output, session) {
     }
   )
   
-  # observe and update apply_Math ----
+  # observe actionmyplot, Lines_Labels_List, myplot update apply_Math ----
   observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$myplot), ignoreInit = TRUE, {
     print("plot button")
     withProgress(message = 'Calculation in progress',
-                        detail = 'This may take a while...',
-                        value = 0,
-                        {
-                          list_data_frame <- Active_list_data(LIST_DATA)
-                          if (!is_empty(list_data_frame)) {
-                            reactive_values$Plot_Options <- NULL
-                            LIST_DATA$gene_info <<- rows_update(LIST_DATA$gene_info,
-                                                                list_data_frame %>% 
-                                                                  distinct(set,gene_list,plot_set), 
-                                                                by=c("set","gene_list"))
-                            reactive_values$Apply_Math <- ApplyMath(
-                                list_data_frame,
-                                input$myMath,
-                                input$selectplotnrom,
-                                as.numeric(input$selectplotBinNorm)
-                              )
-                            reactive_values$Y_Axis_numbers <-
-                              YAxisValues(
-                                reactive_values$Apply_Math,
-                                input$sliderplotBinRange,
-                                c(0,100),
-                                input$checkboxlog2
-                              )
-                            reactive_values$Y_Axis_numbers_set <- reactive_values$Y_Axis_numbers
-                            #### here ---- 
-                            # if ttest > applyttest > update options
-                            reactive_values$Plot_Options <-
-                              MakePlotOptionFrame(LIST_DATA$gene_info)
-                            
-                          }
-                          })
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   list_data_frame <- Active_list_data(LIST_DATA)
+                   if (!is_empty(list_data_frame)) {
+                     LIST_DATA$gene_info <<- rows_update(LIST_DATA$gene_info,
+                                                         list_data_frame %>% 
+                                                           distinct(set,gene_list,plot_set), 
+                                                         by=c("set","gene_list"))
+                     reactive_values$Apply_Math <- ApplyMath(
+                       list_data_frame,
+                       input$myMath,
+                       input$selectplotnrom,
+                       as.numeric(input$selectplotBinNorm)
+                     )
+                     reactive_values$Y_Axis_numbers <-
+                       YAxisValues(
+                         reactive_values$Apply_Math,
+                         input$sliderplotBinRange,
+                         c(0,100),
+                         input$checkboxlog2
+                       )
+                     reactive_values$Y_Axis_numbers_set <- reactive_values$Y_Axis_numbers
+                     if(!is.null(reactive_values$ttest)){
+                       if(input$switchttest == "by lists" & 
+                          n_distinct(list_data_frame$gene_list) == 1 | 
+                          input$switchttest == "by files" & n_distinct(list_data_frame$set) == 1) {
+                         updatePickerInput(session, "switchttest", selected = "none")
+                       }
+                       if (input$switchttest != "none"){ 
+                       LIST_DATA$ttest <<- ApplyTtest(list_data_frame,
+                                                      input$switchttest,
+                                                      input$selectttestlog,
+                                                      input$switchttesttype,
+                                                      input$padjust,
+                                                      input$selectttestalt,
+                                                      input$selectttestexact,
+                                                      input$selectttestpaired)
+                       } else {
+                       LIST_DATA$ttest <<- NULL
+                       }
+                     }
+                     reactive_values$Plot_Options <- NULL
+                     reactive_values$Plot_Options <-
+                       MakePlotOptionFrame(LIST_DATA$gene_info)
+                     
+                   } else {
+                     LIST_DATA$STATE[2] <<- 2
+                     text = paste("Nothing selected to plot.\n")
+                     reactive_values$Plot_controler <- ggplot() +
+                       annotate(
+                         "text",
+                         x = 4,
+                         y = 25,
+                         size = 8,
+                         label = text
+                       ) +
+                       theme_void()
+                     return()
+                   }
+                 })
     shinyjs::hide("actionmyplotshow")
   })
   
@@ -380,12 +416,12 @@ server <- function(input, output, session) {
   observeEvent(input$actionMathUpDatePlot, ignoreInit = T, {
     print("actionMathUpDatePlot")
     mymath <- c(input$myMath,
-                                input$selectplotnrom,
-                                input$selectplotBinNorm,
-                                input$checkboxsmooth,
-                                input$checkboxlog2,
-                                input$sliderplotBinRange
-                                )
+                input$selectplotnrom,
+                input$selectplotBinNorm,
+                input$checkboxsmooth,
+                input$checkboxlog2,
+                input$sliderplotBinRange
+    )
     Y_Axis_numbers <-
       c(input$numericYRangeLow,input$numericYRangeHigh)
     
@@ -402,7 +438,7 @@ server <- function(input, output, session) {
     }
     updateBoxSidebar(id = "sidebarmath")
   })
-
+  
   # reactive Apply_Math, sets Y axis min max ----
   observeEvent(reactive_values$Y_Axis_numbers_set, ignoreInit = T, {
     print("updates reactive_values$Y_Axis_numbers")
@@ -422,6 +458,11 @@ server <- function(input, output, session) {
   # reactive Plot_Options, triggers plot ----
   observeEvent(reactive_values$Plot_Options, ignoreInit = T, ignoreNULL = T, {
     print("plot")
+    if(!is.null(LIST_DATA$ttest)){
+      mm <- reactive_values$ttest_options[1:2]
+      Plot_Options_ttest <- MakePlotOptionttest(LIST_DATA$ttest, as.numeric(mm),
+                                                 input$selectttestlog,input$hlinettest,input$padjust,input$switchttesttype)
+    }
     Y_Axis_Label <- YAxisLabel(input$myMath,
                                input$selectplotnrom,
                                as.numeric(input$selectplotBinNorm),
@@ -434,33 +475,34 @@ server <- function(input, output, session) {
         reactive_values$Plot_Options,
         reactive_values$Y_Axis_numbers,
         reactive_values$Lines_Labels_List,
-        input$checkboxsmooth, reactive_values$Plot_Options_ttest,
+        input$checkboxsmooth, Plot_Options_ttest,
         input$checkboxlog2,
         Y_Axis_Label,
         input$sliderplotOccupancy
       )
+    LIST_DATA$STATE[2] <<- 1
   })
   
   # checks that number of names == position ----
   observeEvent(c(input$landlnames, input$landlposition), ignoreInit = TRUE, {
     if(LIST_DATA$STATE[2] > 0){
-    print("names == position")
-    my_pos <-
-      suppressWarnings(as.numeric(unlist(
-        strsplit(input$landlposition, split = "\\s+")
-      )))
-    my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
-    if (any(is.na(my_pos))) {
-      my_pos <- my_pos[is.na(my_pos)]
-      updateTextInput(session, "landlposition", value = my_pos)
-    }
-    if (length(my_pos) == length(my_label)) {
-      shinyjs::enable("actionlineslabels")
-      updateActionButton(session, "actionlineslabels", label = "SET and Plot")
-    } else {
-      updateActionButton(session, "actionlineslabels", label = "Labels must equel # of positions")
-      shinyjs::disable("actionlineslabels")
-    }
+      print("names == position")
+      my_pos <-
+        suppressWarnings(as.numeric(unlist(
+          strsplit(input$landlposition, split = "\\s+")
+        )))
+      my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
+      if (any(is.na(my_pos))) {
+        my_pos <- my_pos[is.na(my_pos)]
+        updateTextInput(session, "landlposition", value = my_pos)
+      }
+      if (length(my_pos) == length(my_label)) {
+        shinyjs::enable("actionlineslabels")
+        updateActionButton(session, "actionlineslabels", label = "SET and Plot")
+      } else {
+        updateActionButton(session, "actionlineslabels", label = "Labels must equel # of positions")
+        shinyjs::disable("actionlineslabels")
+      }
     }
   })
   
@@ -532,7 +574,7 @@ server <- function(input, output, session) {
                                  "textnickname",
                                  value = paste(my_sel$set))
                })
-
+  
   # update color based on rgb text input ----
   observeEvent(input$actionmyrgb, {
     print("color rgb")
@@ -577,31 +619,31 @@ server <- function(input, output, session) {
                       "textnickname",
                       value = paste(input$selectdataoption))
     } else if (input$textnickname != input$selectdataoption) {
-        print("new nickname")
-        if (any(input$textnickname == distinct(LIST_DATA$gene_info, set)$set)) {
-          updateTextInput(session,
-                          "textnickname",
-                          value = paste0(input$selectdataoption,"-",input$textnickname,
-                                         "-dup"))
-        }
-        LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
-          dplyr::mutate(set = if_else(set == input$selectdataoption,
-                                      input$textnickname, set)) %>% 
-          dplyr::mutate(onoff = if_else(onoff == input$selectdataoption,
-                                        input$textnickname, onoff)) %>% 
-          mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,paste0("^",input$selectdataoption),input$textnickname))
-        LIST_DATA$table_file <<- LIST_DATA$table_file %>%
-          dplyr::mutate(set = if_else(set == input$selectdataoption,
-                                      input$textnickname, set))
-        reactive_values$myplot <- LIST_DATA$gene_info
+      print("new nickname")
+      if (any(input$textnickname == distinct(LIST_DATA$gene_info, set)$set)) {
+        updateTextInput(session,
+                        "textnickname",
+                        value = paste0(input$selectdataoption,"-",input$textnickname,
+                                       "-dup"))
+      }
+      LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+        dplyr::mutate(set = if_else(set == input$selectdataoption,
+                                    input$textnickname, set)) %>% 
+        dplyr::mutate(onoff = if_else(onoff == input$selectdataoption,
+                                      input$textnickname, onoff)) %>% 
+        mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,paste0("^",input$selectdataoption),input$textnickname))
+      LIST_DATA$table_file <<- LIST_DATA$table_file %>%
+        dplyr::mutate(set = if_else(set == input$selectdataoption,
+                                    input$textnickname, set))
+      reactive_values$myplot <- LIST_DATA$gene_info
       
-    ff <- distinct(LIST_DATA$table_file, set)$set
-    updatePickerInput(session,
-                      "selectdataoption",
-                      choices = ff,selected = input$textnickname)
-    LIST_DATA$STATE[2] <<- -10
-    reactive_values$Picker_controler <- 
-      c(names(LIST_DATA$gene_file), distinct(LIST_DATA$table_file, set)$set)
+      ff <- distinct(LIST_DATA$table_file, set)$set
+      updatePickerInput(session,
+                        "selectdataoption",
+                        choices = ff,selected = input$textnickname)
+      LIST_DATA$STATE[2] <<- -10
+      reactive_values$Picker_controler <- 
+        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$table_file, set)$set)
     }
   })
   
@@ -862,7 +904,7 @@ server <- function(input, output, session) {
       )
     ))
   })
-
+  
   # observe switching tabs ----
   observeEvent(input$leftSideTabs, ignoreInit = TRUE, {
     print("switch tab")
@@ -870,8 +912,8 @@ server <- function(input, output, session) {
       reactive_values$Picker_controler <- 
         c(names(LIST_DATA$gene_file), distinct(LIST_DATA$table_file, set)$set)
       if(LIST_DATA$STATE[1] == 0){
-          LIST_DATA$STATE[1] <<- 1
-          reactive_values$droplinesandlabels <- 1
+        LIST_DATA$STATE[1] <<- 1
+        reactive_values$droplinesandlabels <- 1
       }
     }
   })
@@ -923,7 +965,7 @@ server <- function(input, output, session) {
       )
     removeModal()
   })
-
+  
   # quick lines and labels preset change ----
   observeEvent(input$selectlineslabels, ignoreInit = TRUE, {
     if (input$selectlineslabels == "") {
@@ -952,29 +994,29 @@ server <- function(input, output, session) {
     ignoreInit = TRUE,
     {
       if(LIST_DATA$STATE[2] > 0){
-      print("keep bin positions in bounds > 0")
-      mynum <- c(2, 2.5, 13, 13, 10)
-      myset <- c(
-        input$selectvlinesize,
-        input$selectlinesize,
-        input$selectfontsizex,
-        input$selectfontsizey,
-        input$selectlegendsize
-      )
-      # keep bin positions in bounds > 0
-      for (i in seq_along(myset)) {
-        if (is.na(myset[i]) | myset[i] < 0) {
-          myset[i] <- mynum[i]
-          updateNumericInput(session, "selectvlinesize", value = myset[1])
-          updateNumericInput(session, "selectlinesize", value = myset[2])
-          updateNumericInput(session, "selectfontsizex", value = myset[3])
-          updateNumericInput(session, "selectfontsizey", value = myset[4])
-          updateNumericInput(session, "selectlegendsize", value = myset[5])
+        print("keep bin positions in bounds > 0")
+        mynum <- c(2, 2.5, 13, 13, 10)
+        myset <- c(
+          input$selectvlinesize,
+          input$selectlinesize,
+          input$selectfontsizex,
+          input$selectfontsizey,
+          input$selectlegendsize
+        )
+        # keep bin positions in bounds > 0
+        for (i in seq_along(myset)) {
+          if (is.na(myset[i]) | myset[i] < 0) {
+            myset[i] <- mynum[i]
+            updateNumericInput(session, "selectvlinesize", value = myset[1])
+            updateNumericInput(session, "selectlinesize", value = myset[2])
+            updateNumericInput(session, "selectfontsizex", value = myset[3])
+            updateNumericInput(session, "selectfontsizey", value = myset[4])
+            updateNumericInput(session, "selectlegendsize", value = myset[5])
+          }
         }
       }
-    }
-  })
-
+    })
+  
   # Update lines and labels box's ----
   observeEvent(
     c(
@@ -990,44 +1032,44 @@ server <- function(input, output, session) {
     ignoreInit = TRUE,
     {
       if(LIST_DATA$STATE[2] > 0){
-      print("observe line and labels")
-      myset <- c(
-        input$numericbody1,
-        input$numericbody2,
-        input$numerictss,
-        input$numerictes,
-        input$numericbinsize,
-        input$numericlabelspaceing
-      )
-      # keep bin positions in bounds > 0
-      for (i in seq_along(myset)) {
-        if (is.na(myset[i]) | myset[i] < 0) {
-          myset[i] <- 0
-          updateNumericInput(session, "numericbody1", value = myset[1])
-          updateNumericInput(session, "numericbody2", value = myset[2])
-          updateNumericInput(session, "numerictss", value = myset[3])
-          updateNumericInput(session, "numerictes", value = myset[4])
-          updateNumericInput(session, "numericbinsize", value = myset[5])
-          updateNumericInput(session, "numericlabelspaceing", value = myset[6])
+        print("observe line and labels")
+        myset <- c(
+          input$numericbody1,
+          input$numericbody2,
+          input$numerictss,
+          input$numerictes,
+          input$numericbinsize,
+          input$numericlabelspaceing
+        )
+        # keep bin positions in bounds > 0
+        for (i in seq_along(myset)) {
+          if (is.na(myset[i]) | myset[i] < 0) {
+            myset[i] <- 0
+            updateNumericInput(session, "numericbody1", value = myset[1])
+            updateNumericInput(session, "numericbody2", value = myset[2])
+            updateNumericInput(session, "numerictss", value = myset[3])
+            updateNumericInput(session, "numerictes", value = myset[4])
+            updateNumericInput(session, "numericbinsize", value = myset[5])
+            updateNumericInput(session, "numericlabelspaceing", value = myset[6])
+          }
         }
-      }
-      Lines_Labels_List <- LinesLabelsListset(myset[1],
-                                              myset[2],
-                                              myset[3],
-                                              myset[4],
-                                              myset[5],
-                                              LIST_DATA$x_plot_range[2],
-                                              myset[6],
-                                              input$numerictssname,
-                                              input$numerictesname)
-      
-      # set label and position numbers
-      updateTextInput(session,
-                      "landlnames",
-                      value = paste(Lines_Labels_List$mylabels, collapse = " "))
-      updateTextInput(session,
-                      "landlposition",
-                      value = paste(Lines_Labels_List$mybrakes , collapse = " "))
+        Lines_Labels_List <- LinesLabelsListset(myset[1],
+                                                myset[2],
+                                                myset[3],
+                                                myset[4],
+                                                myset[5],
+                                                LIST_DATA$x_plot_range[2],
+                                                myset[6],
+                                                input$numerictssname,
+                                                input$numerictesname)
+        
+        # set label and position numbers
+        updateTextInput(session,
+                        "landlnames",
+                        value = paste(Lines_Labels_List$mylabels, collapse = " "))
+        updateTextInput(session,
+                        "landlposition",
+                        value = paste(Lines_Labels_List$mybrakes , collapse = " "))
       } else {
         LIST_DATA$STATE[2] <<- 1
       }
@@ -1035,10 +1077,25 @@ server <- function(input, output, session) {
   
   # dropttest ----
   observeEvent(input$dropttest, ignoreInit = T, {
+    if (is.null(reactive_values$ttest)){
+      ttesttype <- "by files"
+    } else {
+      ttesttype <- reactive_values$ttest_values[1]
+    }
+    if(n_distinct(LIST_DATA$gene_info$gene_list) > 1){
+      reactive_values$ttest <- c("none","by files", "by lists")
+    } else {
+      reactive_values$ttest <- c("none","by files")
+    }
+    if(!is.null(LIST_DATA$ttest)){
+      ttest_list <- c("select sample", distinct(LIST_DATA$ttest,set)$set)
+    } else {
+      ttest_list <- "select sample"
+    }
     showModal(modalDialog(
       title = "Information message",
       " Update Nickname and color of samples",
-      size = "l",
+      size = "xl",
       easyClose = F,
       footer = tagList(
         box(
@@ -1047,98 +1104,192 @@ server <- function(input, output, session) {
           width = 12,
           status = "primary",
           solidHeader = T,
+          title = "t.test settings",
           column(3,
-                 selectInput(inputId = "switchttest",
+                 pickerInput(inputId = "switchttest",
                              label = "Plot t.test",
-                             choices = c("none","by files", "by lists"),
-                             selected = "none"
+                             choices = reactive_values$ttest,
+                             selected = ttesttype
                  )
           ),
           column(3,
-                 selectInput(inputId = "switchttesttype",
+                 pickerInput(inputId = "switchttesttype",
                              label = "pick test",
                              choices = c("t.test","ks.test", "wilcox.test"),
-                             selected = "wilcox.test")
+                             selected = reactive_values$ttest_values[2])
           ),
           column(3,
-                 selectInput(inputId = "selectttestalt",
+                 pickerInput(inputId = "selectttestalt",
                              label = "alternative",
                              choices = c("two.sided", "less", "greater"),
-                             selected = "two.sided")
+                             selected = reactive_values$ttest_values[3])
           ),
           column(3,
-                 selectInput(inputId = "selectttestpaired",
+                 pickerInput(inputId = "selectttestpaired",
                              label = "Paired",
                              choices = c("TRUE", "FALSE"),
-                             selected = "FALSE")
+                             selected = reactive_values$ttest_values[4])
           ),
           column(3,
-                 selectInput(inputId = "selectttestexact",
+                 pickerInput(inputId = "selectttestexact",
                              label = "exact",
                              choices = c("NULL", "TRUE", "FALSE"),
-                             selected = "FALSE")
+                             selected = reactive_values$ttest_values[5])
           ),
           column(3,
-                 selectInput(inputId = "selectttestlog",
+                 pickerInput(inputId = "selectttestlog",
                              label = "log p.value",
-                             # choices = c("none","log","-log", "log2", "log10"),
                              choices = c("none","-log", "-log10"),
-                             selected = "-log10")
+                             selected = reactive_values$ttest_values[6])
           ),
           column(2,
-                 selectInput("padjust",
+                 pickerInput("padjust",
                              label = "p.adjust?",
                              choices = c("NO", "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
                                          "fdr", "none"),
-                             selected = "fdr")
+                             selected = reactive_values$ttest_values[7])
+          )),
+        box(
+          collapsed = F,
+          collapsible = F,
+          width = 12,
+          status = "primary",
+          solidHeader = T,
+          title = "t.test plot settings",
+          column(
+            3,
+            numericInput("numericYRangeLowpval", label = "p.value Y min:", value = min(reactive_values$ttest_options[1:2]))
           ),
           column(
-            2,
-            numericInput("numericYRangeLowpval", label = "p.value Y min:", value = 0)
+            3,
+            numericInput("numericYRangeHighpval", label = "p.value Y max:", value = max(reactive_values$ttest_options[1:2]))
           ),
-          column(
-            2,
-            numericInput("numericYRangeHighpval", label = "p.value Y max:", value = 0)
-          ),
-          column(4,
+          column(3,
                  sliderInput(
                    "sliderplotOccupancy",
                    label = "p.value plot occupancy",
                    min = 1,
                    max = 3,
                    step = 0.5,
-                   value = 1)
-          ),
-          column(6,
-                 selectInput(inputId = "selectttestitem",
-                             label = "Select to modify",
-                             choices = c("none"),
-                             selected = "none"),
-                 numericInput(
-                   inputId = 'selectttestlinesize',
-                   "Set plot line size",
-                   value = 2.5,
-                   min = .5,
-                   max = 10,
-                   step = .5)
-                 
-          ),
-          column(2,
-                 colourInput("selectcolorttest", "Select color")
+                   value = reactive_values$ttest_options[3])
           ),
           column(3,
                  numericInput("hlinettest",
                               "horizontal line p.val 0.05",
-                              value = 0.05,
+                              value = reactive_values$ttest_options[5],
                               min = -50,
                               max = 50,
                               step = .5)
           )
         ),
-        actionButton("actionttest","Update Plot"),
-        modalButton("Cancel")
+      box(
+        collapsed = F,
+        collapsible = F,
+        width = 12,
+        status = "primary",
+        solidHeader = T,
+        title = "t.test sample colors",
+        pickerInput(inputId = "selectttestitem",
+                           label = "Select to modify color",
+                           choices = ttest_list,
+                           selected = reactive_values$ttest_options[4]),
+        colourInput("selectcolorttest", "Select color")
+      ),
+        actionButton("actionttest","Apply")
       )
     ))
+  })
+
+  # t.test gets line colors ----
+  observeEvent(input$selectttestitem, ignoreInit = T,{
+    if(!is.null(LIST_DATA$ttest)){
+      if(input$selectttestitem != reactive_values$ttest_options[4]){
+        print("t.test gets line colors")
+        mycol <- LIST_DATA$ttest %>% dplyr::filter(set == input$selectttestitem) %>% distinct(mycol)
+        updateColourInput(session, "selectcolorttest", value = paste(mycol))
+      }
+    }
+  })
+  
+  # t.test updates line colors ----
+  observeEvent(input$selectcolorttest,ignoreInit = T,{
+    if(!is.null(LIST_DATA$ttest)){
+      print("t.test updates line colors")
+      LIST_DATA$ttest <<- LIST_DATA$ttest %>% dplyr::mutate(.,mycol = ifelse(set == input$selectttestitem, input$selectcolorttest, mycol))
+      updatePickerInput(session, "selectttestitem", reactive_values$ttest_options[4])
+    }
+  })
+  
+  # t.test action button ----
+  observeEvent(input$actionttest, ignoreInit = T, {
+    ttest_values <- c(input$switchttest, input$switchttesttype, input$selectttestalt, 
+                      input$selectttestpaired, input$selectttestexact, input$selectttestlog, 
+                      input$padjust)
+    reactive_values$ttest_options <- c(input$numericYRangeLowpval, input$numericYRangeHighpval, input$sliderplotOccupancy, 
+         input$selectttestitem, input$hlinettest)
+    
+    if (LIST_DATA$STATE[2] != 2){
+      print("t.test button")
+      list_data_frame <- Active_list_data(LIST_DATA)
+      if (!is_empty(list_data_frame)) {
+        if (sum(ttest_values == reactive_values$ttest_values) != 7){
+          reactive_values$ttest_values <- ttest_values
+          if (input$switchttest != "none"){
+            if(input$switchttest == "by lists" & n_distinct(list_data_frame$gene_list) == 1){
+              showModal(modalDialog(
+                title = "Information message",
+                paste("Only 1 gene list active, replot with more than 1"),
+                size = "s",
+                easyClose = TRUE
+              ))
+              return()
+            } else if (input$switchttest == "by files" & n_distinct(list_data_frame$set) == 1) {
+              showModal(modalDialog(
+                title = "Information message",
+                paste("Only 1 sample active, replot with more than 1"),
+                size = "s",
+                easyClose = TRUE
+              ))
+              return()
+            }
+            withProgress(message = 'Calculation in progress',
+                         detail = 'This may take a while...',
+                         value = 0,
+                         {
+                           LIST_DATA$ttest <<- ApplyTtest(list_data_frame,
+                                                          input$switchttest,
+                                                          input$selectttestlog,
+                                                          input$switchttesttype,
+                                                          input$padjust,
+                                                          input$selectttestalt,
+                                                          input$selectttestexact,
+                                                          input$selectttestpaired)
+                           mm <- YaxisValuetTest(LIST_DATA$ttest, input$hlinettest, input$selectttestlog )
+                         })
+          } else {
+            LIST_DATA$ttest <<- NULL
+            mm <- 0
+          }
+          reactive_values$ttest_options[1:2] <- mm
+        }
+        reactive_values$Plot_Options <- NULL
+        reactive_values$Plot_Options <-
+          MakePlotOptionFrame(LIST_DATA$gene_info)
+      } else {
+        LIST_DATA$STATE[2] <<- 2
+        text = paste("Nothing selected to plot.\n")
+        reactive_values$Plot_controler <- ggplot() +
+          annotate(
+            "text",
+            x = 4,
+            y = 25,
+            size = 8,
+            label = text
+          ) +
+          theme_void()
+      }
+    }
+    removeModal()
   })
   
   # renders plot ----
@@ -1182,6 +1333,7 @@ server <- function(input, output, session) {
                    if (LIST_DATA$STATE[2] > 0) {
                      shinyjs::show("actionmyplotshow")
                      LIST_DATA$STATE[2] <<- 2
+                     LIST_DATA$ttest <<- NULL
                      reactive_values$Apply_Math <- NULL
                    } else if(LIST_DATA$STATE[2] == -10){
                      shinyjs::hide("actionmyplotshow")
@@ -1392,75 +1544,75 @@ ui <- dashboardPage(
             icon = icon("calculator", class = "calculator"),
             fluidRow(
               column(
-              4,
-            selectInput("myMath",
-                        label = "Math",
-                        choices = c("mean", "sum", "median", "var"),
-                        selected = "mean"
-            )),
-            column(
-              4,
-              selectInput(
-              "selectplotnrom",
-              label = "Y Normalization",
-              choices = c("none", "relative frequency", "rel gene frequency"),
-              selected = "none"
-            )),
-            column(
-             3,
-              selectInput(
-              "selectplotBinNorm",
-              label = "Bin Norm:",
-              choices = c(0:80),
-              selected = 0
-            )),
-            column(
-              3,
-            awesomeCheckbox("checkboxsmooth", label = "smooth")),
-            column(
-              2,
-              awesomeCheckbox("checkboxlog2", label = "log2")),
-            column(
-              3,
-              numericInput("numericYRangeLow", label = "Plot Y min:", value = 0)
-            ),
-            column(
-              3,
-              numericInput("numericYRangeHigh", label = "Plot Y max:", value = 0)
-            ),
-            column(
-              11,
-            sliderInput(
-              "sliderplotBinRange",
-              label = "Plot Bin Range:",
-              min = 0,
-              max = 80,
-              value = c(0, 80)
-            )),
-            column(
-              6,offset = 4,
-            actionBttn(
-              inputId = "actionMathUpDatePlot",
-              label = "Update Plot",
-              style = "unite",
-              color = "default",
-              size = "sm"
-            )
-            )
+                4,
+                selectInput("myMath",
+                            label = "Math",
+                            choices = c("mean", "sum", "median", "var"),
+                            selected = "mean"
+                )),
+              column(
+                4,
+                selectInput(
+                  "selectplotnrom",
+                  label = "Y Normalization",
+                  choices = c("none", "relative frequency", "rel gene frequency"),
+                  selected = "none"
+                )),
+              column(
+                3,
+                selectInput(
+                  "selectplotBinNorm",
+                  label = "Bin Norm:",
+                  choices = c(0:80),
+                  selected = 0
+                )),
+              column(
+                3,
+                awesomeCheckbox("checkboxsmooth", label = "smooth")),
+              column(
+                2,
+                awesomeCheckbox("checkboxlog2", label = "log2")),
+              column(
+                3,
+                numericInput("numericYRangeLow", label = "Plot Y min:", value = 0)
+              ),
+              column(
+                3,
+                numericInput("numericYRangeHigh", label = "Plot Y max:", value = 0)
+              ),
+              column(
+                11,
+                sliderInput(
+                  "sliderplotBinRange",
+                  label = "Plot Bin Range:",
+                  min = 0,
+                  max = 80,
+                  value = c(0, 80)
+                )),
+              column(
+                6,offset = 4,
+                actionBttn(
+                  inputId = "actionMathUpDatePlot",
+                  label = "Update Plot",
+                  style = "unite",
+                  color = "default",
+                  size = "sm"
+                )
+              )
             )
           ),
           shinycssloaders::withSpinner(plotOutput("plot"), type = 4),
           # hidden(
-            div(
-              id = "actionmyplotshow",
-              style = "position: absolute; z-index: 1; left: 45%; top: 50%;",
-              actionButton(
-                "actionmyplot",
-                "Update Plot",
-                icon = icon("chart-area"),
-                style = "color: #fff; background-color: #337ab7; border-color: #2e6da4;"
-              )
+          div(
+            id = "actionmyplotshow",
+            style = "position: absolute; z-index: 1; left: 45%; top: 50%;",
+            actionButton(
+              "actionmyplot",
+              "Update Plot",
+              icon = icon("chart-area"),
+              style = "color: #fff; background-color: #337ab7; border-color: #2e6da4;"
             )
+          )
           # )
         )),
         fluidRow(box(
@@ -1468,80 +1620,80 @@ ui <- dashboardPage(
           status = "navy",
           solidHeader = TRUE,
           title = "", 
-            box(title = "Main",
-                           width = 6,
-                           status = "primary",
-                           solidHeader = T,
-                           collapsible = T,
-                           collapsed = F,
-                           uiOutput("DynamicGenePicker_main")
-                       ),
-                     hidden(
-                       div(
-                         id = "showpickersort",
-                         box(
-                           title = "Filter (max 4 lists)",
-                           width = 6,
-                           status = "primary",
-                           solidHeader = T,
-                           collapsible = T,
-                           collapsed = F,
-                           uiOutput("DynamicGenePicker_sort")
-                         )
-                       )),
-                     hidden(
-                       div(
-                         id = "showpickercomparisons",
-                         box(
-                           title = "Gene comparisons",
-                           width = 6,
-                           status = "primary",
-                           solidHeader = T,
-                           collapsible = T,
-                           collapsed = F,
-                           uiOutput("DynamicGenePicker_comparisons")
-                         )
-                       )),
-                     hidden(
-                       div(
-                         id = "showpickerratio",
-                         box(
-                           title = "Ratio",
-                           width = 6,
-                           status = "primary",
-                           solidHeader = T,
-                           collapsible = T,
-                           collapsed = F,
-                           uiOutput("DynamicGenePicker_ratio")
-                         )
-                       )),
-                     hidden(
-                       div(
-                         id = "showpickercluster",
-                         box(
-                           title = "Clusters/Groups",
-                           width = 6,
-                           status = "primary",
-                           solidHeader = T,
-                           collapsible = T,
-                           collapsed = F,
-                           uiOutput("DynamicGenePicker_clusters")
-                         )
-                       )),
-                     hidden(
-                       div(
-                         id = "showpickercdf",
-                         box(
-                           title = "CDF",
-                           width = 6,
-                           status = "primary",
-                           solidHeader = T,
-                           collapsible = T,
-                           collapsed = F,
-                           uiOutput("DynamicGenePicker_cdf")
-                         )
-                       ))
+          box(title = "Main",
+              width = 6,
+              status = "primary",
+              solidHeader = T,
+              collapsible = T,
+              collapsed = F,
+              uiOutput("DynamicGenePicker_main")
+          ),
+          hidden(
+            div(
+              id = "showpickersort",
+              box(
+                title = "Filter (max 4 lists)",
+                width = 6,
+                status = "primary",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicGenePicker_sort")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickercomparisons",
+              box(
+                title = "Gene comparisons",
+                width = 6,
+                status = "primary",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicGenePicker_comparisons")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickerratio",
+              box(
+                title = "Ratio",
+                width = 6,
+                status = "primary",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicGenePicker_ratio")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickercluster",
+              box(
+                title = "Clusters/Groups",
+                width = 6,
+                status = "primary",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicGenePicker_clusters")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickercdf",
+              box(
+                title = "CDF",
+                width = 6,
+                status = "primary",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicGenePicker_cdf")
+              )
             ))
+        ))
       ),
       tabItem(
         # QC ----

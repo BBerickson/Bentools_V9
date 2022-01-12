@@ -648,7 +648,6 @@ GGplotLineDot <-
             y = value,
             color = set,
             shape = set,
-            size = set,
             linetype = set
           )
         )
@@ -693,9 +692,8 @@ GGplotLineDot <-
       gp2 <- ggplot(LIST_DATA$ttest, aes(y=p.value,x=bin,
                                          color=set,
                                          shape = set,
-                                         size = set,
                                          linetype = set)) + 
-        geom_line(size = line_list$mysize[6],alpha=0.8) +
+        geom_line(size = line_list$mysize[2],alpha=0.8) +
         scale_color_manual(values = use_col_tt) +
         scale_linetype_manual(values = use_line_tt)+
         geom_hline(yintercept = plot_ttest$hlineTT,color="blue") + 
@@ -1076,3 +1074,146 @@ CheckBoxOnOff <- function(check_box, list_data) {
   list_data
 }
 
+# applys t.test to active data
+ApplyTtest <-
+  function(list_data,
+           switchttest,
+           use_tmath,
+           switchttesttype,
+           padjust,my_alt, my_exact, my_paired) {
+    # t.test comparing files in same gene list
+    ttest <- NULL
+    if(switchttest == "by lists" & n_distinct(list_data$gene_list) > 1){
+      list_data <- list_data %>% 
+        rename(set=gene_list,gene_list=set)
+    }
+    n_test <- list_data %>% group_by(gene_list) %>% 
+      summarise(n=n_distinct(set), .groups= "drop")
+    if(switchttest != "none"){
+      for(i in distinct(list_data, gene_list)$gene_list){
+        if(n_test %>% dplyr::filter(gene_list == i) %>% dplyr::select(n) > 1){
+          ttest[[i]] <- bind_rows(try_t_test(list_data %>% dplyr::filter(gene_list == i),i,
+                                             use_tmath,switchttesttype,padjust,
+                                             my_alt, noquote(my_exact), noquote(my_paired))) %>% 
+            dplyr::mutate(mydot = 0,
+                          myline = 1,
+                          mycol = "#000000" )
+        } 
+      }
+    } 
+    bind_rows(ttest)
+  }
+
+# makes sure t test wont crash on an error
+try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
+                       alternative="two.sided", exact=FALSE, paired=FALSE){
+  print("try t.test")
+  exact <- if_else(exact=="TRUE",TRUE,FALSE)
+  paired <- if_else(paired=="TRUE",TRUE,FALSE)
+  combn(unique(db$set),2) -> my_comparisons
+  my_comparisons2 <- list()
+  db_out <- list()
+  for(cc in 1:ncol(my_comparisons)){
+    my_comparisons2[[cc]] <- (c(my_comparisons[1,cc],my_comparisons[2,cc]))
+  }
+  db <- spread(db,set,score) 
+  for(i in my_comparisons2){
+    db2 <- dplyr::select(db, gene,bin,all_of(i)) %>% 
+      rename(score.x=all_of(names(.)[3]), score.y=all_of(names(.)[4])) 
+    
+    myTtest <- tibble(bin=NA,p.value=NA)
+    
+    for(t in unique(db2$bin)){
+      x.score <- dplyr::filter(db2, bin ==t)
+      y.score <- dplyr::filter(db2, bin ==t)
+      kk <- try(get(my_test)(x.score$score.x,y.score$score.y,
+                             alternative = alternative, 
+                             exact=exact, 
+                             paired=paired)$p.value)
+      if("try-error" %in% class(kk) | !is.numeric(kk)){
+        kk <-1
+      }
+      myTtest <- myTtest %>% add_row(bin = t, p.value=kk)
+    }
+    myTtest <- myTtest %>% dplyr::filter(!is.na(bin))
+    if(padjust != "NO"){
+      myTtest <- myTtest %>% dplyr::mutate(p.value=p.adjust(p.value,method = padjust))
+    }
+    if(my_math =="-log"){
+      myTtest <- myTtest %>% dplyr::mutate(p.value=if_else(p.value==0,2.2e-16,p.value)) %>% dplyr::mutate(p.value=-log(p.value))
+    } else if(my_math =="-log10"){
+      myTtest <- myTtest %>% dplyr::mutate(p.value=if_else(p.value==0,2.2e-16,p.value)) %>% dplyr::mutate(p.value=-log10(p.value))
+    }
+    db_out[[str_c(i,collapse = "-")]] <- myTtest%>% 
+      dplyr::mutate(., set = paste(
+        paste0(gsub("(.{20})", "\\1\n", 
+                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,1]),
+               gsub("(.{20})", "\\1\n", 
+                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,2])),
+        gsub("(.{20})", "\\1\n", 
+             str_split_fixed(my_set, "\n", n=2)[,1]),
+        str_split_fixed(my_set, "\n", n=2)[,2],
+        sep = '\n'
+      ))
+    
+  }
+  
+  db_out
+}
+
+# gather relevant plot option data
+MakePlotOptionttest <- function(list_data, Y_Axis_TT,my_ttest_log,hlineTT,pajust,ttype) {
+  if(is_empty(list_data)){
+    return(NULL)
+  }
+  print("plot options ttest fun")
+  out_options <- list_data %>% select(-bin, -p.value) %>% distinct(set,mydot,myline,mycol)
+  list_data_frame <- NULL
+  
+  ldf <- duplicated(out_options$mycol)
+  for (i in seq_along(out_options$mycol)) {
+    if (ldf[i]) {
+      out_options$mycol[i] <-
+        RgbToHex(out_options$mycol[i], convert = "hex", tint = log(i,10))
+    }
+  }
+  
+  list_data_frame$options_main_tt <- out_options
+  list_data_frame$ylimTT <- Y_Axis_TT
+  if(pajust != "none"){
+    pp <- paste0("p.adjust:", pajust)
+  } else{
+    pp <- "p.value"
+  }
+  if(my_ttest_log == "-log"){
+    list_data_frame$hlineTT <- -log(hlineTT)
+    list_data_frame$ylabTT <- paste0(my_ttest_log,"(",pp,")"," ",ttype)
+  } else if(my_ttest_log == "-log10"){
+    list_data_frame$hlineTT <- -log10(hlineTT)
+    list_data_frame$ylabTT <- paste0(my_ttest_log,"(",pp,")"," ",ttype)
+  } else{
+    list_data_frame$hlineTT <- hlineTT
+    list_data_frame$ylabTT <- paste0(pp," ",ttype)
+  }
+  
+  return(list_data_frame)
+}
+
+# YaxisValuetTest gathers values
+YaxisValuetTest <- function(ttest, hlinettest, selectttestlog ){
+  mm <- round(extendrange(range(ttest$p.value, na.rm = T,finite=T),f = .1),digits = 2)
+  p_cutoff <- hlinettest
+    if(selectttestlog == "-log"){
+      p_cutoff <- -log(hlinettest)
+    } else if(selectttestlog == "-log10"){
+      p_cutoff <- -log10(hlinettest)
+    }
+    if(mm[1] > 0){
+      mm[1] <- 0
+    }
+    if(mm[2] < p_cutoff){
+      mm[2] <- p_cutoff
+    }
+  mm <- c(round(min(mm), 4),round(max(mm), 4))
+  return(mm)
+}
