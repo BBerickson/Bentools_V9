@@ -1217,3 +1217,258 @@ YaxisValuetTest <- function(ttest, hlinettest, selectttestlog ){
   mm <- c(round(min(mm), 4),round(max(mm), 4))
   return(mm)
 }
+
+# sorts active gene list contain top % signal based on selected bins and file
+FilterTop <-
+  function(list_data,
+           list_name,
+           file_names,
+           start_bin,
+           end_bin,
+           mynum,
+           topbottom,
+           my_filter_all) {
+    if (is.null(file_names)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("No file selected to work on"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return(NULL)
+    }
+    lc <- 0
+    outlist <- NULL
+    lapply(file_names, function(j) {
+      setProgress(lc + 1, detail = paste("sorting", j))
+      apply_bins <-
+        semi_join(dplyr::filter(list_data$table_file, set == j), 
+                  list_data$gene_file[[list_name]]$use, by = 'gene')  
+      apply_bins <- group_by(apply_bins, gene) %>%
+        dplyr::filter(bin %in% start_bin:end_bin) %>%
+        summarise(mysums = sum(score, na.rm = TRUE),.groups="drop") %>%
+        mutate(myper = as.numeric(strtrim(cume_dist(mysums), 5))) %>%
+        arrange(desc(mysums))
+      gene_count <- nrow(apply_bins)
+      if (topbottom == "Top%") {
+        num2 <- c(1, ceiling(gene_count * (mynum / 100)))
+      } else if (topbottom == "Middle%") {
+        if (mynum == 100) {
+          num2 <- c(1, gene_count)
+        } else {
+          med <- median(apply_bins$myper)
+          num2 <-
+            c(count(apply_bins, myper >= max(med, mynum / 100))[[2]][2],
+              count(apply_bins, myper <= min(med, (100 - mynum) / 100))[[2]][1])
+        }
+      } else {
+        num2 <-
+          c(ceiling((gene_count + 1) - (gene_count * (mynum / 100))), gene_count)
+      }
+      if (any(is.na(num2))) {
+        num2 <-
+          c(ceiling((gene_count) - (gene_count * max(.5, mynum / 100))), ceiling(gene_count * max(.5, mynum / 100)))
+      }
+      outlist2 <- dplyr::mutate(apply_bins,!!j := myper) %>%
+        dplyr::select(gene,!!j) %>%
+        slice(num2[1]:num2[2])
+      if (lc > 0) {
+        if(my_filter_all){
+          outlist <<- inner_join(outlist, outlist2, by = 'gene')
+        } else{
+          outlist <<- full_join(outlist, outlist2, by = 'gene')
+        }
+      } else {
+        outlist <<- outlist2
+      }
+      lc <<- lc + 1
+    })
+    if (length(outlist$gene) == 0) {
+      return(list_data)
+    }
+    old_name <- grep("^Filter", names(list_data$gene_file), value = T)
+    if (length(old_name) > 3) {
+      # remove old sort gene list keepint 4
+      list_data$gene_file[[first(old_name)]] <- NULL
+      list_data$gene_info <- dplyr::filter(list_data$gene_info,
+                                           gene_list != first(old_name))
+    }
+    setProgress(lc + 2, detail = "building list")
+    topbottom2 <- paste(str_remove(topbottom,"%"), paste0(mynum, "%"))
+    nick_name <-
+      strtrim(gsub("(.{30})",
+                   "\\1... ",
+                   paste0("Filter ",topbottom2, "\nn = ", n_distinct(outlist$gene))), 33)
+    list_data$gene_file[[nick_name]]$full <- outlist
+    list_data$gene_file[[nick_name]]$use <- dplyr::select(outlist, gene)
+    list_data$gene_file[[nick_name]]$info <-
+      paste(
+        "Filter",
+        topbottom2,
+        "bins",
+        start_bin,
+        "to",
+        end_bin,
+        "from",
+        list_name,
+        paste(file_names, collapse = " "),
+        Sys.Date(),
+        list_data$gene_file[[list_name]]$info
+      )
+    list_data$gene_info <- 
+      distinct(bind_rows(list_data$gene_info,
+                         list_data$gene_info %>% 
+                           dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                           dplyr::mutate(gene_list = nick_name,
+                                         sub =  paste("Filter",
+                                                      topbottom2,
+                                                      "bins",
+                                                      start_bin,
+                                                      "to",
+                                                      end_bin), 
+                                         onoff = "0",
+                                         plot_set = " ")))
+    list_data
+  }
+
+# sort my percent
+FilterPer <-
+  function(list_data,
+           list_name,
+           file_names,
+           start_end_bin,
+           my_filter_all,
+           my_per,
+           my_type,
+           anyall) {
+    if (is.null(file_names)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("No file selected to work on"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return(NULL)
+    }
+    p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+      set_names(paste0("my_p_",seq_along(my_per)))
+    gene_list <- list_data$gene_file[[list_name]]$use
+    out_list <- list_data$table_file %>% 
+      dplyr::filter(set == file_names) %>% 
+      semi_join(.,gene_list,by="gene") %>% 
+      dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2]) 
+    
+    out_per <- out_list %>%
+      group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() 
+    
+    if(my_type == "min%"){
+      if(anyall){
+        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene) %>% dplyr::filter(all(score >= my_p_1)) %>% 
+          ungroup() %>% distinct(gene)
+      } else {
+        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene,set) %>% dplyr::filter(all(score >= my_p_1)) %>% 
+          ungroup() %>% distinct(gene)
+      }
+      topbottom2 <- paste(str_remove(my_type,"%"), paste0(my_per[1], "%"))
+    } else if(my_type == "max%"){
+      if(anyall){
+        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene) %>% dplyr::filter(all(score <= my_p_2)) %>% 
+          ungroup() %>% distinct(gene)
+      } else {
+        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene,set) %>% dplyr::filter(all(score <= my_p_2)) %>% 
+          ungroup() %>% distinct(gene)
+      }
+      topbottom2 <- paste(str_remove(my_type,"%"), paste0(my_per[2], "%"))
+    } else {
+      if(anyall){
+        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene) %>% dplyr::filter(all(score >= my_p_1 & score <= my_p_2)) %>% 
+          ungroup() %>% distinct(gene)
+      } else {
+        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene,set) %>% dplyr::filter(all(score >= my_p_1 & score <= my_p_2)) %>% 
+          ungroup() %>% distinct(gene)
+      }
+      topbottom2 <- paste(paste(str_remove(my_type,"%"), paste0(my_per[1], "%")),paste0(my_per[2], "%"),collapse = " and ")
+    }
+    if (length(out_list$gene) == 0) {
+      return(list_data)
+    }
+    old_names <- grep("^Filter", names(list_data$gene_file), value = T)
+    if (length(old_names) > 3) {
+      # remove old sort gene list keeping 4
+      list_data$gene_file[[first(old_names)]] <- NULL
+      list_data$gene_info <- dplyr::filter(list_data$gene_info,
+                                           gene_list != first(old_names))
+    }
+    nick_name <-
+      strtrim(gsub("(.{30})",
+                   "\\1... ",
+                   paste0("Filter Prob ",topbottom2, "\nn = ", n_distinct(out_list$gene))), 33)
+    if(length(file_names) == 1){
+      my_per <- seq(my_per[1],my_per[2]/2.1,length.out = 5)
+      p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+        set_names(my_per)
+      my_list <- list_data$table_file %>% 
+        dplyr::filter(set == file_names) %>% 
+        semi_join(.,gene_list,by="gene") %>% 
+        dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2]) 
+      out_per1 <- my_list %>%
+        group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
+        gather(.,key = set,value = "my_p_1",-bin,-set)
+      
+      my_per <- seq(my_per[2]/2,my_per[2],length.out = 5)
+      p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+        set_names(my_per)
+      
+      out_per2 <- my_list %>%
+        group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
+        gather(.,key = set,value = "my_p_2",-bin,-set)
+      out_list1 <- full_join(out_per1,out_per2,by=c("bin","set")) %>% 
+        dplyr::mutate(set=paste0(round(as.numeric(set),2),"%"))
+    } else {
+      out_list1 <- list_data$table_file %>% 
+        dplyr::filter(set == file_names) %>% 
+        semi_join(.,gene_list,by="gene") %>% 
+        full_join(.,out_per,by=c("bin","set")) %>% 
+        replace_na(list(my_p_1 = 0, my_p_2 = 0)) %>% 
+        dplyr::select(-gene,-score) 
+    }
+    
+    list_data$gene_file[[nick_name]]$full <- out_list %>% dplyr::mutate(min=my_per[1],max=my_per[2])
+    list_data$gene_file[[nick_name]]$use <- out_list
+    list_data$sortplot <- out_list1
+    list_data$gene_file[[nick_name]]$info <-
+      paste(
+        "Filter Prob:",
+        topbottom2,
+        "bins",
+        start_end_bin[1],
+        "to",
+        start_end_bin[2],
+        "from",
+        list_name,
+        paste(file_names, collapse = " "),
+        Sys.Date(),
+        list_data$gene_file[[list_name]]$info
+      )
+    list_data$gene_info <-
+      distinct(bind_rows(list_data$gene_info,
+                         list_data$gene_info %>%
+                           dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>%
+                           dplyr::mutate(gene_list = nick_name,
+                                         sub =  paste("Filter Prob:",
+                                                      topbottom2,
+                                                      "bins",
+                                                      start_end_bin[1],
+                                                      "to",
+                                                      start_end_bin[2]),
+                                         onoff = "0",
+                                         plot_set = " ")))
+    
+    list_data
+  }

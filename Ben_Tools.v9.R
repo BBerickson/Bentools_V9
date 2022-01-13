@@ -522,7 +522,7 @@ server <- function(input, output, session) {
           box(
             title =  "Set Plot Color Options",
             width = 4,
-            status = "primary",
+            status = "navy",
             solidHeader = T,
             fluidRow(
               box(
@@ -540,7 +540,7 @@ server <- function(input, output, session) {
           box(
             title =  "Set Plot Options",
             width = 8,
-            status = "primary",
+            status = "navy",
             solidHeader = T,
             pickerInput("selectgenelistoptions", "", width = 300, choices = distinct(LIST_DATA$gene_info,gene_list)$gene_list,
                         selected = distinct(LIST_DATA$gene_info,gene_list)$gene_list[1]),
@@ -658,7 +658,7 @@ server <- function(input, output, session) {
       footer = tagList(
         box(
           width = 12,
-          status = "primary",
+          status = "navy",
           solidHeader = T,
           collapsible = FALSE,
           collapsed = FALSE,
@@ -910,11 +910,32 @@ server <- function(input, output, session) {
     print("switch tab")
     if (input$leftSideTabs == "mainplot") {
       reactive_values$Picker_controler <- 
-        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$table_file, set)$set)
+        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
       if(LIST_DATA$STATE[1] == 0){
         LIST_DATA$STATE[1] <<- 1
         reactive_values$droplinesandlabels <- 1
       }
+    }
+    if (input$leftSideTabs == "sorttool"){
+      if(input$sortSamples == "select sample(s)"){
+        updateSliderInput(
+          session,
+          "slidersortbinrange",
+          min = LIST_DATA$x_plot_range[1],
+          max = LIST_DATA$x_plot_range[2],
+          value = LIST_DATA$x_plot_range
+        )
+      }
+      SGL <- input$sortGeneList
+      updatePickerInput(session, "sortGeneList",
+                        choices = c(distinct(LIST_DATA$gene_info, gene_list)$gene_list),
+                        selected = SGL)
+      STS <- input$sortSamples
+      updatePickerInput(session, "sortSamples",
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        selected = STS)
+      shinyjs::hide("hidesortplots1")
+      shinyjs::hide("hidesortplots2")
     }
   })
   
@@ -1102,7 +1123,7 @@ server <- function(input, output, session) {
           collapsed = F,
           collapsible = F,
           width = 12,
-          status = "primary",
+          status = "navy",
           solidHeader = T,
           title = "t.test settings",
           column(3,
@@ -1153,7 +1174,7 @@ server <- function(input, output, session) {
           collapsed = F,
           collapsible = F,
           width = 12,
-          status = "primary",
+          status = "navy",
           solidHeader = T,
           title = "t.test plot settings",
           column(
@@ -1186,7 +1207,7 @@ server <- function(input, output, session) {
         collapsed = F,
         collapsible = F,
         width = 12,
-        status = "primary",
+        status = "navy",
         solidHeader = T,
         title = "t.test sample colors",
         pickerInput(inputId = "selectttestitem",
@@ -1292,9 +1313,21 @@ server <- function(input, output, session) {
     removeModal()
   })
   
-  # renders plot ----
+  # renders plots ----
   output$plot <- renderPlot({
     reactive_values$Plot_controler
+  })
+  output$plot1sort <- renderPlot({
+    reactive_values$Plot_controler_sort_min
+  })
+  output$plot2sort <- renderPlot({
+    reactive_values$Plot_controler_sort_max
+  })
+  output$plotcluster <- renderPlot({
+    reactive_values$Plot_controler_cluster
+  })
+  output$plotratio <- renderPlot({
+    reactive_values$Plot_controler_ratio
   })
   
   # reactive picker watcher (watches everything but grabs only gene lists with white space fix) ----
@@ -1421,10 +1454,324 @@ server <- function(input, output, session) {
         pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Group_|^Cluster_|^CDF")]
       })
       
+    })
+  
+  # sort sum tool action ----
+  observeEvent(input$actionsorttool, {
+    print("sort tool")
+    shinyjs::hide('actionsortdatatable')
+    shinyjs::hide('sorttable')
+    
+    if (input$slidersortpercent < 50 &
+        input$selectsorttop == "Middle%") {
+      updateSliderInput(session, "slidersortpercent", value = 50)
     }
-  )
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <- FilterTop(
+                     LIST_DATA,
+                     input$sortGeneList,
+                     input$sortSamples,
+                     input$slidersortbinrange[1],
+                     input$slidersortbinrange[2],
+                     input$slidersortpercent,
+                     input$selectsorttop,
+                     input$checkboxfilterall
+                   )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      if(LIST_DATA$STATE[2] == 0){
+        LIST_DATA$STATE[2] <<- -2
+      }
+      LD <- LIST_DATA
+      mylist <- last(grep("^Filter", names(LIST_DATA$gene_file)))
+      LD$gene_info <- LD$gene_info %>%
+        dplyr::mutate(onoff=if_else(gene_list == names(LD$gene_file)[mylist] &
+                                      set %in% input$sortSamples, set, "0"))
+      list_data_frame <- Active_list_data(LD)
+      if (!is_empty(list_data_frame)) {
+        withProgress(message = 'Calculation in progress',
+                     detail = 'This may take a while...',
+                     value = 0,
+                     {
+        Apply_Cluster_Math <-
+          ApplyMath(
+            list_data_frame,
+            "mean",
+            "none",
+            0
+          )
+        reactive_values$Plot_controler_sort_min <- ggplot()
+        reactive_values$Plot_controler_sort_max <- ggplot()
+        gp1 <-
+          ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=set)) +
+          geom_line() +
+          ylab("Mean bin value") +
+          theme(legend.position="bottom",
+                legend.title = element_blank(),
+                axis.title.x=element_blank())
+        print(gp1)
+        reactive_values$Plot_controler_sort_min <- gp1
+        shinyjs::show("hidesortplots1")
+        shinyjs::hide("hidesortplots2")
+                     })
+      }
+      shinyjs::show('actionsortdatatable')
+      if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxsort <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
+            "Gene List Filter",
+            icon = icon("list"),
+            color = "green"
+          )
+        })
+      } else {
+        output$valueboxsort <- renderValueBox({
+          valueBox(0,
+                   "Gene List Filter",
+                   icon = icon("list"),
+                   color = "green")
+        })
+      }
+    } else {
+      output$valueboxsort <- renderValueBox({
+        valueBox(0,
+                 "Gene List Filter",
+                 icon = icon("list"),
+                 color = "green")
+      })
+    }
+    # updating select and keeping track if sort on sort
+    ol <- input$sortGeneList
+    if (!ol %in% names(LIST_DATA$gene_file)) {
+      ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
+      reactive_values$pickerfile_controler <- input$sortSamples
+    } else {
+      reactive_values$pickerfile_controler <- ""
+    }
+    updateSelectInput(
+      session,
+      "sortGeneList",
+      choices = names(LIST_DATA$gene_file),
+      selected = ol
+    )
+  })
   
+  # sort % numeric controller ----
+  observeEvent(c(input$numericsortmin,input$numericsortmax), ignoreInit = TRUE,{
+    if (!is.numeric(input$numericsortmin)) {
+      updateNumericInput(session, "numericsortmin", value = 1)
+    }
+    if (!is.numeric(input$numericsortmax)) {
+      updateNumericInput(session, "numericsortmax", value = 99.5)
+    }
+    if (input$numericsortmin < 0 | input$numericsortmin > input$numericsortmax) {
+      updateNumericInput(session, "numericsortmin", value = 1)
+    }
+    if (input$numericsortmax < input$numericsortmin | input$numericsortmax > 100) {
+      updateNumericInput(session, "numericsortmax", value = 99.5)
+    }
+  })
   
+  # sort min max between % tool action ----
+  observeEvent(input$actionsortper, ignoreInit = TRUE, {
+    print("sort % tool")
+    
+    sortmin <- FilterPer(LIST_DATA, 
+                         input$sortGeneList,
+                         input$sortSamples,
+                         input$slidersortbinrange,
+                         input$checkboxfilterall,
+                         c(input$numericsortmin,input$numericsortmax),
+                         input$selectsortper,
+                         input$checkboxfilterall)
+    
+    if(!is_empty(sortmin$sortplot)){
+      LIST_DATA <<- sortmin
+      if(LIST_DATA$STATE[2] == 0){
+        LIST_DATA$STATE[2] <<- -2
+      } 
+      if(input$selectsortper != "max%" ){  
+        gp1 <-
+          ggplot(sortmin$sortplot %>% dplyr::filter(!is.na(my_p_1)) ,aes(as.numeric(bin),my_p_1,color=set)) + 
+          geom_line() + 
+          ylab("Min % value") +
+          theme(legend.position="bottom", 
+                legend.title = element_blank(),
+                axis.title.x=element_blank())
+      } else{
+        gp1 <- ggplot()
+      }
+      if (input$selectsortper != "min%" ){
+        gp2 <-
+          ggplot(sortmin$sortplot %>% dplyr::filter(!is.na(my_p_2)),aes(as.numeric(bin),my_p_2,color=set)) + 
+          geom_line() + 
+          ylab("Max % value") +
+          theme(legend.position="bottom", 
+                legend.title = element_blank(),
+                axis.title.x=element_blank())
+      } else {
+        gp2 <- ggplot()
+      }
+      if (input$selectsortper == "min%" ){
+        print(gp1)
+        shinyjs::show("hidesortplots1")
+        shinyjs::hide("hidesortplots2")
+      } else if(input$selectsortper == "max%" ){
+        print(gp2)
+        shinyjs::show("hidesortplots2")
+        shinyjs::hide("hidesortplots1")
+      } else{
+        print(gp1 + gp2 + plot_layout(ncol = 1))
+        shinyjs::show("hidesortplots1")
+        shinyjs::show("hidesortplots2")
+      }
+      reactive_values$Plot_controler_sort_min <- gp1
+      reactive_values$Plot_controler_sort_max <- gp2
+      if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxsort <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
+            "Gene List Filter",
+            icon = icon("list"),
+            color = "green"
+          )
+        })
+      } else {
+        output$valueboxsort <- renderValueBox({
+          valueBox(0,
+                   "Gene List Filter",
+                   icon = icon("list"),
+                   color = "green")
+        })
+      }
+    } else {
+      output$valueboxsort <- renderValueBox({
+        valueBox(0,
+                 "Gene List Filter",
+                 icon = icon("list"),
+                 color = "green")
+      })
+      reactive_values$Plot_controler_sort_min <-
+        ggplot()
+      reactive_values$Plot_controler_sort_max <-
+        ggplot()
+    }
+    ol <- input$sortGeneList
+    if (!ol %in% names(LIST_DATA$gene_file)) {
+      ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
+      reactive_values$pickerfile_controler <- input$sortSamples
+    } else {
+      reactive_values$pickerfile_controler <- ""
+    }
+    updateSelectInput(
+      session,
+      "sortGeneList",
+      choices = names(LIST_DATA$gene_file),
+      selected = ol
+    )
+  })
+  
+  # Filter gene list show data table ----
+  observeEvent(input$actionsortdatatable, ignoreInit = TRUE, {
+    print("show data table")
+    if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
+      newnames <-
+        gsub("(.{20})", "\\1... ", names(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full))
+      dt <- datatable(
+        rowid_to_column(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full),
+        rownames = FALSE,
+        colnames = c("ID", strtrim(newnames, 30)),
+        class = 'cell-border stripe compact',
+        filter = 'top',
+        caption = LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$info,
+        options = list(
+          pageLength = 15,
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = FALSE,
+          width = 5,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 44 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
+                "}"
+              )
+            )
+          )
+        )
+        
+      ) %>% formatPercentage(names(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full)[-1])
+    } else {
+      dt <- datatable(
+        LIST_DATA$gene_file[[1]]$empty,
+        rownames = FALSE,
+        colnames = "none",
+        options = list(searching = FALSE)
+      )
+    }
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   output$sorttable <- DT::renderDataTable(dt)
+                 })
+    shinyjs::hide('actionsortdatatable')
+    shinyjs::show('sorttable')
+  })
+  
+  # sort tool gene list $use ----
+  observeEvent(input$sorttable_rows_all,
+               ignoreInit = TRUE,
+               ignoreNULL = TRUE,
+               {
+                 oldname <-
+                   last(grep("^Filter ", names(LIST_DATA$gene_file)))
+                 oldname1 <- names(LIST_DATA$gene_file)[oldname] %>% str_split_fixed(., " n = ",n=2)
+                 newname <-
+                   paste(oldname1[1], "n =",
+                         length(input$sorttable_rows_all))
+                 if (newname != names(LIST_DATA$gene_file)[oldname]) {
+                   print("sort filter $use")
+                   names(LIST_DATA$gene_file)[oldname] <<- newname
+                   LIST_DATA$gene_file[[newname]]$use <<-
+                     tibble(gene = LIST_DATA$gene_file[[newname]]$full$gene[input$sorttable_rows_all])
+                   ol <- input$sortGeneList
+                   if (!ol %in% names(LIST_DATA$gene_file)) {
+                     ol <- newname
+                     reactive_values$Picker_controler <- 
+                       c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
+                     reactive_values$pickerfile_controler <-
+                       input$sortSamples
+                   } else {
+                     reactive_values$pickerfile_controler <- ""
+                     reactive_values$Picker_controler <- 
+                       c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
+                   }
+                   updateSelectInput(
+                     session,
+                     "sortGeneList",
+                     choices = names(LIST_DATA$gene_file),
+                     selected = ol
+                   )
+                   output$valueboxsort <- renderValueBox({
+                     valueBox(
+                       n_distinct(LIST_DATA$gene_file[[newname]]$use),
+                       "Gene List Filter",
+                       icon = icon("list"),
+                       color = "green"
+                     )
+                   })
+                 }
+               })
 }
 
 # UI -----
@@ -1449,11 +1796,11 @@ ui <- dashboardPage(
       menuItem("Plot", tabName = "mainplot", icon = icon("chart-area")),
       menuItem("QC/Options", tabName = "qcOptions", icon = icon("clipboard-check")),
       menuItem("Norm data", tabName = "filenorm", icon = icon("copy")),
-      menuItem("Compare Lists", tabName = "genelists", icon = icon("cogs")),
-      menuItem("Filter Tool", tabName = "sorttool", icon = icon("cogs")),
-      menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("cogs")),
-      menuItem("Cluster Tools", tabName = "clustertool", icon = icon("cogs")),
-      menuItem("CDF Tools", tabName = "cdftool", icon = icon("cogs"))
+      menuItem("Compare Lists", tabName = "genelists", icon = icon("grip-lines")),
+      menuItem("Filter Tool", tabName = "sorttool", icon = icon("filter")),
+      menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("percentage")),
+      menuItem("Cluster Tools", tabName = "clustertool", icon = icon("object-group")),
+      menuItem("CDF Tools", tabName = "cdftool", icon = icon("ruler-combined"))
     )
   ),
   body = dashboardBody(
@@ -1617,12 +1964,12 @@ ui <- dashboardPage(
         )),
         fluidRow(box(
           width = 12, 
-          status = "navy",
+          status = "primary",
           solidHeader = TRUE,
           title = "", 
           box(title = "Main",
               width = 6,
-              status = "primary",
+              status = "navy",
               solidHeader = T,
               collapsible = T,
               collapsed = F,
@@ -1741,18 +2088,133 @@ ui <- dashboardPage(
         )
       ),
       tabItem(
-        # sort tools ----
+        # filter/sort tools ----
         tabName = "sorttool",
-        box(
-          status = "purple",
-          solidHeader = TRUE,
-          title = "QC Options",
-          fileInput(
-            "filetable",
-            label = "",
-            accept = c('.table'),
-            multiple = TRUE
-          )
+        div(
+          id = "enablemainsort",
+          box(
+            title = "Filter by sum rank",
+            solidHeader = T,
+            width = 6,
+            status = "navy",
+            fluidRow(column(
+              12,
+              sliderInput(
+                "slidersortpercent",
+                label = "% select:",
+                post = "%",
+                min = 1,
+                max = 100,
+                value = 75
+              )
+            ),
+            ),
+            fluidRow(column(
+              6,
+              pickerInput(
+                "selectsorttop",
+                "Filter Options",
+                choices = c("Top%", "Middle%", "Bottom%"),
+                selected = "Middle%"
+              )
+            )),
+            fluidRow(align="center",
+                     actionButton("actionsorttool", "filter sum")
+            )
+          ),
+          box(
+            title = "filter by percentile distribution",
+            solidHeader = T,
+            width = 6,
+            status = "navy",
+            fluidRow(column(
+              6,
+              numericInputIcon("numericsortmin",
+                               "min", 
+                               value = "1",
+                               max = "100", min="0",
+                               step = "1",
+                               icon = icon("percent")
+              )
+              ),
+              column(
+                6,
+                numericInputIcon("numericsortmax",
+                                 "max", 
+                                 value = "99.5",
+                                 max = "100", min="0",
+                                 step = "1",
+                                 icon = icon("percent")
+                )
+              )
+            ),
+            fluidRow(align="center",column(6,
+                                           pickerInput(
+                                             "selectsortper",
+                                             "Filter Option",
+                                             choices = c("min%", "between%", "max%"),
+                                             selected = "min%"
+                                           )
+            )),
+            fluidRow(align="center",
+                     actionButton("actionsortper", "filter percentile")
+            ),
+            helpText("Hint: use 1 file to display a range of %'s")
+          ),
+          div(
+            id = "hidesortplots1",
+            box(headerBorder = F,
+              width = 6,
+              withSpinner(plotOutput("plot1sort",height = "200px"), type = 4)
+            )
+          ),
+          div(
+            id = "hidesortplots2",
+            box(headerBorder = F,
+              width = 6,
+              withSpinner(plotOutput("plot2sort",height = "200px"), type = 4)
+            )
+          ),
+            box(
+              width = 12, solidHeader = T,
+              status = "primary",
+              column(width = 6,
+              pickerInput("sortGeneList", label = "select list",
+                          choices = (LIST_DATA$gene_info)),
+              div(
+                style = "margin-bottom: -20px;",
+                sliderInput(
+                  "slidersortbinrange",
+                  label = "Select Bin Range:",
+                  min = 0,
+                  max = 80,
+                  value = c(0, 80)
+                )
+              )
+              ),
+              column(width = 6,
+              pickerInput("sortSamples", label = "select sample(s)",
+                          choices = "select sample(s)",selected = "select sample(s)",
+                          multiple = TRUE),
+              div(
+                style = "margin-bottom: -20px;",
+                awesomeCheckbox("checkboxfilterall","Filter on all if any", value = TRUE)
+              )
+              )
+              ),
+          div(
+            id = "hidesorttable",
+            box(
+              title = "Filter Table",
+              solidHeader = T,
+              width = 12,
+              status = "navy",
+              actionButton("actionsortdatatable", "Show gene list"),
+              helpText("All filtering applied to gene list usage elsewhere"),
+              DT::dataTableOutput('sorttable')
+            )
+          ),
+          valueBoxOutput("valueboxsort")
         )
       ),
       tabItem(
