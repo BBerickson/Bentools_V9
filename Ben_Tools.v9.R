@@ -1683,22 +1683,22 @@ server <- function(input, output, session) {
       newnames <-
         gsub("(.{20})", "\\1... ", names(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full))
       dt <- datatable(
-        rowid_to_column(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full),
-        rownames = FALSE,
-        colnames = c("ID", strtrim(newnames, 30)),
+        LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full,
+        colnames = c("RANK",strtrim(newnames, 30)),
         class = 'cell-border stripe compact',
         filter = 'top',
         caption = LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$info,
         options = list(
-          pageLength = 15,
+          pageLength = 10,
           scrollX = TRUE,
           scrollY = TRUE,
-          autoWidth = FALSE,
+          autoWidth = F,
           width = 5,
           columnDefs = list(
             list(className = 'dt-center ', targets = "_all"),
+            list(targets = 0, width = 2),
             list(
-              targets = 0,
+              targets = 1,
               render = JS(
                 "function(data, type, row, meta) {",
                 "return type === 'display' && data.length > 44 ?",
@@ -1708,7 +1708,6 @@ server <- function(input, output, session) {
             )
           )
         )
-        
       ) %>% formatPercentage(names(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full)[-1])
     } else {
       dt <- datatable(
