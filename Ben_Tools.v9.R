@@ -908,6 +908,7 @@ server <- function(input, output, session) {
   # observe switching tabs ----
   observeEvent(input$leftSideTabs, ignoreInit = TRUE, {
     print("switch tab")
+    # main plot tab
     if (input$leftSideTabs == "mainplot") {
       reactive_values$Picker_controler <- 
         c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
@@ -916,6 +917,7 @@ server <- function(input, output, session) {
         reactive_values$droplinesandlabels <- 1
       }
     }
+    # sort/filter tab
     if (input$leftSideTabs == "sorttool"){
       if(input$sortSamples == "select sample(s)"){
         updateSliderInput(
@@ -936,6 +938,33 @@ server <- function(input, output, session) {
                         selected = STS)
       shinyjs::hide("hidesortplots1")
       shinyjs::hide("hidesortplots2")
+    }
+    # file norm tab
+    if (input$leftSideTabs == "filenorm") {
+      updatePickerInput(
+        session,
+        "pickernumerator",
+        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choicesOpt = list(style = paste("color", dplyr::select(
+          dplyr::filter(LIST_DATA$gene_info,
+                        gene_list == names(LIST_DATA$gene_file)[1]),
+          mycol)$mycol, sep = ":"))
+      )
+      updatePickerInput(
+        session,
+        "pickerdenominator",
+        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choicesOpt = list(style = paste("color", dplyr::select(
+          dplyr::filter(LIST_DATA$gene_info,
+                        gene_list == names(LIST_DATA$gene_file)[1]),
+          mycol)$mycol, sep = ":"))
+      )
+      output$valueboxnormfile <- renderValueBox({
+        valueBox("0%",
+                 "Done",
+                 icon = icon("cogs"),
+                 color = "yellow")
+      })
     }
   })
   
@@ -1771,6 +1800,88 @@ server <- function(input, output, session) {
                    })
                  }
                })
+  
+  # observe norm gene pickers ----
+  observeEvent(c(input$pickernumerator, input$adddata,
+                 input$pickerdenominator), {
+                   if (input$pickernumerator != "") {
+                     updateTextInput(session, "textnromname",value = paste(input$pickernumerator, input$adddata,
+                                                                           input$pickerdenominator))
+                     output$valueboxnormfile <- renderValueBox({
+                       valueBox("0%",
+                                "Done",
+                                icon = icon("cogs"),
+                                color = "yellow")
+                     })
+                   }
+                 })
+  
+  # create norm file ----
+  observeEvent(input$actionnorm, ignoreInit = TRUE, {
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <- MakeNormFile(
+                     LIST_DATA,
+                     input$pickernumerator,
+                     input$pickerdenominator,
+                     input$radiogenebygene,
+                     input$checkboxnormzero,
+                     input$adddata,
+                     input$textnromname
+                   )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      updatePickerInput(session,
+                        "pickernumerator", selected = "",
+                        choices = distinct(LIST_DATA$gene_info, set)$set,
+                        choicesOpt = list(style = paste("color", 
+                                                        dplyr::select(
+                                                          dplyr::filter(LIST_DATA$gene_info,
+                                                                        gene_list == names(
+                                                                          LIST_DATA$gene_file)[1]), 
+                                                          mycol)$mycol, 
+                                                        sep = ":")))
+      updatePickerInput(session,
+                        "pickerdenominator", selected = "",
+                        choices = distinct(LIST_DATA$gene_info, set)$set,
+                        choicesOpt = list(style = paste("color", 
+                                                        dplyr::select(
+                                                          dplyr::filter(LIST_DATA$gene_info,
+                                                                        gene_list == names(
+                                                                          LIST_DATA$gene_file)[1]),
+                                                          mycol)$mycol, 
+                                                        sep = ":")))
+      updateTextInput(session, "textnromname", value = "")
+      output$valueboxnormfile <- renderValueBox({
+        valueBox(
+          "Done",
+          paste("Compleat n =", n_distinct(LIST_DATA$gene_file[[1]]$use$gene)),
+          icon = icon("thumbs-up", lib = "glyphicon"),
+          color = "green"
+        )
+      })
+      ff <- distinct(LIST_DATA$gene_info, set)$set
+      updateSelectInput(session,
+                        "selectdataoption",
+                        choices = ff)
+      # update main plot picker with new file name trigger
+      reactive_values$Picker_controler <- 
+        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
+    } else {
+      #no new data file created
+      output$valueboxnormfile <- renderValueBox({
+        valueBox("0%",
+                 "Done",
+                 icon = icon("cogs"),
+                 color = "red")
+      })
+    }
+  })
+  
+  
 }
 
 # UI -----
@@ -2060,15 +2171,61 @@ ui <- dashboardPage(
         # filenorm ----
         tabName = "filenorm",
         box(
-          status = "purple",
-          solidHeader = TRUE,
-          title = "QC Options",
-          fileInput(
-            "filetable",
+          title = "Select files for normalization",
+          width = 12,
+          status = "primary",
+          solidHeader = T,
+          div(style = "padding-left: 15%;",
+              fluidRow(
+                pickerInput(
+                  "pickernumerator",
+                  label = "numerator",
+                  width = "90%",
+                  choices = "Load data file",
+                  multiple = F,
+                  options = list(title = "Select first file")
+                )
+              )),
+          div(style = "padding-left: 15%;",
+              fluidRow(
+                column(
+                  3,
+                  radioGroupButtons(
+                    "adddata",
+                    label = "",
+                    status = "primary",
+                    choices = c("/", "+"),
+                    selected = "/"
+                  )
+                ),
+                column(4, style = "padding-top: 4%;",
+                       actionButton("actionnorm", label = "create file"))
+              )),
+          div(style = "padding-left: 15%;",
+              fluidRow(
+                pickerInput(
+                  "pickerdenominator",
+                  label = "denominator",
+                  width = "90%",
+                  choices = "Load data file",
+                  multiple = F,
+                  options = list(title = "Select second file")
+                )
+              ),
+              fluidRow(
+                textInput("textnromname", "Norm file name",
+                          width = "90%",))
+          ),
+          awesomeRadio(
+            "radiogenebygene",
             label = "",
-            accept = c('.table'),
-            multiple = TRUE
-          )
+            choices = c("bin by bin", "mean of bins by mean of bins"),
+            selected = "bin by bin"
+          ),
+          awesomeCheckbox(
+            "checkboxnormzero",
+            label = "replace 0 with min/2",value = FALSE),
+          valueBoxOutput("valueboxnormfile")
         )
       ),
       tabItem(

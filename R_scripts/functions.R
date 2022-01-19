@@ -1472,3 +1472,99 @@ FilterPer <-
     
     list_data
   }
+
+# make a new normalized file by dividing one file by the other
+MakeNormFile <-
+  function(list_data,
+           nom,
+           dnom,
+           gbyg,
+           divzerofix,
+           addfiles,
+           nickname) {
+    # check 2 files have been selected
+    if (nom == "" | dnom == "") {
+      return(NULL)
+    }
+    # set up tool info and progress bar
+    myname <- "bin_by_bin"
+    # get data files
+    nd <- list_data$table_file %>% dplyr::filter(set == nom | set== dnom) %>% 
+      replace_na(., list(score = 0))
+    if(nchar(nickname)<1){
+      nickname <- paste(nom, addfiles, dnom,sep = " ")
+    }
+    # applies custom norm factor(s)
+    legend_nickname <- nickname
+    if (addfiles == "+") {
+      new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
+                                 dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
+        replace_na(., list(score = 0))
+      new_gene_list <- transmute(
+        new_gene_list,
+        gene = gene,
+        bin = bin,
+        set = legend_nickname,
+        score = score.x + score.y
+      )
+    } else {
+      # if min/2 find Na's and 0's, and replace
+      if (divzerofix) {
+        nd <- nd %>% 
+          dplyr::mutate(score=if_else(set == dnom & score == 0, NA_real_, score))
+        myname <- paste0(myname, "_0->min/2")
+        new_min_for_dom <-
+          min(nd$score, na.rm = TRUE) / 2
+        nd <-
+          replace_na(nd, list(score = new_min_for_dom))
+      }
+      # files numbers are replaced with mean of bins if applied
+      if (gbyg != "bin by bin") {
+        myname <- "mean_of_bins"
+        if (divzerofix) {
+          myname <- paste0(myname, "_0->min/2")
+        }
+        nd <- nd %>% 
+          group_by(bin, set) %>%
+          dplyr::mutate(score = mean(score, na.rm = TRUE)) %>% ungroup()
+      }
+      new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
+                                 dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
+        replace_na(., list(score = 0))
+      # make gene list and do math
+      legend_nickname <- paste0(nickname, ": ", myname)
+      new_gene_list <- transmute(
+        new_gene_list,
+        gene = gene,
+        bin = bin,
+        set = legend_nickname,
+        score = score.x / score.y
+      ) %>% na_if(Inf)
+    }
+    # output test
+    if (n_distinct(new_gene_list$gene) < 1) {
+      showModal(
+        modalDialog(
+          title = "Information message",
+          " No genes left, try replacing Inf and/or bin by bin",
+          size = "s",
+          easyClose = TRUE
+        )
+      )
+      return(NULL)
+    }
+    # adds meta data 
+    list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
+    list_data$gene_info <- dplyr::filter(list_data$gene_info, set != legend_nickname)
+    list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
+    list_data$gene_info <- bind_rows(list_data$gene_info,
+                                     tibble(
+                                       gene_list = names(list_data$gene_file)[1],
+                                       set = legend_nickname,
+                                       mycol = sample(suppressWarnings(brewer.pal(11, sample(kBrewerList,size=1)))[-c(4:7)],size = 1),
+                                       onoff = "0",
+                                       sub = " ",
+                                       plot_set = " "
+                                     ))
+    return(list_data)
+  }
