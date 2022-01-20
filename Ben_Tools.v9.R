@@ -966,6 +966,33 @@ server <- function(input, output, session) {
                  color = "yellow")
       })
     }
+    # genelists tab
+    if (input$leftSideTabs == "genelists") {
+      shinyjs::hide('actiongenelistsdatatable')
+      updatePickerInput(
+          session,
+          "pickergenelists",
+          choices = names(LIST_DATA$gene_file)
+        )
+      output$valueboxgene1 <- renderValueBox({
+        valueBox(0,
+                 "Gene List intersect",
+                 icon = icon("list"),
+                 color = "green")
+      })
+      output$valueboxgene2 <- renderValueBox({
+        valueBox(0,
+                 "Gene List Total",
+                 icon = icon("list"),
+                 color = "yellow")
+      })
+      output$valueboxgene3 <- renderValueBox({
+        valueBox(0,
+                 "Gene List exclusive",
+                 icon = icon("list"),
+                 color = "red")
+      })
+    }
   })
   
   # action button update lines and labels ----
@@ -1881,6 +1908,301 @@ server <- function(input, output, session) {
     }
   })
   
+  # Gene action ----
+  observeEvent(input$actiongenelists, {
+    print("gene lists action")
+    shinyjs::hide('actiongenelistsdatatable')
+    shinyjs::hide('genelists1table')
+    shinyjs::hide('genelists2table')
+    shinyjs::hide('genelists3table')
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <- IntersectGeneLists(LIST_DATA,
+                                            input$pickergenelists)
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      ol <- input$pickergenelists
+      if (!any(ol %in% names(LIST_DATA$gene_file))) {
+        ol <- grep("Gene_List_", names(LIST_DATA$gene_file), value = TRUE)
+      } else {
+        
+      }
+      updateSelectInput(
+        session,
+        "selectsortfile",
+        choices = names(LIST_DATA$gene_file),
+        selected = ol
+      )
+      shinyjs::show('actiongenelistsdatatable')
+      if (any(grep("Gene_List_intersect\nn =", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxgene1 <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_intersect\nn =",
+                                                 names(LIST_DATA$gene_file))]]$use$gene),
+            "Gene List intersect",
+            icon = icon("list"),
+            color = "green"
+          )
+        })
+      } else{
+        output$valueboxgene1 <- renderValueBox({
+          valueBox(0,
+                   "Gene List intersect",
+                   icon = icon("list"),
+                   color = "green")
+        })
+      }
+      if (any(grep("Gene_List_Total\nn =", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxgene2 <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_Total\nn =", names(LIST_DATA$gene_file))]]$full$gene),
+            "Gene List Total",
+            icon = icon("list"),
+            color = "yellow"
+          )
+        })
+      } else{
+        output$valueboxgene2 <- renderValueBox({
+          valueBox(0,
+                   "Gene List Total",
+                   icon = icon("list"),
+                   color = "yellow")
+        })
+      }
+      if (any(grep("Gene_List_exclusive\nn =", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxgene3 <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_exclusive\nn =",
+                                                 names(LIST_DATA$gene_file))]]$use$gene),
+            "Gene List exclusive",
+            icon = icon("list"),
+            color = "red"
+          )
+        })
+      } else{
+        output$valueboxgene3 <- renderValueBox({
+          valueBox(0,
+                   "Gene List exclusive",
+                   icon = icon("list"),
+                   color = "red")
+        })
+      }
+    } else {
+      output$valueboxgene1 <- renderValueBox({
+        valueBox(0,
+                 "Gene List intersect",
+                 icon = icon("list"),
+                 color = "green")
+      })
+      output$valueboxgene2 <- renderValueBox({
+        valueBox(0,
+                 "Gene List Total",
+                 icon = icon("list"),
+                 color = "yellow")
+      })
+      output$valueboxgene3 <- renderValueBox({
+        valueBox(0,
+                 "Gene List exclusive",
+                 icon = icon("list"),
+                 color = "red")
+      })
+      return()
+    }
+  })
+  
+  # Gene lists DT show gene list ----
+  observeEvent(input$actiongenelistsdatatable, ignoreInit = TRUE, {
+    print("generiate gene lists table")
+    shinyjs::hide('actiongenelistsdatatable')
+    if (any(grep("Gene_List_intersect\nn =", names(LIST_DATA$gene_file)) >
+            0)) {
+      newnames1 <-
+        gsub("\n",
+             " ",
+             grep(
+               "Gene_List_intersect\nn =",
+               names(LIST_DATA$gene_file),
+               value = TRUE
+             ))
+      mytab <- "Intersected Gene Lists"
+      withProgress(message = 'Calculation in progress',
+                   detail = 'This may take a while...',
+                   value = 0,
+                   {
+                     output$genelists1table <-
+                       DT::renderDataTable(
+                         datatable(
+                           LIST_DATA$gene_file[[grep("Gene_List_intersect\nn =",
+                                                     names(LIST_DATA$gene_file))]]$use,
+                           rownames = FALSE,
+                           colnames = newnames1,
+                           class = 'cell-border stripe compact',
+                           filter = "none",
+                           caption = LIST_DATA$gene_file[[grep("Gene_List_intersect\nn =",
+                                                               names(LIST_DATA$gene_file))]]$info,
+                           options = list(
+                             pageLength = 15,
+                             scrollX = TRUE,
+                             scrollY = TRUE,
+                             autoWidth = FALSE,
+                             columnDefs = list(
+                               list(className = 'dt-center ', targets = "_all"),
+                               list(
+                                 targets = 0,
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data.length > 44 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
+                                   "}"
+                                 )
+                               )
+                             )
+                           )
+                         )
+                       )
+                   })
+      shinyjs::show('genelists1table')
+    } else {
+      output$genelists1table <-
+        DT::renderDataTable(
+          datatable(
+            LIST_DATA$gene_file[[1]]$empty,
+            rownames = FALSE,
+            colnames = "Gene_List_exclusive n = 0",
+            options = list(searching = FALSE)
+          )
+        )
+      mytab <- "Total Gene Lists"
+    }
+    if (any(grep("Gene_List_Total\nn =", names(LIST_DATA$gene_file)) >
+            0)) {
+      newnames2 <-
+        gsub("\n",
+             " ",
+             grep(
+               "Gene_List_Total\nn =",
+               names(LIST_DATA$gene_file),
+               value = TRUE
+             ))
+      withProgress(message = 'Calculation in progress',
+                   detail = 'This may take a while...',
+                   value = 0,
+                   {
+                     output$genelists2table <-
+                       DT::renderDataTable(
+                         datatable(
+                           LIST_DATA$gene_file[[grep("Gene_List_Total\nn =",
+                                                     names(LIST_DATA$gene_file))]]$use,
+                           rownames = FALSE,
+                           colnames = newnames2,
+                           class = 'cell-border stripe compact',
+                           filter = "none",
+                           caption = LIST_DATA$gene_file[[grep("Gene_List_Total\nn =",
+                                                               names(LIST_DATA$gene_file))]]$info,
+                           options = list(
+                             pageLength = 15,
+                             scrollX = TRUE,
+                             scrollY = TRUE,
+                             autoWidth = FALSE,
+                             columnDefs = list(
+                               list(className = 'dt-center ', targets = "_all"),
+                               list(
+                                 targets = 0,
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data.length > 44 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
+                                   "}"
+                                 )
+                               )
+                             )
+                           )
+                         )
+                       )
+                   })
+      shinyjs::show('genelists2table')
+    } else {
+      output$genelists2table <-
+        DT::renderDataTable(
+          datatable(
+            LIST_DATA$gene_file[[1]]$empty,
+            rownames = FALSE,
+            colnames = "Gene_List_exclusive n = 0",
+            options = list(searching = FALSE)
+          )
+        )
+      if (mytab == "Total Gene Lists") {
+        mytab <- "Exclusive Gene Lists"
+      }
+    }
+    if (any(grep("Gene_List_exclusive\nn =", names(LIST_DATA$gene_file)) >
+            0)) {
+      newnames3 <-
+        gsub("\n",
+             " ",
+             grep(
+               "Gene_List_exclusive\nn =",
+               names(LIST_DATA$gene_file),
+               value = T
+             ))
+      withProgress(message = 'Calculation in progress',
+                   detail = 'This may take a while...',
+                   value = 0,
+                   {
+                     output$genelists3table <-
+                       DT::renderDataTable(
+                         datatable(
+                           LIST_DATA$gene_file[[grep("Gene_List_exclusive\nn =",
+                                                     names(LIST_DATA$gene_file))]]$use,
+                           rownames = FALSE,
+                           colnames = newnames3,
+                           class = 'cell-border stripe compact',
+                           filter = "none",
+                           caption = LIST_DATA$gene_file[[grep("Gene_List_exclusive\nn =",
+                                                               names(LIST_DATA$gene_file))]]$info,
+                           options = list(
+                             pageLength = 15,
+                             scrollX = TRUE,
+                             scrollY = TRUE,
+                             autoWidth = FALSE,
+                             columnDefs = list(
+                               list(className = 'dt-center ', targets = "_all"),
+                               list(
+                                 targets = 0,
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data.length > 44 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
+                                   "}"
+                                 )
+                               )
+                             )
+                           )
+                         )
+                       )
+                   })
+      shinyjs::show('genelists3table')
+    } else {
+      output$genelists3table <-
+        DT::renderDataTable(
+          datatable(
+            LIST_DATA$gene_file[[1]]$empty,
+            rownames = FALSE,
+            colnames = "Gene_List_exclusive n = 0",
+            options = list(searching = FALSE)
+          )
+        )
+      if (mytab == "Exclusive Gene Lists") {
+        mytab <- "Total Gene Lists"
+      }
+    }
+    updateTabItems(session, "geneliststooltab", mytab)
+  })
+  
+  
   
 }
 
@@ -2091,7 +2413,7 @@ ui <- dashboardPage(
               box(
                 title = "Filter (max 4 lists)",
                 width = 6,
-                status = "primary",
+                status = "navy",
                 solidHeader = T,
                 collapsible = T,
                 collapsed = F,
@@ -2104,7 +2426,7 @@ ui <- dashboardPage(
               box(
                 title = "Gene comparisons",
                 width = 6,
-                status = "primary",
+                status = "navy",
                 solidHeader = T,
                 collapsible = T,
                 collapsed = F,
@@ -2117,7 +2439,7 @@ ui <- dashboardPage(
               box(
                 title = "Ratio",
                 width = 6,
-                status = "primary",
+                status = "navy",
                 solidHeader = T,
                 collapsible = T,
                 collapsed = F,
@@ -2130,7 +2452,7 @@ ui <- dashboardPage(
               box(
                 title = "Clusters/Groups",
                 width = 6,
-                status = "primary",
+                status = "navy",
                 solidHeader = T,
                 collapsible = T,
                 collapsed = F,
@@ -2143,7 +2465,7 @@ ui <- dashboardPage(
               box(
                 title = "CDF",
                 width = 6,
-                status = "primary",
+                status = "navy",
                 solidHeader = T,
                 collapsible = T,
                 collapsed = F,
@@ -2231,15 +2553,58 @@ ui <- dashboardPage(
       tabItem(
         # genelists ----
         tabName = "genelists",
-        box(
-          status = "purple",
-          solidHeader = TRUE,
-          title = "QC Options",
-          fileInput(
-            "filetable",
-            label = "",
-            accept = c('.table'),
-            multiple = TRUE
+        div(
+          id = "enablemaingenelists",
+          box(
+            title = "Gene Lists",
+            status = "primary",
+            solidHeader = T,
+            width = 12,
+            fluidRow(column(width = 4,
+            pickerInput(
+              inputId = "pickergenelists",
+              label = "Select Gene lists",
+              choices = "Load data file",
+              multiple = T,
+              options = list(`selected-text-format` = "count > 1")
+            )
+            )
+            ),
+            actionButton("actiongenelists", "Compare Gene lists"),
+            helpText("Shows Intersected, Exlusive, and Total gene lists")
+          ),
+          box(
+            title = "Gene List Tables",
+            status = "primary",
+            solidHeader = T,
+            collapsible = T,
+            width = 12,
+            helpText("Needs at least 2 gene lists"),
+            actionButton("actiongenelistsdatatable", "Show gene list"),
+            tabBox(
+              id = "geneliststooltab",
+              width = 12,
+              tabPanel(
+                "Intersected Gene Lists",
+                helpText("All filtering applied to gene list usage elsewhere"),
+                DT::dataTableOutput('genelists1table')
+              ),
+              tabPanel(
+                "Total Gene Lists",
+                helpText("All filtering applied to gene list usage elsewhere"),
+                DT::dataTableOutput('genelists2table')
+              ),
+              tabPanel(
+                "Exclusive Gene Lists",
+                helpText("All filtering applied to gene list usage elsewhere"),
+                DT::dataTableOutput('genelists3table')
+              )
+            )
+          ),
+          fluidRow(
+            valueBoxOutput("valueboxgene1"),
+            valueBoxOutput("valueboxgene2"),
+            valueBoxOutput("valueboxgene3")
           )
         )
       ),

@@ -1568,3 +1568,92 @@ MakeNormFile <-
                                      ))
     return(list_data)
   }
+
+# Total, exclusive and intersected gene lists
+IntersectGeneLists <-
+  function(list_data, list_name) {
+    if (is.null(list_name)) {
+      return(NULL)
+    }
+    setProgress(1, detail = paste("building list"))
+    outlist <- NULL
+    # grab selected gene list(s)
+    lapply(list_name, function(j) {
+      outlist[[j]] <<- list_data$gene_file[[j]]$use %>% dplyr::select(gene)
+    })
+    # collapses into one list
+    outlist <- bind_rows(outlist)
+    # remove any pre used data
+    list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Gene_List_")]
+    list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Gene_List_"))
+    
+    # record for info
+    setProgress(2, detail = paste("building Total list"))
+    if (n_distinct(outlist$gene) > 0) {
+      nick_name1 <-
+        paste("Gene_List_Total\nn =", n_distinct(outlist$gene))
+      # record for info
+      list_data$gene_file[[nick_name1]]$full <- distinct(outlist)
+      list_data$gene_file[[nick_name1]]$use <- distinct(dplyr::select(outlist, gene))
+      list_data$gene_file[[nick_name1]]$info <-
+        paste("Gene_List_Total",
+              "from",
+              paste(list_name, collapse = " and "),
+              Sys.Date())
+      list_data$gene_info <- 
+        distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name1,
+                                           sub =  paste("Gene_List_Total"), 
+                                           onoff = "0",
+                                           plot_set = " ")))
+    }
+    setProgress(3, detail = paste("building intersect list"))
+    intersected <- dplyr::filter(outlist, duplicated(gene))
+    if (n_distinct(intersected$gene) > 0) {
+      nick_name1 <-
+        paste("Gene_List_intersect\nn =", n_distinct(intersected$gene))
+      # record for info
+      list_data$gene_file[[nick_name1]]$full <- intersected
+      list_data$gene_file[[nick_name1]]$use <- dplyr::select(intersected, gene)
+      list_data$gene_file[[nick_name1]]$info <-
+        paste("Gene_List_intersect",
+              "from",
+              paste(list_name, collapse = " and "),
+              Sys.Date())
+      list_data$gene_info <- 
+        distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name1,
+                                           sub =  paste("Gene_List_intersect"), 
+                                           onoff = "0",
+                                           plot_set = " ")))
+      setProgress(4, detail = paste("building exclusive list"))
+      exclusive <- anti_join(outlist, intersected, by = "gene")
+      if (n_distinct(exclusive$gene) == 0) {
+        exclusive <- distinct(outlist)
+      }
+      nick_name1 <-
+        paste("Gene_List_exclusive\nn =", n_distinct(exclusive$gene))
+      # record for info
+      list_data$gene_file[[nick_name1]]$full <- exclusive
+      list_data$gene_file[[nick_name1]]$use <- dplyr::select(exclusive, gene)
+      list_data$gene_file[[nick_name1]]$info <-
+        paste("Gene_List_exclusive",
+              "from",
+              paste(list_name, collapse = " and "),
+              Sys.Date())
+      list_data$gene_info <- 
+        distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name1,
+                                           sub =  paste("Gene_List_exclusive"), 
+                                           onoff = "0",
+                                           plot_set = " ")))
+      
+    }
+    list_data
+  }
