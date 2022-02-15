@@ -1,3 +1,23 @@
+# 
+# # filter/sort tool tab
+# # 
+# 
+# hidesorttable - switch tab hide, sort/filter show, (hide switch tab goes to start)
+# 
+# clustering/grouping, add abilty to use #s from gene_list$full (fix lists so selection of proper data can be done)
+# plot the dendeogram? and allow for more than 4 clusters.
+# test using the mean of the bin range for faster clustering
+# hclust.vector(df %>% filter(bin %in% c(15:16)) %>% group_by(gene) %>% summarise(value=mean(score),.groups = "drop") %>% select(value), method = "ward")
+# #
+# # data options and QC tab
+# #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
+# #     ability to find and remove outliers and filter (add to server R RNAseq filtering outliers )
+# 
+# 
+# ### change observereactive for ggplot to eventReactive??? (direct output)
+# 
+# do I use LIST_DATA$gene_info$count? if so fix filter
+# in QC add gene size and seperation, deep tools inputs/bin ranges
 
 # program for loading packages ----
 my_packages <- function(x) {
