@@ -1657,3 +1657,508 @@ IntersectGeneLists <-
     }
     list_data
   }
+
+# creates clusters using hclust.vector, from one active file
+FindClusters <- function(list_data,
+                         list_name,
+                         clusterfile,
+                         start_bin,
+                         end_bin) {
+  if (clusterfile == "") {
+    showModal(modalDialog(
+      title = "Information message",
+      paste("No file selected to work on"),
+      size = "s",
+      easyClose = TRUE
+    ))
+    return(NULL)
+  }
+  setProgress(1, detail = paste("gathering data"))
+  df <-
+      semi_join(dplyr::filter(list_data$table_file, set == clusterfile), 
+                list_data$gene_file[[list_name]]$use, by = 'gene') 
+    setProgress(2, detail = "hierarchical clustering using ward method")
+    list_data$clust <- list()
+    list_data$clust$cm <-
+      hclust.vector(as.data.frame(spread(df, bin, score))[, c((start_bin:end_bin) + 2)], method = "ward")
+  list_data$clust$use <- distinct(df, gene)
+  list_data
+}
+
+# Pull out the number of groups of clusters 2-10
+ClusterNumList <- function(list_data,
+                           list_name,
+                           clusterfile,
+                           start_bin,
+                           end_bin,
+                           num) {
+  if (is_empty(list_data$clust) | clusterfile == "") {
+    showModal(modalDialog(
+      title = "Information message",
+      paste("No file selected to work on"),
+      size = "s",
+      easyClose = TRUE
+    ))
+    return(NULL)
+  }
+  setProgress(3, detail = "spliting into clusters")
+  list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Cluster_")]
+  list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Cluster_"))
+  gene_list <-
+      dplyr::mutate(list_data$clust$use, cm = cutree(list_data$clust$cm, num))
+  for (nn in 1:num) {
+    outlist <- dplyr::filter(gene_list, cm == nn)
+    nick_name <-
+      paste(paste0("Cluster_", nn, "\nn ="), n_distinct(outlist$gene))
+    list_data$gene_file[[nick_name]]$full <- outlist
+    list_data$gene_file[[nick_name]]$use <- dplyr::select(outlist, gene)
+    list_data$gene_file[[nick_name]]$info <-
+      paste(
+        nick_name,
+        "bins",
+        start_bin,
+        "to",
+        end_bin,
+        "from",
+        list_name,
+        clusterfile,
+        num,
+        "Cluster_",
+        "total",
+        Sys.Date()
+      )
+    list_data$gene_info <- 
+      distinct(bind_rows(list_data$gene_info,
+                         list_data$gene_info %>% 
+                           dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                           dplyr::mutate(gene_list = nick_name,
+                                         sub =  paste(
+                                           "Cluster_",
+                                           "by",
+                                           num,
+                                           "from",
+                                           list_name
+                                         ), 
+                                         onoff = "0",
+                                         plot_set = " ")))
+    setProgress(4, detail = paste("finishing cluster", nn))
+  }
+  list_data
+}
+
+# a[1]/b[2] or (a[1]/a[2])/(b[1]/b[2]) make gene list
+CompareRatios <-
+  function(list_data,
+           list_name,
+           ratio1file,
+           ratio2file,
+           start1_bin,
+           end1_bin,
+           start2_bin,
+           end2_bin,
+           num,
+           divzerofix,
+           normbin = 0) {
+    if (ratio1file == "") {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("No file selected to work on"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return()
+    }
+    outlist <- NULL
+    if (ratio2file == "None" | ratio2file == "") {
+      if(sum(start2_bin,end2_bin) == 0){
+        showModal(modalDialog(
+          title = "Information message",
+          paste("no file or bins to compare to"),
+          size = "s",
+          easyClose = TRUE
+        ))
+        return()
+      }
+      ratiofile <- ratio1file
+    } else {
+      ratiofile <- c(ratio1file, ratio2file)
+    }
+    lc <- 0
+    lapply(ratiofile, function(j) {
+      df <-
+        semi_join(dplyr::filter(list_data$table_file, set == j), 
+                  list_data$gene_file[[list_name]]$use, by = 'gene') 
+      if (normbin > 0) {
+        df <- group_by(df, gene) %>%
+          arrange(bin) %>% 
+          dplyr::mutate(score = score / nth(score, normbin))
+      }
+      df <- group_by(df, gene) %>%
+        summarise(sum1 = sum(score[start1_bin:end1_bin],	na.rm = T),
+                  sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
+        ungroup()
+      # if min/2 find Na's and 0's, and replace
+      if(sum(start2_bin,end2_bin) == 0){
+        df$sum2 <- 1
+      }
+      if (divzerofix) {
+        df$sum2 <- na_if(df$sum2, 0)
+        new_min <-
+          min(df$sum2, na.rm = TRUE) / 2
+        df <-
+          replace_na(df, list(sum2 = new_min))
+      }
+      lc <<- lc + 1
+      outlist[[lc]] <<-
+        transmute(df, gene = gene, Ratio = sum1 / sum2) %>%
+        na_if(Inf) %>% dplyr::select(gene, Ratio)
+      
+      if (lc > 1) {
+        if (divzerofix) {
+          outlist[[2]]$Ratio <- na_if(outlist[[2]]$Ratio, 0)
+          outlist[[2]] <-
+            replace_na(outlist[[2]], list(Ratio = new_min))
+          outlist[[1]] <<-
+            inner_join(outlist[[1]], outlist[[2]], by = 'gene') %>%
+            transmute(gene = gene, Ratio = Ratio.x / Ratio.y) %>%
+            na_if(Inf)  %>% dplyr::select(gene, Ratio)
+        } else {
+          outlist[[1]] <<-
+            inner_join(outlist[[1]], outlist[[2]], by = 'gene') %>%
+            transmute(gene = gene, Ratio = Ratio.x / Ratio.y) %>%
+            na_if(Inf)  %>% dplyr::select(gene, Ratio)
+        }
+      }
+    })
+    #remove old info
+    list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Ratio_")]
+    list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Ratio_"))
+    if(num < 0){
+      num <- 1/num
+    }
+    nick_name <- NULL
+    if(num != 0){
+      upratio <- dplyr::filter(outlist[[1]], Ratio > num)
+    } else {
+      upratio <- NULL
+    }
+    
+    if (n_distinct(upratio$gene) > 0) {
+      nick_name1 <-
+        paste("Ratio_Up_file1\nn =", n_distinct(upratio$gene))
+      nick_name <- c(nick_name, nick_name1)
+      list_data$gene_file[[nick_name1]]$full <- upratio %>% dplyr::mutate(set=nick_name1)
+      list_data$gene_file[[nick_name1]]$use <- dplyr::select(upratio, gene)
+      list_data$gene_file[[nick_name1]]$info <-
+        paste(
+          "Ratio_Up_file1",
+          ratio2file,
+          "[",
+          start1_bin,
+          "to",
+          end1_bin,
+          "]/[",
+          start2_bin,
+          "to",
+          end2_bin,
+          "]/",
+          ratio1file,
+          "[",
+          start1_bin,
+          "to",
+          end1_bin,
+          "]/[",
+          start2_bin,
+          "to",
+          end2_bin,
+          "] ",
+          "fold change cut off",
+          num,
+          divzerofix,
+          "from",
+          list_name,
+          "gene list",
+          Sys.Date()
+        )
+      list_data$gene_info <- 
+        distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name1,
+                                           sub =  paste(
+                                             "\nRatio_Up_file1",
+                                             "fold change cut off",
+                                             num,
+                                             divzerofix,
+                                             "from",
+                                             list_name
+                                           ), 
+                                           onoff = "0",
+                                           plot_set = " ")))
+    }
+    if(num != 0){
+      upratio <- dplyr::filter(outlist[[1]], Ratio < 1 / num & Ratio != 0)
+    } else {
+      upratio <- NULL
+    } 
+    if (n_distinct(upratio$gene) > 0) {
+      nick_name2 <-
+        paste("Ratio_Down_file1\nn =", n_distinct(upratio$gene))
+      nick_name <- c(nick_name, nick_name2)
+      list_data$gene_file[[nick_name2]]$full <- upratio %>% dplyr::mutate(set=nick_name2)
+      list_data$gene_file[[nick_name2]]$use <- dplyr::select(upratio, gene)
+      list_data$gene_file[[nick_name2]]$info <-
+        paste(
+          "Ratio_Up_file1",
+          ratio2file,
+          "[",
+          start1_bin,
+          "to",
+          end1_bin,
+          "]/[",
+          start2_bin,
+          "to",
+          end2_bin,
+          "]/",
+          ratio1file,
+          "[",
+          start1_bin,
+          "to",
+          end1_bin,
+          "]/[",
+          start2_bin,
+          "to",
+          end2_bin,
+          "] ",
+          "fold change cut off",
+          num,
+          divzerofix,
+          "from",
+          list_name,
+          "gene list",
+          Sys.Date()
+        )
+      list_data$gene_info <- 
+        distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name2,
+                                           sub =  paste(
+                                             "Ratio_Down_file1",
+                                             "fold change cut off",
+                                             num,
+                                             divzerofix,
+                                             "from",
+                                             list_name
+                                           ), 
+                                           onoff = "0",
+                                           plot_set = " ")))
+    }
+    if(num != 0){
+      upratio <-
+        dplyr::filter(outlist[[1]], Ratio <= num &
+                        Ratio >= 1 / num | Ratio == 0)
+    } else {
+      upratio <- outlist[[1]]
+    }
+    
+    if (n_distinct(upratio$gene) > 0) {
+      nick_name3 <-
+        paste("Ratio_No_Diff\nn =", n_distinct(upratio$gene))
+      nick_name <- c(nick_name, nick_name3)
+      list_data$gene_file[[nick_name3]]$full <- upratio %>% dplyr::mutate(set=nick_name3)
+      list_data$gene_file[[nick_name3]]$use <- dplyr::select(upratio, gene)
+      list_data$gene_file[[nick_name3]]$info <-
+        paste(
+          "Ratio_Up_file1",
+          ratio2file,
+          "[",
+          start1_bin,
+          "to",
+          end1_bin,
+          "]/[",
+          start2_bin,
+          "to",
+          end2_bin,
+          "]/",
+          ratio1file,
+          "[",
+          start1_bin,
+          "to",
+          end1_bin,
+          "]/[",
+          start2_bin,
+          "to",
+          end2_bin,
+          "] ",
+          "fold change cut off",
+          num,
+          divzerofix,
+          "from",
+          list_name,
+          "gene list",
+          Sys.Date()
+        )
+      list_data$gene_info <- 
+        distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name3,
+                                           sub =  paste(
+                                             "Ratio_No_Diff",
+                                             "fold change cut off",
+                                             num,
+                                             divzerofix,
+                                             "from",
+                                             list_name
+                                           ), 
+                                           onoff = "0",
+                                           plot_set = " ")))
+    }
+    list_data$boxRatio <- NULL
+    for (nn in nick_name) {
+      list_data$boxRatio <- bind_rows(list_data$boxRatio,list_data$gene_file[[nn]]$full)
+    }
+    list_data
+  }
+
+# Cumulative Distribution data prep "PI / EI"
+CumulativeDistribution <-
+  function(list_data,
+           onoffs,
+           start1_bin,
+           end1_bin,
+           start2_bin,
+           end2_bin) {
+    print("cdf function")
+    if (is.null(onoffs)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("No file selected to work on"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return()
+    }
+    # remove old data sets
+    list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^CDF")]
+    list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^CDF"))
+    outlist <- NULL
+    for (list_name in names(onoffs)) {
+      setProgress(1, detail = paste("dividing one by the other"))
+      # Complete within gene list and sum regions
+      outlist[[list_name]] <-
+        semi_join(dplyr::filter(list_data$table_file, set == onoffs[[list_name]]), 
+                  list_data$gene_file[[list_name]]$use, by = 'gene') %>% 
+        group_by(gene,set) %>%
+        summarise(sum1 = sum(score[start1_bin:end1_bin],	na.rm = T),
+                  sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>% 
+        ungroup() %>% 
+        dplyr::mutate(., value = sum1 / sum2) %>%
+        na_if(Inf) %>% na_if(0) %>% 
+        group_by(., gene,set) %>%
+        dplyr::mutate(test = sum(value)) %>%
+        ungroup() %>% 
+        dplyr::filter(!is.na(test)) %>%
+        group_by(., set) %>%
+        arrange(value) %>%
+        dplyr::transmute(
+          gene=gene,
+          bin = row_number(),
+          set = set,
+          plot_set = paste(list_name, "-", set),
+          value = value
+        ) %>%
+        ungroup()
+    }
+    
+    # unlist and binds all together
+    outlist <- bind_rows(outlist) %>% distinct()
+    
+    
+    setProgress(2, detail = paste("building list"))
+    # removes top and bottom %
+    if (sum(start1_bin, end1_bin) > sum(start2_bin, end2_bin)) {
+      use_header <- "Log2 EI Cumulative plot"
+    } else {
+      use_header <- "Log2 PI Cumulative plot"
+    }
+    if (n_distinct(outlist$gene) > 0) {
+      nick_name1 <- paste0("CDF ", use_header)
+      list_data$gene_file[[nick_name1]]$full <- outlist
+      list_data$gene_file[[nick_name1]]$use <- outlist %>% select(gene)
+      list_data$gene_file[[nick_name1]]$info <-
+        paste(
+          use_header,
+          "CDF",
+          "bins",
+          start1_bin,
+          "to",
+          end1_bin,
+          "/",
+          start2_bin,
+          "to",
+          end2_bin,
+          "from",
+          names(onoffs),
+          "gene list(s)",
+          paste(distinct(outlist, plot_set), collapse = " "),
+          Sys.Date()
+        )
+    } else {
+      nick_name1 <- paste("CDF n = 0")
+    }
+    for (list_name in names(onoffs)) {
+      list_data$gene_info <- 
+        distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>% 
+                             dplyr::filter(gene_list == names(LIST_DATA$gene_file)[1] &
+                                             set %in% onoffs[[list_name]]) %>% 
+                             dplyr::mutate(gene_list = nick_name1,
+                                           sub =  paste(
+                                             "CDF from",
+                                             list_name
+                                           ), 
+                                           onoff = "0",
+                                           plot_set = paste(list_name, "-", set),
+                                           myheader = use_header)))
+      setProgress(5, detail = "finishing up")
+    }
+    list_data
+  }
+# CDG ggplot function
+GGplotC <-
+  function(df2,
+           plot_options,
+           use_header) {
+    print("ggplot CDF")
+    use_col <- plot_options$mycol
+    names(use_col) <- plot_options$set
+    legend_space <- max(1, (lengths(strsplit(
+      plot_options$set, "\n"
+    ))))
+    gp <- ggplot(df2, aes(log2(value), color = set)) +
+      stat_ecdf(show.legend = TRUE, size = 1.8) +
+      scale_color_manual(name = "Sample", values = use_col) +
+      ylab("Fraction of genes") +
+      ggtitle(use_header) +
+      theme_bw() +
+      theme(legend.title = element_blank()) +
+      theme(axis.title.y = element_text(size =  15)) +
+      theme(axis.title.x = element_text(size =  13, vjust = .5)) +
+      theme(axis.text.x = element_text(
+        size = 12,
+        angle = -45,
+        hjust = .1,
+        vjust = .9,
+        face = 'bold'
+      )) +
+      theme(
+        legend.title = element_blank(),
+        legend.key = element_rect(size = 5, color = 'white'),
+        legend.key.height = unit(legend_space, "line"),
+        legend.text = element_text(size = 10)
+      )
+    suppressMessages(print(gp))
+    return(suppressMessages(gp))
+  }

@@ -1,13 +1,16 @@
 # 
-# # filter/sort tool tab
-# # 
+# # DT tab 
+#    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violen,Bar,scatter,cdf?
+#    
 # 
-# hidesorttable - switch tab hide, sort/filter show, (hide switch tab goes to start)
+
+##### test for crashing of what I have set up ###
+
 # 
-# clustering/grouping, add abilty to use #s from gene_list$full (fix lists so selection of proper data can be done)
-# plot the dendeogram? and allow for more than 4 clusters.
-# test using the mean of the bin range for faster clustering
-# hclust.vector(df %>% filter(bin %in% c(15:16)) %>% group_by(gene) %>% summarise(value=mean(score),.groups = "drop") %>% select(value), method = "ward")
+
+#
+ 
+
 # #
 # # data options and QC tab
 # #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???

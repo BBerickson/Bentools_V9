@@ -18,7 +18,8 @@ suppressPackageStartupMessages(my_packages(
     "patchwork",
     "zip",
     "ggpubr",
-    "fastcluster"
+    "fastcluster",
+    "factoextra"
   )
 ))
 
@@ -64,7 +65,9 @@ server <- function(input, output, session) {
     mymath = c("mean", "none", "0", "FALSE", "FALSE", "0", "80"),
     ttest = NULL,
     ttest_values = c("none", "wilcox.test", "two.sided", "FALSE", "FALSE", "-log10", "fdr"),
-    ttest_options = c(0, 0, 1, "select sample", 0.05)
+    ttest_options = c(0, 0, 1, "select sample", 0.05),
+    clustergroups = NULL,
+    cluster_control = NULL
   )
   
   output$user <- renderUser({
@@ -83,7 +86,8 @@ server <- function(input, output, session) {
   addCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
-  addCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
+  # addCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
+  addCssClass(selector = "a[data-value='resultstool']", class = "inactiveLink")
   
   # sidebar observe
   
@@ -150,6 +154,7 @@ server <- function(input, output, session) {
     removeCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
+    removeCssClass(selector = "a[data-value='resultstool']", class = "inactiveLink")
     
     gts <- LIST_DATA$table_file %>% group_by(set) %>%
       summarise(number_of_genes = n_distinct(gene)) %>%
@@ -601,9 +606,6 @@ server <- function(input, output, session) {
         my_sel <- LIST_DATA$gene_info %>% 
           dplyr::filter(gene_list == input$selectgenelistoptions) %>% 
           dplyr::select(mycol)
-        reactive_values$Picker_controler <-
-          paste("color", unlist(my_sel), sep = ":")
-        
         if (!is.null(reactive_values$Apply_Math)) {
           reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
         }
@@ -642,8 +644,6 @@ server <- function(input, output, session) {
                         "selectdataoption",
                         choices = ff,selected = input$textnickname)
       LIST_DATA$STATE[2] <<- -10
-      reactive_values$Picker_controler <- 
-        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$table_file, set)$set)
     }
   })
   
@@ -908,7 +908,7 @@ server <- function(input, output, session) {
   # observe switching tabs ----
   observeEvent(input$leftSideTabs, ignoreInit = TRUE, {
     print("switch tab")
-    # main plot tab
+    # main plot tab ----
     if (input$leftSideTabs == "mainplot") {
       reactive_values$Picker_controler <- 
         c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
@@ -917,29 +917,37 @@ server <- function(input, output, session) {
         reactive_values$droplinesandlabels <- 1
       }
     }
-    # sort/filter tab
+    # sort/filter tab ----
     if (input$leftSideTabs == "sorttool"){
-      if(input$sortSamples == "select sample(s)"){
-        updateSliderInput(
-          session,
-          "slidersortbinrange",
-          min = LIST_DATA$x_plot_range[1],
-          max = LIST_DATA$x_plot_range[2],
-          value = LIST_DATA$x_plot_range
-        )
+      if(!is.null(input$sortSamples)){ 
+        if(input$sortSamples[1] == "select sample(s)"){
+          updateSliderInput(
+            session,
+            "slidersortbinrange",
+            min = LIST_DATA$x_plot_range[1],
+            max = LIST_DATA$x_plot_range[2],
+            value = LIST_DATA$x_plot_range
+          )
+        }
       }
-      SGL <- input$sortGeneList
+      SGL <- input$sortGeneList[1]
       updatePickerInput(session, "sortGeneList",
                         choices = c(distinct(LIST_DATA$gene_info, gene_list)$gene_list),
                         selected = SGL)
-      STS <- input$sortSamples
       updatePickerInput(session, "sortSamples",
                         choices = c(distinct(LIST_DATA$gene_info, set)$set),
-                        selected = STS)
+                        selected = "select sample(s)")
+      output$valueboxsort <- renderValueBox({
+        valueBox(0,
+                 "Gene List Filter",
+                 icon = icon("list"),
+                 color = "green")
+      })
       shinyjs::hide("hidesortplots1")
       shinyjs::hide("hidesortplots2")
+      
     }
-    # file norm tab
+    # file norm tab ----
     if (input$leftSideTabs == "filenorm") {
       updatePickerInput(
         session,
@@ -966,7 +974,7 @@ server <- function(input, output, session) {
                  color = "yellow")
       })
     }
-    # genelists tab
+    # genelists tab ----
     if (input$leftSideTabs == "genelists") {
       shinyjs::hide('actiongenelistsdatatable')
       updatePickerInput(
@@ -992,6 +1000,209 @@ server <- function(input, output, session) {
                  icon = icon("list"),
                  color = "red")
       })
+    }
+    # ratio switch tab ----
+    if (input$leftSideTabs == "ratiotool"){
+      if(!is.null(input$selectratiofile)){
+        if(input$selectratiofile == "Load data file"){
+          updateSelectInput(
+            session,
+            "selectratiofile",
+            choices = names(LIST_DATA$gene_file)
+          )
+          updateSliderInput(
+            session,
+            "sliderbinratio1",
+            min = LIST_DATA$x_plot_range[1],
+            max = LIST_DATA$x_plot_range[2],
+            value = c(
+              floor(LIST_DATA$x_plot_range[2] / 5.5),
+              floor(LIST_DATA$x_plot_range[2] / 4.4)
+            )
+          )
+          updateSliderInput(
+            session,
+            "sliderbinratio2",
+            min = 0,
+            max = LIST_DATA$x_plot_range[2],
+            value = c(
+              floor(LIST_DATA$x_plot_range[2] / 4.4) + 1,
+              floor(LIST_DATA$x_plot_range[2] / 1.77)
+            )
+          )
+          updateSliderInput(
+            session,
+            "sliderRatioBinNorm",
+            min = 0,
+            max = LIST_DATA$x_plot_range[2],
+            value = 0
+          )
+        }
+      } else {
+        updateSelectInput(session, "selectratiofile",
+                          choices = c(distinct(LIST_DATA$gene_info, gene_list)$gene_list))
+      }
+      
+      updatePickerInput(session, "pickerratio1file",
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set))
+      updatePickerInput(session, "pickerratio2file",
+                        choices = c("none", distinct(LIST_DATA$gene_info, set)$set))
+      output$valueboxratio1 <- renderValueBox({
+        valueBox(0,
+                 "Ratio Up file1",
+                 icon = icon("list"),
+                 color = "green")
+      })
+      output$valueboxratio2 <- renderValueBox({
+        valueBox(0,
+                 "Ratio down file1",
+                 icon = icon("list"),
+                 color = "blue")
+      })
+      output$valueboxratio3 <- renderValueBox({
+        valueBox(0,
+                 "Ratio No Diff",
+                 icon = icon("list"),
+                 color = "yellow")
+      })
+    }
+    # cluster switch tab ----
+    if (input$leftSideTabs == "clustertool"){
+      if(!is.null(input$clusterSamples)){ 
+        if(input$clusterSamples[1] == "select sample(s)"){
+          shinyjs::disable("onoffdendrogram")
+          shinyjs::hide("hideclusterplots1")
+          shinyjs::hide("hideclustertable")
+          shinyjs::hide("hideclusterplots2")
+          updateSliderInput(
+            session,
+            "sliderbincluster",
+            min = LIST_DATA$x_plot_range[1],
+            max = LIST_DATA$x_plot_range[2],
+            value = c(ceiling(LIST_DATA$x_plot_range[2]/8),
+                                             ceiling(LIST_DATA$x_plot_range[2]/4))
+          )
+        }
+      }
+      SGL <- input$clusterGeneList[1]
+      updatePickerInput(session, "clusterGeneList",
+                        choices = c(distinct(LIST_DATA$gene_info, gene_list)$gene_list),
+                        selected = SGL)
+      SGS <- input$clusterSamples[1]
+      updatePickerInput(session, "clusterSamples",
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        selected = SGS)
+      output$valueboxsort <- renderValueBox({
+        valueBox(0,
+                 "Gene List Filter",
+                 icon = icon("list"),
+                 color = "green")
+      })
+    }
+    # CDF switch tab ----
+    if(input$leftSideTabs == "cdftool"){
+    updateSliderInput(
+      session,
+      "sliderbincdf1",
+      min = LIST_DATA$x_plot_range[1],
+      max = LIST_DATA$x_plot_range[2],
+      value = c(
+        floor(LIST_DATA$x_plot_range[2] / 5.5),
+        floor(LIST_DATA$x_plot_range[2] / 4.4)
+      )
+    )
+    updateSliderInput(
+      session,
+      "sliderbincdf2",
+      min = LIST_DATA$x_plot_range[1],
+      max = LIST_DATA$x_plot_range[2],
+      value = c(
+        floor(LIST_DATA$x_plot_range[2] / 4.4) + 1,
+        floor(LIST_DATA$x_plot_range[2] / 1.77)
+      )
+    )
+    pickercdf <- list()
+    for (i in names(LIST_DATA$gene_file)) {
+      pickercdf[[i]] <-
+        list(div(
+          style = "margin-bottom: -10px;",
+          pickerInput(
+            inputId = gsub(" ", "-cdfspace2-", gsub("\n", "-cdfspace1-", i)),
+            label = i,
+            width = "99%",
+            choices = distinct(LIST_DATA$gene_info, set)$set,
+            multiple = T,
+            options = list(
+              `actions-box` = TRUE,
+              `selected-text-format` = "count > 0"
+            ),
+            choicesOpt = list(style = paste("color", dplyr::select(
+              dplyr::filter(LIST_DATA$gene_info,
+                            gene_list == names(LIST_DATA$gene_file)[1]),
+              mycol)$mycol, sep = ":"))
+          )
+        ))
+    }
+    if(any(str_detect(names(LIST_DATA$gene_file),"^Filter"))){
+      output$DynamicCDFPicker_sort <- renderUI({
+        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Filter")]
+      })
+      shinyjs::show("showpickersort_cdf")
+    } else {
+      shinyjs::hide("showpickersort_cdf")
+    }
+    if(any(str_detect(names(LIST_DATA$gene_file),"^Gene_List_"))){
+      output$DynamicCDFPicker_comparisons <- renderUI({
+        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Gene_List_")]
+      })
+      shinyjs::show("showpickercomparisons_cdf")
+    } else {
+      shinyjs::hide("showpickercomparisons_cdf")
+    }
+    if(any(str_detect(names(LIST_DATA$gene_file),"^Ratio_"))){
+      output$DynamicCDFPicker_ratio <- renderUI({
+        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Ratio_")]
+      })
+      shinyjs::show("showpickerratio_cdf")
+    } else {
+      shinyjs::hide("showpickerratio_cdf")
+    }
+    if(any(str_detect(names(LIST_DATA$gene_file),"^Cluster_"))){
+      output$DynamicCDFPicker_clusters <- renderUI({
+        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Cluster_")]
+      })
+      shinyjs::show("showpickercluster_cdf")
+    } else {
+      shinyjs::hide("showpickercluster_cdf")
+    }
+    if(any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
+      output$DynamicCDFPicker_cdf <- renderUI({
+        pickercdf[str_detect(names(LIST_DATA$gene_file),"^CDF")]
+      })
+      shinyjs::show("showpickercdf_cdf")
+    } else {
+      shinyjs::hide("showpickercdf_cdf")
+    }
+    output$DynamicCDFPicker_main <- renderUI({
+      pickercdf[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")]
+    })
+    if (sum(grepl("CDF ", names(LIST_DATA$gene_file))) == 0) {
+      output$plotcdf <- renderPlot({
+        NULL
+      })
+      shinyjs::hide('plotcdf')
+      shinyjs::hide('actioncdfdatatable')
+      my_count <- 0
+    } else {
+      my_count <-
+        n_distinct(LIST_DATA$gene_file[[grep("CDF ", names(LIST_DATA$gene_file))]]$use$gene)
+    }
+    output$valueboxcdf <- renderValueBox({
+      valueBox(my_count,
+               "Gene List",
+               icon = icon("list"),
+               color = "green")
+    })
     }
   })
   
@@ -1379,8 +1590,11 @@ server <- function(input, output, session) {
   output$plot2sort <- renderPlot({
     reactive_values$Plot_controler_sort_max
   })
-  output$plotcluster <- renderPlot({
+  output$plot1cluster <- renderPlot({
     reactive_values$Plot_controler_cluster
+  })
+  output$plot2cluster <- renderPlot({
+    reactive_values$Plot_controler_dcluster
   })
   output$plotratio <- renderPlot({
     reactive_values$Plot_controler_ratio
@@ -1471,7 +1685,7 @@ server <- function(input, output, session) {
           pickerlist[str_detect(names(LIST_DATA$gene_file),"^Filter")]
         })
         shinyjs::show("showpickersort")
-      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Filter"))){
+      } else {
         shinyjs::hide("showpickersort")
       }
       if(any(str_detect(names(LIST_DATA$gene_file),"^Gene_List_"))){
@@ -1479,7 +1693,7 @@ server <- function(input, output, session) {
           pickerlist[str_detect(names(LIST_DATA$gene_file),"^Gene_List_")]
         })
         shinyjs::show("showpickercomparisons")
-      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Gene_List_"))){
+      } else {
         shinyjs::hide("showpickercomparisons")
       }
       if(any(str_detect(names(LIST_DATA$gene_file),"^Ratio_"))){
@@ -1487,15 +1701,15 @@ server <- function(input, output, session) {
           pickerlist[str_detect(names(LIST_DATA$gene_file),"^Ratio_")]
         })
         shinyjs::show("showpickerratio")
-      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Ratio_"))){
+      } else {
         shinyjs::hide("showpickerratio")
       }
-      if(any(str_detect(names(LIST_DATA$gene_file),"^Group_|^Cluster_"))){
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Cluster_"))){
         output$DynamicGenePicker_clusters <- renderUI({
-          pickerlist[str_detect(names(LIST_DATA$gene_file),"^Group_|^Cluster_")]
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^Cluster_")]
         })
         shinyjs::show("showpickercluster")
-      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^Group_|^Cluster_"))){
+      } else {
         shinyjs::hide("showpickercluster")
       }
       if(any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
@@ -1503,11 +1717,11 @@ server <- function(input, output, session) {
           pickerlist[str_detect(names(LIST_DATA$gene_file),"^CDF")]
         })
         shinyjs::show("showpickercdf")
-      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
+      } else {
         shinyjs::hide("showpickercdf")
       }
       output$DynamicGenePicker_main <- renderUI({
-        pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Group_|^Cluster_|^CDF")]
+        pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")]
       })
       
     })
@@ -1515,9 +1729,6 @@ server <- function(input, output, session) {
   # sort sum tool action ----
   observeEvent(input$actionsorttool, {
     print("sort tool")
-    shinyjs::hide('actionsortdatatable')
-    shinyjs::hide('sorttable')
-    
     if (input$slidersortpercent < 50 &
         input$selectsorttop == "Middle%") {
       updateSliderInput(session, "slidersortpercent", value = 50)
@@ -1539,9 +1750,6 @@ server <- function(input, output, session) {
                  })
     if (!is_empty(LD$table_file)) {
       LIST_DATA <<- LD
-      if(LIST_DATA$STATE[2] == 0){
-        LIST_DATA$STATE[2] <<- -2
-      }
       LD <- LIST_DATA
       mylist <- last(grep("^Filter", names(LIST_DATA$gene_file)))
       LD$gene_info <- LD$gene_info %>%
@@ -1575,7 +1783,6 @@ server <- function(input, output, session) {
         shinyjs::hide("hidesortplots2")
                      })
       }
-      shinyjs::show('actionsortdatatable')
       if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
         output$valueboxsort <- renderValueBox({
           valueBox(
@@ -1605,16 +1812,16 @@ server <- function(input, output, session) {
     ol <- input$sortGeneList
     if (!ol %in% names(LIST_DATA$gene_file)) {
       ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
-      reactive_values$pickerfile_controler <- input$sortSamples
-    } else {
-      reactive_values$pickerfile_controler <- ""
-    }
+    } 
     updateSelectInput(
       session,
       "sortGeneList",
       choices = names(LIST_DATA$gene_file),
       selected = ol
     )
+    if(LIST_DATA$STATE[1] !=0 ){
+      LIST_DATA$STATE[1] <<- 0.75
+    }
   })
   
   # sort % numeric controller ----
@@ -1648,9 +1855,6 @@ server <- function(input, output, session) {
     
     if(!is_empty(sortmin$sortplot)){
       LIST_DATA <<- sortmin
-      if(LIST_DATA$STATE[2] == 0){
-        LIST_DATA$STATE[2] <<- -2
-      } 
       if(input$selectsortper != "max%" ){  
         gp1 <-
           ggplot(sortmin$sortplot %>% dplyr::filter(!is.na(my_p_1)) ,aes(as.numeric(bin),my_p_1,color=set)) + 
@@ -1720,113 +1924,17 @@ server <- function(input, output, session) {
     ol <- input$sortGeneList
     if (!ol %in% names(LIST_DATA$gene_file)) {
       ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
-      reactive_values$pickerfile_controler <- input$sortSamples
-    } else {
-      reactive_values$pickerfile_controler <- ""
-    }
+    } 
     updateSelectInput(
       session,
       "sortGeneList",
       choices = names(LIST_DATA$gene_file),
       selected = ol
     )
-  })
-  
-  # Filter gene list show data table ----
-  observeEvent(input$actionsortdatatable, ignoreInit = TRUE, {
-    print("show data table")
-    if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
-      newnames <-
-        gsub("(.{20})", "\\1... ", names(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full))
-      dt <- datatable(
-        LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full,
-        colnames = c("RANK",strtrim(newnames, 30)),
-        class = 'cell-border stripe compact',
-        filter = 'top',
-        caption = LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$info,
-        options = list(
-          pageLength = 10,
-          scrollX = TRUE,
-          scrollY = TRUE,
-          autoWidth = F,
-          width = 5,
-          columnDefs = list(
-            list(className = 'dt-center ', targets = "_all"),
-            list(targets = 0, width = 2),
-            list(
-              targets = 1,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "return type === 'display' && data.length > 44 ?",
-                "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
-                "}"
-              )
-            )
-          )
-        )
-      ) %>% formatPercentage(names(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full)[-1])
-    } else {
-      dt <- datatable(
-        LIST_DATA$gene_file[[1]]$empty,
-        rownames = FALSE,
-        colnames = "none",
-        options = list(searching = FALSE)
-      )
+    if(LIST_DATA$STATE[1] !=0 ){
+      LIST_DATA$STATE[1] <<- 0.75
     }
-    withProgress(message = 'Calculation in progress',
-                 detail = 'This may take a while...',
-                 value = 0,
-                 {
-                   output$sorttable <- DT::renderDataTable(dt)
-                 })
-    shinyjs::hide('actionsortdatatable')
-    shinyjs::show('sorttable')
   })
-  
-  # sort tool gene list $use ----
-  observeEvent(input$sorttable_rows_all,
-               ignoreInit = TRUE,
-               ignoreNULL = TRUE,
-               {
-                 oldname <-
-                   last(grep("^Filter ", names(LIST_DATA$gene_file)))
-                 oldname1 <- names(LIST_DATA$gene_file)[oldname] %>% str_split_fixed(., " n = ",n=2)
-                 newname <-
-                   paste(oldname1[1], "n =",
-                         length(input$sorttable_rows_all))
-                 if (newname != names(LIST_DATA$gene_file)[oldname]) {
-                   print("sort filter $use")
-                   names(LIST_DATA$gene_file)[oldname] <<- newname
-                   LIST_DATA$gene_file[[newname]]$use <<-
-                     tibble(gene = LIST_DATA$gene_file[[newname]]$full$gene[input$sorttable_rows_all])
-                   ol <- input$sortGeneList
-                   if (!ol %in% names(LIST_DATA$gene_file)) {
-                     ol <- newname
-                     reactive_values$Picker_controler <- 
-                       c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
-                     reactive_values$pickerfile_controler <-
-                       input$sortSamples
-                   } else {
-                     reactive_values$pickerfile_controler <- ""
-                     reactive_values$Picker_controler <- 
-                       c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
-                   }
-                   updateSelectInput(
-                     session,
-                     "sortGeneList",
-                     choices = names(LIST_DATA$gene_file),
-                     selected = ol
-                   )
-                   output$valueboxsort <- renderValueBox({
-                     valueBox(
-                       n_distinct(LIST_DATA$gene_file[[newname]]$use),
-                       "Gene List Filter",
-                       icon = icon("list"),
-                       color = "green"
-                     )
-                   })
-                 }
-               })
   
   # observe norm gene pickers ----
   observeEvent(c(input$pickernumerator, input$adddata,
@@ -1894,9 +2002,6 @@ server <- function(input, output, session) {
       updateSelectInput(session,
                         "selectdataoption",
                         choices = ff)
-      # update main plot picker with new file name trigger
-      reactive_values$Picker_controler <- 
-        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
     } else {
       #no new data file created
       output$valueboxnormfile <- renderValueBox({
@@ -2202,6 +2307,448 @@ server <- function(input, output, session) {
     updateTabItems(session, "geneliststooltab", mytab)
   })
   
+  # Cluster tool action ----
+  observeEvent(input$actionclustertool, ignoreInit = TRUE, {
+    print("cluster tool action")
+    shinyjs::hide('plot1cluster')
+    shinyjs::hide('plot2cluster')
+    if (n_distinct(LIST_DATA$gene_file[[input$clusterGeneList]]$use) < as.numeric(input$selectclusternumber) |
+        is.null(input$clusterSamples)) {
+      return()
+    }
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <-
+                     FindClusters(
+                       LIST_DATA,
+                       input$clusterGeneList,
+                       input$clusterSamples,
+                       input$sliderbincluster[1],
+                       input$sliderbincluster[2]
+                     )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      if(LIST_DATA$STATE[1] != 0){
+        LIST_DATA$STATE[1] <<- .5
+      }
+      reactive_values$clustergroups <- str_detect(names(LIST_DATA$gene_file),"^Cluster_")
+    } else {
+      return()
+    }
+  })
+  
+  # Plots Clusters based on number selected ----
+  observeEvent(c(input$selectclusternumber, reactive_values$clustergroups),
+               ignoreInit = TRUE, ignoreNULL = TRUE,
+               {
+                 print("cluster tool number")
+                 if (is.null(reactive_values$clustergroups)) {
+                   return()
+                 }
+                 shinyjs::hide('hideclusterplots1')
+                 shinyjs::hide("hideclustertable")
+                 shinyjs::hide('hideclusterplots2')
+                 withProgress(message = 'Calculation in progress',
+                              detail = 'This may take a while...',
+                              value = 0,
+                              {
+                                LD <-
+                                  ClusterNumList(
+                                    LIST_DATA,
+                                    input$clusterGeneList,
+                                    input$clusterSamples,
+                                    input$sliderbincluster[1],
+                                    input$sliderbincluster[2],
+                                    input$selectclusternumber
+                                  )
+                              })
+                 if (!is_empty(LD$table_file)) {
+                   LIST_DATA <<- LD
+                   ol <- input$selectclusterfile
+                   shinyjs::show('hideclusterplots1')
+                   shinyjs::show("hideclustertable")
+                   shinyjs::show('plot1cluster')
+                   updateSelectInput(
+                     session,
+                     "selectclusterfile",
+                     choices = names(LIST_DATA$gene_file),
+                     selected = ol
+                   )
+                   LD$gene_info <- LD$gene_info %>%
+                     dplyr::mutate(onoff=if_else(str_detect(gene_list,"^Cluster_") &
+                                                   set == input$clusterSamples, set, "0"))
+                   withProgress(message = 'Calculation in progress',
+                                detail = 'This may take a while...',
+                                value = 0,
+                                {
+                                  list_data_frame <- Active_list_data(LD)
+                                  if (!is_empty(list_data_frame)) {
+                                    
+                                    Apply_Cluster_Math <- ApplyMath(
+                                      list_data_frame,
+                                      "mean",
+                                      "none",
+                                      0
+                                    ) %>% separate(plot_set,c("set","plot_set"),sep = "\n",extra = "drop")
+                                  }
+                                  reactive_values$Plot_controler_cluster <- ggplot()
+                                  reactive_values$Plot_controler_dcluster <- ggplot()
+                                  gp1 <-
+                                    ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=plot_set)) +
+                                    geom_line() +
+                                    ylab("Mean bin value") +
+                                    theme(legend.position="bottom",
+                                          legend.title = element_blank(),
+                                          axis.title.x=element_blank())
+                                  print(gp1)
+                                  reactive_values$Plot_controler_cluster <- gp1
+                                })
+                   shinyjs::enable("onoffdendrogram")
+                   gts <- list_data_frame %>% 
+                     distinct(gene_list) %>% 
+                     separate(gene_list,c("Cluster","number_of_genes"),sep = "\nn = ",extra = "drop")
+                   dt <- datatable(
+                     gts,
+                     colnames = names(gts),
+                     rownames = FALSE,
+                     filter = "none",
+                     class = 'cell-border stripe compact',
+                     options = list(
+                       scrollX = TRUE,
+                       scrollY = TRUE,
+                       autoWidth = TRUE,
+                       width = 20,
+                       sDom  = '<"top">lrt<"bottom">ip',
+                       info = FALSE,
+                       paging = FALSE,
+                       lengthChange = FALSE,
+                       columnDefs = list(
+                         list(className = 'dt-center ', targets = "_all"),
+                         list(
+                           targets = 0,
+                           render = JS(
+                             "function(data, type, row, meta) {",
+                             "return type === 'display' && data.length > 25 ?",
+                             "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
+                             "}"
+                           )
+                         )
+                       )
+                     )
+                   )
+                   output$clustertable <- DT::renderDataTable(dt)
+                 } else {
+                   return()
+                 }
+               })
+  
+  # plots deprogram of Clusters ----
+  observeEvent(input$actiondclustertool, ignoreInit = TRUE,{
+    shinyjs::show('hideclusterplots2')
+    shinyjs::show('plot2cluster')
+    gp2 <-
+      suppressWarnings(fviz_dend(LIST_DATA$clust$cm, k = as.numeric(input$selectclusternumber),
+                show_labels = F))
+    print(gp2)
+    reactive_values$Plot_controler_dcluster <- gp2
+  })
+  
+  # Cluster reset controller ----
+  observeEvent(c(input$clusterGeneList,
+                 input$clusterSamples), ignoreNULL = TRUE, ignoreInit = TRUE, {
+    reactive_values$clustergroups <- NULL
+    shinyjs::disable("onoffdendrogram")
+    shinyjs::hide("hideclusterplots1")
+    shinyjs::hide("hideclustertable")
+    shinyjs::hide("hideclusterplots2")
+  })
+  
+  # Ratio tool action ----
+  observeEvent(input$actionratiotool, ignoreInit = TRUE, {
+    print("ratio tool action")
+    shinyjs::hide('ratio1table')
+    shinyjs::hide('ratio2table')
+    shinyjs::hide('ratio3table')
+    if (is.numeric(input$numericratio)) {
+      if (input$numericratio < 0) {
+        updateNumericInput(session, "numericratio", value = 2)
+      }
+    } else {
+      updateNumericInput(session, "numericratio", value = 2)
+    }
+    if (input$sliderbinratio2[1] == 0 & input$sliderbinratio2[2] > 0) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("Bins regions should not overlap, \nBins set to 1/4 3/4"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      updateSliderInput(session,
+                        "sliderbinratio2",
+                        value = c(0,0))
+    }
+    
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <-
+                     CompareRatios(
+                       LIST_DATA,
+                       input$selectratiofile,
+                       input$pickerratio1file,
+                       input$pickerratio2file,
+                       input$sliderbinratio1[1],
+                       input$sliderbinratio1[2],
+                       input$sliderbinratio2[1],
+                       input$sliderbinratio2[2],
+                       input$numericratio,
+                       input$checkratiozero,
+                       input$sliderRatioBinNorm
+                     )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      if(LIST_DATA$STATE[1] != 0){
+        LIST_DATA$STATE[2] <<- 0.5
+      }
+      
+      ol <- input$selectratiofile
+      updateSelectInput(
+        session,
+        "selectratiofile",
+        choices = names(LIST_DATA$gene_file),
+        selected = ol
+      )
+      if (any(grep("Ratio_Up_file1\nn =", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxratio1 <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[grep("Ratio_Up_file1\nn =", names(LIST_DATA$gene_file))]]$use$gene),
+            "Ratio Up file1",
+            icon = icon("list"),
+            color = "green"
+          )
+        })
+      } else{
+        output$valueboxratio1 <- renderValueBox({
+          valueBox(0,
+                   "Ratio Up file1",
+                   icon = icon("list"),
+                   color = "green")
+        })
+      }
+      if (any(grep("Ratio_Down_file1\nn =", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxratio2 <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[grep("Ratio_Down_file1\nn =",
+                                                 names(LIST_DATA$gene_file))]]$use$gene),
+            "Ratio Down file1",
+            icon = icon("list"),
+            color = "blue"
+          )
+        })
+      } else{
+        output$valueboxratio2 <- renderValueBox({
+          valueBox(0,
+                   "Ratio Down file1",
+                   icon = icon("list"),
+                   color = "blue")
+        })
+      }
+      if (any(grep("Ratio_No_Diff\nn =", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxratio3 <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[grep("Ratio_No_Diff\nn =", names(LIST_DATA$gene_file))]]$use$gene),
+            "Ratio No Diff",
+            icon = icon("list"),
+            color = "yellow"
+          )
+        })
+      } else{
+        output$valueboxratio3 <- renderValueBox({
+          valueBox(0,
+                   "Ratio No Diff",
+                   icon = icon("list"),
+                   color = "yellow")
+        })
+      }
+      if(!is.null(LIST_DATA$boxRatio)){
+        my_range <- range(LIST_DATA$boxRatio$Ratio,na.rm = T) 
+        updateNumericInput(session, "textboxmaxratio",
+                           value = my_range[2])
+        updateNumericInput(session, "textboxminratio",
+                           value = my_range[1])
+      } else {
+        updateNumericInput(session, "textboxmaxratio",
+                           value = 0)
+        updateNumericInput(session, "textboxminratio",
+                           value = 0)
+      }
+    } else {
+      output$valueboxratio1 <- renderValueBox({
+        valueBox(0,
+                 "Ratio Up file1",
+                 icon = icon("list"),
+                 color = "green")
+      })
+      output$valueboxratio2 <- renderValueBox({
+        valueBox(0,
+                 "Ratio Down file1",
+                 icon = icon("list"),
+                 color = "blue")
+      })
+      output$valueboxratio3 <- renderValueBox({
+        valueBox(0,
+                 "Ratio No Diff",
+                 icon = icon("list"),
+                 color = "yellow")
+      })
+      return()
+    }
+  })
+  
+  # update Ratio violinplot ----
+  observeEvent(c(input$textboxmaxratio, input$textboxminratio),ignoreInit = TRUE, ignoreNULL = TRUE,{
+                   if(!is.null(LIST_DATA$boxRatio)){
+                     my_range <- c(floor(input$textboxminratio), ceiling(input$textboxmaxratio)) 
+                     gb <- ggviolin(LIST_DATA$boxRatio, x= "set", y = "Ratio", fill="set",
+                                       color="set",add = "boxplot", add.params = list(fill = "white"),xlab = "") + 
+                         theme(legend.position = 'none') +
+                       coord_cartesian(ylim = my_range)
+                     print(gb)
+                     reactive_values$Plot_controler_ratio <- gb 
+                   } 
+                   
+                 })
+  
+  # CDF tool action ----
+  observeEvent(input$actioncdftool, ignoreInit = TRUE, {
+    print("CDF tool action")
+    shinyjs::hide('cdftable')
+    shinyjs::hide('plotcdf')
+    if (any(between(
+      input$sliderbincdf1,
+      input$sliderbincdf2[1],
+      input$sliderbincdf2[2]
+    )) |
+    any(between(
+      input$sliderbincdf2,
+      input$sliderbincdf1[1],
+      input$sliderbincdf1[2]
+    ))) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("Bins regions should not overlab, \nBins set to 1/3 2/3"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      updateSliderInput(session,
+                        "sliderbincdf1",
+                        value = c(
+                          LIST_DATA$x_plot_range[1],
+                          floor(LIST_DATA$x_plot_range[2] / 4)
+                        ))
+      updateSliderInput(session,
+                        "sliderbincdf2",
+                        value = c(
+                          ceiling(LIST_DATA$x_plot_range[2] / 4) + 1,
+                          LIST_DATA$x_plot_range[2]
+                        ))
+    }
+    ttt <-
+      reactiveValuesToList(input)[gsub(" ", "-cdfspace2-", gsub("\n", "-cdfspace1-", names(LIST_DATA$gene_file)))]
+    checkboxonoff <- list()
+    for (i in names(ttt)) {
+      for (tt in ttt[i]) {
+        selectgenelistonoff <-
+          gsub("-cdfspace2-", " ", gsub("-cdfspace1-", "\n", i))
+        checkboxonoff[[selectgenelistonoff]] <-
+          c(checkboxonoff[[selectgenelistonoff]], tt)
+      }
+    }
+    if (is_empty(checkboxonoff)) {
+      return()
+    }
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <-
+                     CumulativeDistribution(
+                       LIST_DATA,
+                       checkboxonoff,
+                       input$sliderbincdf1[1],
+                       input$sliderbincdf1[2],
+                       input$sliderbincdf2[1],
+                       input$sliderbincdf2[2]
+                     )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      if(LIST_DATA$STATE[1] != 0){
+        LIST_DATA$STATE[1] <<- 0.5
+      }
+      shinyjs::show('actioncdfdatatable')
+      shinyjs::show('plotcdf')
+      newname <-
+        grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
+      df_options <-
+        LIST_DATA$gene_info %>%
+        dplyr::filter(gene_list ==  newname) %>%
+        dplyr::mutate(set = paste(
+          sub("\n", " ", newname),
+          gsub("(.{20})", "\\1\n", plot_set),
+          sep = '\n'
+        ))
+      # fix same color problems
+      if (any(duplicated(df_options$mycol))) {
+        df_options$mycol <-
+          brewer.pal(8, "Set1")[1:n_distinct(df_options$set)]
+      }
+      df <- LIST_DATA$gene_file[[newname]]$full %>%
+        dplyr::mutate(set = paste(
+          sub("\n", " ", newname),
+          gsub("(.{20})", "\\1\n", plot_set),
+          sep = '\n'
+        ))
+      use_header <- pull(distinct(df_options, myheader))
+      if (n_groups(group_by(df_options, set)) == 2 &
+          n_distinct(df$gene) > 1) {
+        tt_name <- pull(distinct(df_options, set))
+        tt <-
+          suppressWarnings(ks.test(pull(dplyr::filter(
+            df, set == tt_name[1]
+          ), value),
+          pull(dplyr::filter(
+            df, set == tt_name[2]
+          ), value)))
+        if (tt[[2]] == 0) {
+          use_header <- paste(use_header, "  p-value < 2.2e-16 ")
+        } else {
+          use_header <-
+            paste(use_header, paste("  p-value = ", format(tt[[2]], scientific = TRUE)))
+        }
+      }
+      mycdf <- GGplotC(df, df_options, use_header)
+      print(mycdf)
+      output$plotcdf <- renderPlot({
+        mycdf
+      })
+      output$valueboxcdf <- renderValueBox({
+        valueBox(
+          n_distinct(df$gene),
+          "Gene List",
+          icon = icon("list"),
+          color = "green"
+        )
+      })
+    } else {
+      return()
+    }
+  })
   
   
 }
@@ -2232,7 +2779,8 @@ ui <- dashboardPage(
       menuItem("Filter Tool", tabName = "sorttool", icon = icon("filter")),
       menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("percentage")),
       menuItem("Cluster Tools", tabName = "clustertool", icon = icon("object-group")),
-      menuItem("CDF Tools", tabName = "cdftool", icon = icon("ruler-combined"))
+      menuItem("CDF Tools", tabName = "cdftool", icon = icon("ruler-combined")),
+      menuItem("Results Tools", tabName = "resultstool", icon = icon("table"))
     )
   ),
   body = dashboardBody(
@@ -2450,7 +2998,7 @@ ui <- dashboardPage(
             div(
               id = "showpickercluster",
               box(
-                title = "Clusters/Groups",
+                title = "Clusters",
                 width = 6,
                 status = "navy",
                 solidHeader = T,
@@ -2614,6 +3162,36 @@ ui <- dashboardPage(
         div(
           id = "enablemainsort",
           box(
+            width = 12, solidHeader = T,
+            status = "primary",
+            column(width = 6,
+                   pickerInput("sortGeneList", label = "select list",
+                               choices = (LIST_DATA$gene_info)),
+                   div(
+                     style = "margin-bottom: -20px;",
+                     sliderInput(
+                       "slidersortbinrange",
+                       label = "Select Bin Range:",
+                       min = 0,
+                       max = 80,
+                       value = c(0, 80)
+                     )
+                   )
+            ),
+            column(width = 6,
+                   pickerInput("sortSamples", label = "select sample(s)",
+                               choices = "select sample(s)",selected = "select sample(s)",
+                               multiple = TRUE,
+                               options = list(
+                                 `actions-box` = FALSE,
+                                 `selected-text-format` = "count > 0")),
+                   div(
+                     style = "margin-bottom: -20px;",
+                     awesomeCheckbox("checkboxfilterall","Filter on all if any", value = TRUE)
+                   )
+            )
+          ),
+          box(
             title = "Filter by sum rank",
             solidHeader = T,
             width = 6,
@@ -2696,81 +3274,324 @@ ui <- dashboardPage(
               withSpinner(plotOutput("plot2sort",height = "200px"), type = 4)
             )
           ),
-            box(
-              width = 12, solidHeader = T,
+          valueBoxOutput("valueboxsort")
+        )
+      ),
+      tabItem(
+        # ratio tool ----
+        tabName = "ratiotool",
+        div(
+          id = "enablemainratio",
+          box(title = "Ratio tool",
               status = "primary",
+              solidHeader = T,
+              width = 12,
               column(width = 6,
-              pickerInput("sortGeneList", label = "select list",
-                          choices = (LIST_DATA$gene_info)),
-              div(
-                style = "margin-bottom: -20px;",
+              selectInput(
+                inputId = "selectratiofile",
+                label = "Select gene list to sort on",
+                choices = "Load data file",
+                width = "99%"
+              ),
+              actionButton("actionratiotool", "Get fold changes"),
+              awesomeCheckbox(
+                "checkratiozero",
+                label = "replace 0 with min/2",
+                value = FALSE
+              )
+              ),
+              column(width = 6,
+              pickerInput(
+                inputId = "pickerratio1file",
+                width = "99%",
+                label = "Select first file",
+                choices = "Load data file",
+                multiple = F,
+                options = list(title = "Select first file")
+              ),
+              pickerInput(
+                inputId = "pickerratio2file",
+                width = "99%",
+                label = "Select second file",
+                choices = "Load data file",
+                multiple = F,
+                options = list(title = "Select second file")
+              )
+            )
+          ),
+          box(
+            title = "Ratio tool",
+            status = "primary",
+            solidHeader = T,
+            width = 12,
+            fluidRow(
+              column(
+                2,
+                numericInput(
+                  "numericratio",
+                  "Fold Change",
+                  value = 2,
+                  min = 0,
+                  max = 10,
+                  step = 0.1
+                )
+              ),
+              column(
+                5,
                 sliderInput(
-                  "slidersortbinrange",
-                  label = "Select Bin Range:",
+                  "sliderbinratio1",
+                  label = "Select numerator Bin Range:",
+                  min = 1,
+                  max = 80,
+                  value = c(1, 1)
+                )
+              ),
+              column(
+                5,
+                sliderInput(
+                  "sliderbinratio2",
+                  label = "Select denominator Bin Range:",
                   min = 0,
                   max = 80,
                   value = c(0, 80)
                 )
               )
-              ),
-              column(width = 6,
-              pickerInput("sortSamples", label = "select sample(s)",
-                          choices = "select sample(s)",selected = "select sample(s)",
-                          multiple = TRUE),
-              div(
-                style = "margin-bottom: -20px;",
-                awesomeCheckbox("checkboxfilterall","Filter on all if any", value = TRUE)
-              )
-              )
-              ),
-          div(
-            id = "hidesorttable",
-            box(
-              title = "Filter Table",
-              solidHeader = T,
-              width = 12,
-              status = "navy",
-              actionButton("actionsortdatatable", "Show gene list"),
-              helpText("All filtering applied to gene list usage elsewhere"),
-              DT::dataTableOutput('sorttable')
+            ),
+            sliderInput(
+              "sliderRatioBinNorm",
+              label = "Bin Norm:",
+              min = 0,
+              max = 80,
+              value = 0
             )
           ),
-          valueBoxOutput("valueboxsort")
-        )
-      ),
-      tabItem(
-        # raito tool ----
-        tabName = "ratiotool",
-        box(
-          status = "purple",
-          solidHeader = TRUE,
-          title = "QC Options",
-          fileInput(
-            "filetable",
-            label = "",
-            accept = c('.table'),
-            multiple = TRUE
+          box(
+            title = "Violin  Plot",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 12,
+            collapsible = TRUE,
+            collapsed = TRUE,
+            withSpinner(plotOutput("plotratio"), type = 4),
+            numericInput(inputId = 'textboxmaxratio',
+                         "yaxis max",
+                         value = 0,
+                         min = 0,
+                         max = 1000,
+                         step = .5),
+            numericInput(inputId = 'textboxminratio',
+                         "yaxis min",
+                         value = 0,
+                         min = 0,
+                         max = 1000,
+                         step = .5)
+          ),
+          fluidRow(
+            valueBoxOutput("valueboxratio1"),
+            valueBoxOutput("valueboxratio2"),
+            valueBoxOutput("valueboxratio3")
           )
         )
       ),
       tabItem(
         # cluster tools ----
         tabName = "clustertool",
-        box(
-          status = "purple",
-          solidHeader = TRUE,
-          title = "QC Options",
-          fileInput(
-            "filetable",
-            label = "",
-            accept = c('.table'),
-            multiple = TRUE
-          )
+        div(
+          id = "enablemaincluster",
+          box(title = "Cluster tools",
+              status = "primary",
+              solidHeader = T,
+              width = 6,
+              pickerInput("clusterGeneList", label = "select list",
+                                 choices = (LIST_DATA$gene_info)),
+         pickerInput("clusterSamples", label = "select sample(s)",
+                             choices = "select sample(s)",selected = "select sample(s)",
+                             multiple = F
+                            )
+                 
+          ),
+         box(
+           title = "Cluster tools",
+           status = "primary",
+           solidHeader = T,
+           width = 6,
+           id = "test",
+           style = "margin-bottom: 15px;",
+           fluidRow(column(
+             4,
+             selectInput(
+               inputId = "selectclusternumber",
+               label = "Select number of clusters",
+               choices = c(10:2),
+               selected = 4,
+               width = "99%"
+             )
+           ),
+           column(
+             8,
+             sliderInput(
+               "sliderbincluster",
+               label = "Select Bin Range:",
+               min = 1,
+               max = 80,
+               value = c(1, 80)
+             )
+           )),
+           column(width = 6,
+           actionButton("actionclustertool", "Get clusters")),
+           div(
+             id = "onoffdendrogram",
+             column(width = 6,
+           actionButton("actiondclustertool", "plot dendrogram")
+           ))
+         ),
+         div(
+            id = "hideclusterplots1",
+            box(headerBorder = F,
+                width = 8,
+                withSpinner(plotOutput("plot1cluster",height = "300px"), type = 4)
+            )
+          ),
+         div(
+           id = "hideclustertable",
+           box(headerBorder = F,
+               style = "padding: 0px 2px;",
+           width = 4,
+           DT::dataTableOutput('clustertable',height = "320px")     
+                )),
+         div(
+           id = "hideclusterplots2",
+           box(headerBorder = F,
+               width = 12,
+               withSpinner(plotOutput("plot2cluster",height = "200px"), type = 4)
+           )
+         )
         )
       ),
       tabItem(
         # cdf ----
         tabName = "cdftool",
+        div(
+          id = "enablemaincdf",
+          box(
+            title = "CDF tool",
+            status = "primary",
+            solidHeader = T,
+            collapsible = T,
+            width = 12,
+            box(title = "Main",
+                width = 6,
+                status = "navy",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicCDFPicker_main")
+            ),
+            hidden(
+              div(
+                id = "showpickersort_cdf",
+                box(
+                  title = "Filter (max 4 lists)",
+                  width = 6,
+                  status = "navy",
+                  solidHeader = T,
+                  collapsible = T,
+                  collapsed = F,
+                  uiOutput("DynamicCDFPicker_sort")
+                )
+              )),
+            hidden(
+              div(
+                id = "showpickercomparisons_cdf",
+                box(
+                  title = "Gene comparisons",
+                  width = 6,
+                  status = "navy",
+                  solidHeader = T,
+                  collapsible = T,
+                  collapsed = F,
+                  uiOutput("DynamicCDFPicker_comparisons")
+                )
+              )),
+            hidden(
+              div(
+                id = "showpickerratio_cdf",
+                box(
+                  title = "Ratio",
+                  width = 6,
+                  status = "navy",
+                  solidHeader = T,
+                  collapsible = T,
+                  collapsed = F,
+                  uiOutput("DynamicCDFPicker_ratio")
+                )
+              )),
+            hidden(
+              div(
+                id = "showpickercluster_cdf",
+                box(
+                  title = "Clusters",
+                  width = 6,
+                  status = "navy",
+                  solidHeader = T,
+                  collapsible = T,
+                  collapsed = F,
+                  uiOutput("DynamicCDFPicker_clusters")
+                )
+              )),
+            hidden(
+              div(
+                id = "showpickercdf_cdf",
+                box(
+                  title = "CDF",
+                  width = 6,
+                  status = "navy",
+                  solidHeader = T,
+                  collapsible = T,
+                  collapsed = F,
+                  uiOutput("DynamicCDFPicker_cdf")
+                )
+              ))
+          ),
+          box(
+            title = "CDF Plot",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 12,
+            column(
+              width = 6,
+              sliderInput(
+                "sliderbincdf1",
+                label = "Select numerator Bin Range:",
+                min = 0,
+                max = 80,
+                value = c(0, 0)
+              )),
+              column(
+                width = 6,
+              sliderInput(
+                "sliderbincdf2",
+                label = "Select denominator Bin Range:",
+                min = 0,
+                max = 80,
+                value = c(0, 80)
+              )),
+              actionButton("actioncdftool", "Plot CDF")
+          ),
+          box(
+            title = "CDF Plot",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 12,
+            collapsible = TRUE,
+            withSpinner(plotOutput("plotcdf"), type = 4)
+          ),
+          valueBoxOutput("valueboxcdf")
+        )
+      ),
+      tabItem(
+        # results ----
+        tabName = "resultstool",
         box(
           status = "purple",
           solidHeader = TRUE,
