@@ -60,7 +60,7 @@ server <- function(input, output, session) {
     Apply_Math = NULL,
     Plot_Options = NULL,
     Y_Axis_numbers = c(0,100),
-    Lines_Labels_List = list(mybrakes="",mylabels=""),
+    Lines_Labels_List = list(mybrakes="",mylabels="",myset = c(20, 40, 15, 45, 100, 5)),
     Picker_controler = NULL,
     mymath = c("mean", "none", "0", "FALSE", "FALSE", "0", "80"),
     ttest = NULL,
@@ -658,8 +658,7 @@ server <- function(input, output, session) {
       footer = tagList(
         box(
           width = 12,
-          status = "navy",
-          solidHeader = T,
+          solidHeader = F,
           collapsible = FALSE,
           collapsed = FALSE,
           div(
@@ -679,7 +678,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numerictss",
                      "TSS bin",
-                     value = 15,
+                     value = reactive_values$Lines_Labels_List$myset[3],
                      min = 0,
                      max = 100
                    )
@@ -693,7 +692,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numericbody1",
                      "5|4 bin",
-                     value = 20,
+                     value = reactive_values$Lines_Labels_List$myset[1],
                      min = 0,
                      max = 100
                    )
@@ -703,7 +702,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numericbody2",
                      "4|3 bin",
-                     value = 40,
+                     value = reactive_values$Lines_Labels_List$myset[2],
                      min = 0,
                      max = 100
                    )
@@ -713,7 +712,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numerictes",
                      "pA bin",
-                     value = 45,
+                     value = reactive_values$Lines_Labels_List$myset[4],
                      min = 0,
                      max = 100
                    )
@@ -727,7 +726,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numericbinsize",
                      "bp/bin",
-                     value = 100,
+                     value = reactive_values$Lines_Labels_List$myset[5],
                      min = 20,
                      max = 1000,
                      step = 5
@@ -738,7 +737,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numericlabelspaceing",
                      "every bin",
-                     value = 5,
+                     value = reactive_values$Lines_Labels_List$myset[6],
                      min = 0,
                      max = 100
                    )
@@ -914,6 +913,10 @@ server <- function(input, output, session) {
         c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
       if(LIST_DATA$STATE[1] == 0){
         LIST_DATA$STATE[1] <<- 1
+        updateSliderInput(session,"sliderplotBinRange",
+                          min = LIST_DATA$x_plot_range[1],
+                          max = LIST_DATA$x_plot_range[2],
+                          value = LIST_DATA$x_plot_range)
         reactive_values$droplinesandlabels <- 1
       }
     }
@@ -1249,7 +1252,9 @@ server <- function(input, output, session) {
         input$selectfontsizex,
         input$selectfontsizey,
         input$selectlegendsize,
-        input$selectttestlinesize
+        input$selectttestlinesize,
+        input$numericbinsize,
+        input$numericlabelspaceing
       )
     removeModal()
   })

@@ -1,16 +1,30 @@
-# 
+# test/fix cdf function, if not 543 set bins 1/2 1/2 and on switching tab don't reset sliders, add xlab zoom slider
+# +
+#   coord_cartesian(xlim = c(-3,3))
+# don't have cdf create a gene list and remove pop up,
+# fix naming legend and add number of genes and remove value box
 # # DT tab 
-#    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violen,Bar,scatter,cdf?
+#    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violen,Bar,scatter,cdf
 #    
-# 
+# fix plot options to remember new settings when created, and fix labels, change button type/look?
+# fix RF and other norms to not change the sign of the data
+##### test for crashing of what I have set up ### loading a file after a gene list?, are my gene n numbers correct?
 
-##### test for crashing of what I have set up ###
+# test loading in grep gene lists
+  # MatchGenes <- function(common_list, gene_list){
+    # for(g in seq_along(gene_list$gene)){
+    #   gene_list$gene[g] <- str_subset(
+    #     common_list$gene, gene_list$gene[g]
+    #   )[1]
+    # }
+    # gene_list <- filter(gene_list, !is.na(gene))
+    # return(gene_list)
+  # }
 
-# 
+# have ability to change the order of lists (DT function?)
+# if loading a url file have progress bar count number of files completed
 
-#
- 
-
+# a plot to show delta PI, MA/scatter/dot?
 # #
 # # data options and QC tab
 # #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
@@ -21,6 +35,7 @@
 # 
 # do I use LIST_DATA$gene_info$count? if so fix filter
 # in QC add gene size and seperation, deep tools inputs/bin ranges
+# "factoextra" for dendogram plot fviz_dend()
 
 # program for loading packages ----
 my_packages <- function(x) {

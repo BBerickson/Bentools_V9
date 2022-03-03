@@ -52,13 +52,10 @@ RgbToHex <- function(x,
 
 # finds first partial match to gene list input 
 MatchGenes <- function(common_list, gene_list){
-  for(g in seq_along(gene_list$gene)){
-    gene_list$gene[g] <- str_subset(
-      common_list$gene, gene_list$gene[g]
-    )[1]
-  }
-  gene_list <- filter(gene_list, !is.na(gene))
-  return(gene_list)
+  tablefile <-
+    map(gene_list$gene, str_subset, string = common_list$gene) 
+  tablefile <- distinct(tibble(gene = unlist(tablefile)))
+  return(tablefile)
 }
 
 # reads in table file(s), tests, fills out info and returns list_data
@@ -957,7 +954,9 @@ LinesLabelsListPlot <-
            fontsizex,
            fontsizey,
            legendsize,
-           ttestlinesize) {
+           ttestlinesize,
+           binsize,
+           binspace) {
     print("lines and labels plot fun")
     if (length(use_plot_breaks_labels) > 0) {
       mycolors <- rep("black", length(use_plot_breaks))
@@ -1006,7 +1005,8 @@ LinesLabelsListPlot <-
       mycolors = mycolors,
       mybrakes = use_plot_breaks,
       mylabels = use_plot_breaks_labels,
-      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, ttestlinesize)
+      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, ttestlinesize),
+      myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
     )
   }
 
@@ -2048,18 +2048,13 @@ CumulativeDistribution <-
       setProgress(1, detail = paste("dividing one by the other"))
       # Complete within gene list and sum regions
       outlist[[list_name]] <-
-        semi_join(dplyr::filter(list_data$table_file, set == onoffs[[list_name]]), 
+        semi_join(dplyr::filter(list_data$table_file, set %in% onoffs[[list_name]]), 
                   list_data$gene_file[[list_name]]$use, by = 'gene') %>% 
         group_by(gene,set) %>%
-        summarise(sum1 = sum(score[start1_bin:end1_bin],	na.rm = T),
-                  sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>% 
-        ungroup() %>% 
+        summarise(sum1 = mean(score[start1_bin:end1_bin],	na.rm = T),
+                  sum2 = mean(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
         dplyr::mutate(., value = sum1 / sum2) %>%
-        na_if(Inf) %>% na_if(0) %>% 
-        group_by(., gene,set) %>%
-        dplyr::mutate(test = sum(value)) %>%
-        ungroup() %>% 
-        dplyr::filter(!is.na(test)) %>%
+        na_if(Inf) %>% replace_na(list(value = 0)) %>% 
         group_by(., set) %>%
         arrange(value) %>%
         dplyr::transmute(
@@ -2073,8 +2068,7 @@ CumulativeDistribution <-
     }
     
     # unlist and binds all together
-    outlist <- bind_rows(outlist) %>% distinct()
-    
+    outlist <- bind_rows(outlist) %>% distinct() %>% arrange(bin)
     
     setProgress(2, detail = paste("building list"))
     # removes top and bottom %
@@ -2158,7 +2152,8 @@ GGplotC <-
         legend.key = element_rect(size = 5, color = 'white'),
         legend.key.height = unit(legend_space, "line"),
         legend.text = element_text(size = 10)
-      )
+      )+
+      coord_cartesian(xlim = c(-3,4))
     suppressMessages(print(gp))
     return(suppressMessages(gp))
   }
