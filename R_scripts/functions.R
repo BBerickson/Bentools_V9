@@ -2152,8 +2152,7 @@ GGplotC <-
         legend.key = element_rect(size = 5, color = 'white'),
         legend.key.height = unit(legend_space, "line"),
         legend.text = element_text(size = 10)
-      )+
-      coord_cartesian(xlim = c(-3,4))
+      )
     suppressMessages(print(gp))
     return(suppressMessages(gp))
   }
