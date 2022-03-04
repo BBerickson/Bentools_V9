@@ -1,16 +1,18 @@
 # test/fix cdf function, if not 543 set bins 1/2 1/2 and on switching tab don't reset sliders, add xlab zoom slider
 # +
 #   coord_cartesian(xlim = c(-3,3))
-# don't have cdf create a gene list and remove pop up,
-# fix naming legend and add number of genes and remove value box
+# add .1 percent for filter 
+# fix naming legend and add number of genes and remove value box, load file tab switching update pickers
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violen,Bar,scatter,cdf
 #    
 # fix plot options to remember new settings when created, and fix labels, change button type/look?
 # fix RF and other norms to not change the sign of the data
-##### test for crashing of what I have set up ### loading a file after a gene list?, are my gene n numbers correct?
+##### test for crashing of what I have set up ### loading a file after a gene list?, are my gene n numbers correct?, filter have if 0 check
 
 # test loading in grep gene lists
+# add a test to detect _ to add regex for better pattern matching
+# map(paste0("\\|" , mRNAs_up$name,"$"), str_subset, string = hg19_gene$name) 
   # MatchGenes <- function(common_list, gene_list){
     # for(g in seq_along(gene_list$gene)){
     #   gene_list$gene[g] <- str_subset(
