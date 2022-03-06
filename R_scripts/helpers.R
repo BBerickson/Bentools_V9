@@ -1,5 +1,5 @@
-#  activate gene list if common have $use remade with distinct
-# loading a file after a gene list?, are my gene n numbers correct(inclusive/exclusive, add option)?, filter have if 0 check        
+#  
+#     
 #  
 # 
 # # DT tab 

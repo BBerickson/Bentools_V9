@@ -172,7 +172,7 @@ LoadTableFile <-
         my_color[x] <- RgbToHex(my_color[x], convert = "hex")
       }
       
-      # matirix file
+      # matrix file
       if(length(grep(".matrix.gz", file_path[x])) == 1){
         num_bins <-
           count_fields(file_path[x],
@@ -482,9 +482,16 @@ Active_list_data <-
         next()
       } else {
         my_sel <- gene_info %>% dplyr::filter(gene_list == i & onoff != 0)
+        tf <- table_file %>% 
+          dplyr::filter(set %in% my_sel$onoff)
+        gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
+        gene_common <- gene_common %>% 
+          group_by(gene) %>% 
+          filter(n_distinct(set)==n_distinct(gene_common$set)) %>% 
+          distinct(gene) %>% ungroup()
         list_data_out[[i]] <-
-          table_file %>% 
-          dplyr::filter(set %in% my_sel$onoff) %>%
+          tf %>% 
+          semi_join(., gene_common, by = "gene") %>%
           semi_join(., gene_file[[i]]$use, by = "gene") %>% 
           dplyr::mutate(., gene_list = i)
         # adds line brake at 20 character for legend spacing
@@ -1283,7 +1290,7 @@ FilterTop <-
       lc <<- lc + 1
     })
     if (length(outlist$gene) == 0) {
-      return(list_data)
+      return(NULL)
     }
     old_name <- grep("^Filter", names(list_data$gene_file), value = T)
     if (length(old_name) > 3) {
@@ -1300,7 +1307,7 @@ FilterTop <-
                    paste0("Filter ",topbottom2, "\nn = ", n_distinct(outlist$gene))), 33)
     list_data$gene_file[[nick_name]]$full <- outlist
     list_data$gene_file[[nick_name]]$use <- dplyr::select(outlist, gene)
-    list_data$gene_file[[nick_name]]$info <-
+    list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
       paste(
         "Filter",
         topbottom2,
@@ -1313,7 +1320,8 @@ FilterTop <-
         paste(file_names, collapse = " "),
         Sys.Date(),
         list_data$gene_file[[list_name]]$info
-      )
+      ),
+      matching = FALSE)
     list_data$gene_info <- 
       distinct(bind_rows(list_data$gene_info,
                          list_data$gene_info %>% 
@@ -1396,7 +1404,7 @@ FilterPer <-
       topbottom2 <- paste(paste(str_remove(my_type,"%"), paste0(my_per[1], "%")),paste0(my_per[2], "%"),collapse = " and ")
     }
     if (length(out_list$gene) == 0) {
-      return(list_data)
+      return(NULL)
     }
     old_names <- grep("^Filter", names(list_data$gene_file), value = T)
     if (length(old_names) > 3) {
@@ -1442,7 +1450,7 @@ FilterPer <-
     list_data$gene_file[[nick_name]]$full <- out_list %>% dplyr::mutate(min=my_per[1],max=my_per[2])
     list_data$gene_file[[nick_name]]$use <- out_list
     list_data$sortplot <- out_list1
-    list_data$gene_file[[nick_name]]$info <-
+    list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
       paste(
         "Filter Prob:",
         topbottom2,
@@ -1455,7 +1463,8 @@ FilterPer <-
         paste(file_names, collapse = " "),
         Sys.Date(),
         list_data$gene_file[[list_name]]$info
-      )
+      ),
+      matching = FALSE)
     list_data$gene_info <-
       distinct(bind_rows(list_data$gene_info,
                          list_data$gene_info %>%
@@ -1596,11 +1605,12 @@ IntersectGeneLists <-
       # record for info
       list_data$gene_file[[nick_name1]]$full <- distinct(outlist)
       list_data$gene_file[[nick_name1]]$use <- distinct(dplyr::select(outlist, gene))
-      list_data$gene_file[[nick_name1]]$info <-
+      list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
         paste("Gene_List_Total",
               "from",
               paste(list_name, collapse = " and "),
-              Sys.Date())
+              Sys.Date()),
+        matching = FALSE)
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
@@ -1618,11 +1628,12 @@ IntersectGeneLists <-
       # record for info
       list_data$gene_file[[nick_name1]]$full <- intersected
       list_data$gene_file[[nick_name1]]$use <- dplyr::select(intersected, gene)
-      list_data$gene_file[[nick_name1]]$info <-
+      list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
         paste("Gene_List_intersect",
               "from",
               paste(list_name, collapse = " and "),
-              Sys.Date())
+              Sys.Date()),
+      matching = FALSE)
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
@@ -1641,11 +1652,12 @@ IntersectGeneLists <-
       # record for info
       list_data$gene_file[[nick_name1]]$full <- exclusive
       list_data$gene_file[[nick_name1]]$use <- dplyr::select(exclusive, gene)
-      list_data$gene_file[[nick_name1]]$info <-
+      list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
         paste("Gene_List_exclusive",
               "from",
               paste(list_name, collapse = " and "),
-              Sys.Date())
+              Sys.Date()),
+        matching = FALSE)
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
@@ -1713,7 +1725,7 @@ ClusterNumList <- function(list_data,
       paste(paste0("Cluster_", nn, "\nn ="), n_distinct(outlist$gene))
     list_data$gene_file[[nick_name]]$full <- outlist
     list_data$gene_file[[nick_name]]$use <- dplyr::select(outlist, gene)
-    list_data$gene_file[[nick_name]]$info <-
+    list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
       paste(
         nick_name,
         "bins",
@@ -1727,7 +1739,8 @@ ClusterNumList <- function(list_data,
         "Cluster_",
         "total",
         Sys.Date()
-      )
+      ),
+    matching = FALSE)
     list_data$gene_info <- 
       distinct(bind_rows(list_data$gene_info,
                          list_data$gene_info %>% 
@@ -1851,7 +1864,7 @@ CompareRatios <-
       nick_name <- c(nick_name, nick_name1)
       list_data$gene_file[[nick_name1]]$full <- upratio %>% dplyr::mutate(set=nick_name1)
       list_data$gene_file[[nick_name1]]$use <- dplyr::select(upratio, gene)
-      list_data$gene_file[[nick_name1]]$info <-
+      list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
         paste(
           "Ratio_Up_file1",
           ratio2file,
@@ -1881,7 +1894,8 @@ CompareRatios <-
           list_name,
           "gene list",
           Sys.Date()
-        )
+        ),
+        matching = FALSE)
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
@@ -1910,7 +1924,7 @@ CompareRatios <-
       nick_name <- c(nick_name, nick_name2)
       list_data$gene_file[[nick_name2]]$full <- upratio %>% dplyr::mutate(set=nick_name2)
       list_data$gene_file[[nick_name2]]$use <- dplyr::select(upratio, gene)
-      list_data$gene_file[[nick_name2]]$info <-
+      list_data$gene_file[[nick_name2]]$info <- tibble(loaded_info =
         paste(
           "Ratio_Up_file1",
           ratio2file,
@@ -1940,7 +1954,8 @@ CompareRatios <-
           list_name,
           "gene list",
           Sys.Date()
-        )
+        ),
+        matching = FALSE)
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
@@ -1972,7 +1987,7 @@ CompareRatios <-
       nick_name <- c(nick_name, nick_name3)
       list_data$gene_file[[nick_name3]]$full <- upratio %>% dplyr::mutate(set=nick_name3)
       list_data$gene_file[[nick_name3]]$use <- dplyr::select(upratio, gene)
-      list_data$gene_file[[nick_name3]]$info <-
+      list_data$gene_file[[nick_name3]]$info <- tibble(loaded_info =
         paste(
           "Ratio_Up_file1",
           ratio2file,
@@ -2002,7 +2017,8 @@ CompareRatios <-
           list_name,
           "gene list",
           Sys.Date()
-        )
+        ),
+      matching = FALSE)
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
@@ -2087,7 +2103,7 @@ CumulativeDistribution <-
       nick_name1 <- paste0("CDF ", use_header)
       list_data$gene_file[[nick_name1]]$full <- outlist
       list_data$gene_file[[nick_name1]]$use <- outlist %>% select(gene)
-      list_data$gene_file[[nick_name1]]$info <-
+      list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
         paste(
           use_header,
           "CDF",
@@ -2104,7 +2120,8 @@ CumulativeDistribution <-
           "gene list(s)",
           paste(distinct(outlist, plot_set), collapse = " "),
           Sys.Date()
-        )
+        ),
+        matching = FALSE)
     } else {
       nick_name1 <- paste("CDF n = 0")
     }

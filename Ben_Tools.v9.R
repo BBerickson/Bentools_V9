@@ -233,18 +233,18 @@ server <- function(input, output, session) {
     )
     output$loadedfilestotaltable <- DT::renderDataTable(dt2)
     if (length(LIST_DATA$gene_file) > 1) {
-      gg <- LIST_DATA$gene_info %>% filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")) %>%
-        select(., gene_list, count) %>%
+      gg <- LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")) %>%
+        select(., gene_list, count) %>% dplyr::rename(Usable = count) %>% 
         distinct()
       ggg <- NULL
-      for (i in names(LIST_DATA$gene_file)[-1]) {
+      for (i in gg$gene_list) {
         ggg <-
           c(
             ggg,
             sapply(LIST_DATA$gene_file[i], "[[", "full") %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
           )
       }
-      ggg <- mutate(gg, "total_in_file" = ggg)
+      ggg <- dplyr::mutate(gg, "total_in_file" = ggg)
       dtg <- datatable(
         ggg,
         colnames = names(ggg),
@@ -289,18 +289,18 @@ server <- function(input, output, session) {
     shinyjs::reset("filegene1")
     
     gg <-
-      LIST_DATA$gene_info %>% filter(gene_list != "Complete") %>%
-      select(., gene_list, count) %>%
+      LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")) %>%
+      select(., gene_list, count) %>% dplyr::rename(Usable = count) %>%
       distinct()
     ggg <- NULL
-    for (i in names(LIST_DATA$gene_file)[-1]) {
+    for (i in gg$gene_list) {
       ggg <-
         c(
           ggg,
-          sapply(LIST_DATA$gene_file[2], "[[", "full") %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
+          sapply(LIST_DATA$gene_file[i], "[[", "full") %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
         )
     }
-    ggg <- mutate(gg, "total_in_file" = ggg)
+    ggg <- dplyr::mutate(gg, "total_in_file" = ggg)
     dtg <- datatable(
       ggg,
       colnames = names(ggg),
@@ -608,10 +608,10 @@ server <- function(input, output, session) {
                 status = "info",
                 background = "light-blue",
                 colourInput("colourhex", "Select color HEX",value = distinct(LIST_DATA$gene_info %>% 
-                                                                               filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1]),
+                                                                               dplyr::filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1]),
                 tags$hr(),
                 textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(LIST_DATA$gene_info %>% 
-                                                                                 filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1], convert = "rgb")),
+                                                                                 dplyr::filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1], convert = "rgb")),
                 tags$hr(),
                 actionButton("actionmyrgb", "Update color",width = 100)
               )
@@ -625,9 +625,9 @@ server <- function(input, output, session) {
             pickerInput("selectgenelistoptions", "", width = 300, choices = "CDF Log2 PI Cumulative plot",
                         selected = "CDF Log2 PI Cumulative plot"),
             pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info%>% 
-                                                                     filter(str_detect(gene_list,"^CDF")),set)$set,
+                                                                     dplyr::filter(str_detect(gene_list,"^CDF")),set)$set,
                         selected = distinct(LIST_DATA$gene_info%>% 
-                                              filter(str_detect(gene_list,"^CDF")),set)$set[1])
+                                              dplyr::filter(str_detect(gene_list,"^CDF")),set)$set[1])
         ),
         modalButton("Close")
       )
@@ -700,7 +700,7 @@ server <- function(input, output, session) {
                                     input$textnickname, set)) %>% 
         dplyr::mutate(onoff = if_else(onoff == input$selectdataoption,
                                       input$textnickname, onoff)) %>% 
-        mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,paste0("^",input$selectdataoption),input$textnickname))
+        dplyr::mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,paste0("^",input$selectdataoption),input$textnickname))
       LIST_DATA$table_file <<- LIST_DATA$table_file %>%
         dplyr::mutate(set = if_else(set == input$selectdataoption,
                                     input$textnickname, set))
@@ -1005,13 +1005,20 @@ server <- function(input, output, session) {
           )
         }
       }
-      SGL <- input$sortGeneList[1]
+      ol <- input$sortGeneList
+      if (!ol %in% names(LIST_DATA$gene_file)) {
+        ol <- "Complete"
+      }
+      olg <- input$sortSamples
+      if (!all(olg %in% c(distinct(LIST_DATA$gene_info, set)$set))) {
+        olg <- "select sample(s)"
+      } 
       updatePickerInput(session, "sortGeneList",
-                        choices = c(distinct(LIST_DATA$gene_info, gene_list)$gene_list),
-                        selected = SGL)
+                        choices = names(LIST_DATA$gene_file),
+                        selected = ol)
       updatePickerInput(session, "sortSamples",
                         choices = c(distinct(LIST_DATA$gene_info, set)$set),
-                        selected = "select sample(s)")
+                        selected = olg)
       output$valueboxsort <- renderValueBox({
         valueBox(0,
                  "Gene List Filter",
@@ -1152,14 +1159,20 @@ server <- function(input, output, session) {
           )
         }
       }
-      SGL <- input$clusterGeneList[1]
+      ol <- input$clusterGeneList
+      if (!ol %in% names(LIST_DATA$gene_file)) {
+        ol <- "Complete"
+      }
+      olg <- input$clusterSamples
+      if (!all(olg %in% c(distinct(LIST_DATA$gene_info, set)$set))) {
+        olg <- "select sample(s)"
+      } 
       updatePickerInput(session, "clusterGeneList",
-                        choices = c(distinct(LIST_DATA$gene_info, gene_list)$gene_list),
-                        selected = SGL)
-      SGS <- input$clusterSamples[1]
+                        choices = names(LIST_DATA$gene_file),
+                        selected = ol)
       updatePickerInput(session, "clusterSamples",
                         choices = c(distinct(LIST_DATA$gene_info, set)$set),
-                        selected = SGS)
+                        selected = olg)
       output$valueboxsort <- renderValueBox({
         valueBox(0,
                  "Gene List Filter",
@@ -2771,7 +2784,7 @@ server <- function(input, output, session) {
       )
     df <- LIST_DATA$gene_file[[newname]]$full %>%
       full_join(.,df_options %>% select(set,plot_set),by="plot_set") %>%
-      mutate(set=set.y) %>% select(-set.x,-set.y)
+      dplyr::mutate(set=set.y) %>% select(-set.x,-set.y)
     
     use_header <- pull(distinct(df_options, myheader))
     if (n_groups(group_by(df_options, set)) == 2 &
@@ -3641,5 +3654,5 @@ ui <- dashboardPage(
   title = "DashboardPage"
 )
 
-# exicute ----
+# execute ----
 shinyApp(ui = ui, server = server)
