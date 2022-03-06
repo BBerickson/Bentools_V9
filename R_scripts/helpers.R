@@ -1,16 +1,17 @@
-# test/fix cdf function, if not 543 set bins 1/2 1/2 and on switching tab don't reset sliders, add xlab zoom slider
-# +
-#   coord_cartesian(xlim = c(-3,3))
-# add .1 percent for filter 
-# fix naming legend and add number of genes and remove value box, load file tab switching update pickers
+#  activate gene list if common have $use remade with distinct
+# loading a file after a gene list?, are my gene n numbers correct(inclusive/exclusive, add option)?, filter have if 0 check        
+#  
+# 
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violen,Bar,scatter,cdf
 #    
-# fix plot options to remember new settings when created, and fix labels, change button type/look?
-# fix RF and other norms to not change the sign of the data
-##### test for crashing of what I have set up ### loading a file after a gene list?, are my gene n numbers correct?, filter have if 0 check
+# filter per have min and max numbers ajusted based on total number of genes, and set to relitive 1%  filter to start, on 1 file show up and down a few steps making picked a wider line on plot
+# make filter tool to remove spike data (set peak area and check if any bin has a higher value)
+# smart filter tool ... set high med and low areas have filter % move # gene at a time until pattern found 
+# #### test RF and other norms to not change the sign of the data
+##### test for crashing of what I have set up ### 
 
-# test loading in grep gene lists
+# test loading in grep gene lists ... updtate to like V8a
 # add a test to detect _ to add regex for better pattern matching
 # map(paste0("\\|" , mRNAs_up$name,"$"), str_subset, string = hg19_gene$name) 
   # MatchGenes <- function(common_list, gene_list){
@@ -35,7 +36,7 @@
 # 
 # ### change observereactive for ggplot to eventReactive??? (direct output)
 # 
-# do I use LIST_DATA$gene_info$count? if so fix filter
+# 
 # in QC add gene size and seperation, deep tools inputs/bin ranges
 # "factoextra" for dendogram plot fviz_dend()
 
@@ -66,7 +67,8 @@ kLinesandlabels <- c(
   "5'",
   "4",
   "3",
-  "generic 543"
+  "generic 543",
+  "PI"
 )
 
 # math options available ----

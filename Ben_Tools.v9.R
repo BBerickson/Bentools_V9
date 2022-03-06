@@ -60,14 +60,19 @@ server <- function(input, output, session) {
     Apply_Math = NULL,
     Plot_Options = NULL,
     Y_Axis_numbers = c(0,100),
-    Lines_Labels_List = list(mybrakes="",mylabels="",myset = c(20, 40, 15, 45, 100, 5)),
+    Lines_Labels_List = list(mybrakes="",mylabels="",
+                             myline = tibble(use_virtical_line_color=c("green","red","black","black"),
+                                             use_virtical_line_type=c("dotted","dotted","solid","solid")),
+                             mysize = c(2.0, 2.5, 13.0, 13.0, 10.0),
+                             myset = c(20, 40, 15, 45, 100, 5)),
     Picker_controler = NULL,
     mymath = c("mean", "none", "0", "FALSE", "FALSE", "0", "80"),
     ttest = NULL,
     ttest_values = c("none", "wilcox.test", "two.sided", "FALSE", "FALSE", "-log10", "fdr"),
     ttest_options = c(0, 0, 1, "select sample", 0.05),
     clustergroups = NULL,
-    cluster_control = NULL
+    cluster_control = NULL,
+    setsliders = NULL
   )
   
   output$user <- renderUser({
@@ -86,10 +91,8 @@ server <- function(input, output, session) {
   addCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
-  # addCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
+  addCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='resultstool']", class = "inactiveLink")
-  
-  # sidebar observe
   
   # loads data file(s) ----
   observeEvent(input$filetable, {
@@ -125,20 +128,36 @@ server <- function(input, output, session) {
       # tries to guess lines and labels type
       num_bins <- LIST_DATA$x_plot_range[2]
       if (num_bins == 80 & LIST_DATA$STATE[3] == '543') {
+        reactive_values$setsliders <- c(1,80,14,18,19,45)
         LIST_DATA$STATE[3] <<- kLinesandlabels[1]
       } else if (num_bins == 80 & LIST_DATA$STATE[3] == '5') {
+        reactive_values$setsliders <- c(1,80,20,60,0,0)
         LIST_DATA$STATE[3] <<- kLinesandlabels[2]
-      } else if (num_bins <= 60 & LIST_DATA$STATE[3] == '543') {
+      } else if (num_bins == 2 & LIST_DATA$STATE[3] == 'PI') {
+        reactive_values$setsliders <- c(1,2,1,1,2,2)
         LIST_DATA$STATE[3] <<- kLinesandlabels[3]
       } else if (num_bins == 205 & LIST_DATA$STATE[3] == '5') {
+        reactive_values$setsliders <- c(1,205,1,15,0,0)
         LIST_DATA$STATE[3] <<- kLinesandlabels[4]
       } else if (LIST_DATA$STATE[3] == '5') {
+        reactive_values$setsliders <- c(1,num_bins,1,
+                                        num_bins/2,0,0)
         LIST_DATA$STATE[3] <<- kLinesandlabels[5]
       } else if (LIST_DATA$STATE[3] == '4') {
+        reactive_values$setsliders <- c(1,num_bins,1,num_bins,0,0)
         LIST_DATA$STATE[3] <<- kLinesandlabels[6]
       } else if (LIST_DATA$STATE[3] == '3') {
+        reactive_values$setsliders <- c(1,num_bins,
+                                        num_bins/2,
+                                        num_bins,0,0)
         LIST_DATA$STATE[3] <<- kLinesandlabels[7]
       } else {
+        reactive_values$setsliders <- c(
+        1, num_bins, 
+        floor(num_bins / 5.5),
+        floor(num_bins / 4.4),
+        floor(num_bins / 4.4) + 1,
+        floor(num_bins / 1.77))
         LIST_DATA$STATE[3] <<- kLinesandlabels[8]
       }
     }
@@ -214,7 +233,7 @@ server <- function(input, output, session) {
     )
     output$loadedfilestotaltable <- DT::renderDataTable(dt2)
     if (length(LIST_DATA$gene_file) > 1) {
-      gg <- LIST_DATA$gene_info %>% filter(gene_list != "Complete") %>%
+      gg <- LIST_DATA$gene_info %>% filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")) %>%
         select(., gene_list, count) %>%
         distinct()
       ggg <- NULL
@@ -512,7 +531,7 @@ server <- function(input, output, session) {
   })
   
   # dropcolor opens color select dialog box ----
-  observeEvent(input$dropcolor, ignoreInit = T, {
+  observeEvent(c(input$dropcolor), ignoreInit = T, {
     print("dropcolor")
     showModal(modalDialog(
       title = "Information message",
@@ -538,6 +557,7 @@ server <- function(input, output, session) {
                 colourInput("colourhex", "Select color HEX",value = distinct(LIST_DATA$gene_info,mycol)$mycol[1]),
                 tags$hr(),
                 textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(LIST_DATA$gene_info,mycol)$mycol[1], convert = "rgb")),
+                tags$hr(),
                 actionButton("actionmyrgb", "Update color",width = 100)
               )
             )
@@ -561,14 +581,63 @@ server <- function(input, output, session) {
       )
     ))
   })
+
+  # CDF color select dialog box ----
+  observeEvent(c(input$actioncdfcolor), ignoreInit = T, {
+    print("actioncdfcolor")
+    print(LIST_DATA$gene_info)
+    showModal(modalDialog(
+      title = "Information message",
+      " Update color of samples",
+      size = "l",
+      easyClose = F,
+      footer = tagList(
+        box(
+          title = "File Options",
+          solidHeader = T,
+          width = 12,
+          box(
+            title =  "Set Plot Color Options",
+            width = 4,
+            status = "navy",
+            solidHeader = T,
+            fluidRow(
+              box(
+                width = 12,
+                solidHeader = T,
+                status = "info",
+                background = "light-blue",
+                colourInput("colourhex", "Select color HEX",value = distinct(LIST_DATA$gene_info %>% 
+                                                                               filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1]),
+                tags$hr(),
+                textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(LIST_DATA$gene_info %>% 
+                                                                                 filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1], convert = "rgb")),
+                tags$hr(),
+                actionButton("actionmyrgb", "Update color",width = 100)
+              )
+            )
+          ),
+          box(
+            title =  "Set Plot Options",
+            width = 8,
+            status = "navy",
+            solidHeader = T,
+            pickerInput("selectgenelistoptions", "", width = 300, choices = "CDF Log2 PI Cumulative plot",
+                        selected = "CDF Log2 PI Cumulative plot"),
+            pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info%>% 
+                                                                     filter(str_detect(gene_list,"^CDF")),set)$set,
+                        selected = distinct(LIST_DATA$gene_info%>% 
+                                              filter(str_detect(gene_list,"^CDF")),set)$set[1])
+        ),
+        modalButton("Close")
+      )
+    )))
+  })
   
   # update display selected item info ----
   observeEvent(c(input$selectdataoption, input$selectgenelistoptions),
                ignoreInit = TRUE,
                {
-                 if (LIST_DATA$STATE[1] == 0) {
-                   return()
-                 }
                  my_sel <- LIST_DATA$gene_info %>% 
                    dplyr::filter(gene_list == input$selectgenelistoptions & 
                                    set == input$selectdataoption)
@@ -602,12 +671,10 @@ server <- function(input, output, session) {
           dplyr::mutate(mycol=if_else(gene_list == input$selectgenelistoptions & 
                                         set == input$selectdataoption,
                                       input$colourhex, mycol))
-        
-        my_sel <- LIST_DATA$gene_info %>% 
-          dplyr::filter(gene_list == input$selectgenelistoptions) %>% 
-          dplyr::select(mycol)
-        if (!is.null(reactive_values$Apply_Math)) {
+        if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
           reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
+        } else if(input$leftSideTabs == "cdftool"){
+          reactive_values$df_options <- my_sel
         }
       }
     }
@@ -760,13 +827,13 @@ server <- function(input, output, session) {
                   inputId = 'selecttsscolor',
                   label = 'TSS line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
-                  selected = "green"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_color[1]
                 ),
                 selectInput(
                   inputId = 'selecttssline',
                   label = 'TSS line type',
                   choices = c("dotted", "solid"),
-                  selected = "dotted"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[1]
                 ),
                 icon = icon("sliders-h"),
                 status = "success",
@@ -782,13 +849,13 @@ server <- function(input, output, session) {
                   inputId = 'selectbody1color',
                   label = '5|4 line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
-                  selected = "black"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_color[3]
                 ),
                 selectInput(
                   inputId = 'selectbody1line',
                   label = '5|4 line type',
                   choices = c("dotted", "solid"),
-                  selected = "solid"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[3]
                 ),
                 icon = icon("sliders-h"),
                 tooltip = tooltipOptions(title = "5|4 Options")
@@ -803,13 +870,13 @@ server <- function(input, output, session) {
                   inputId = 'selectbody2color',
                   label = '4|3 line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
-                  selected = "black"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_color[4]
                 ),
                 selectInput(
                   inputId = 'selectbody2line',
                   label = '4|3 line type',
                   choices = c("dotted", "solid"),
-                  selected = "solid"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[4]
                 ),
                 icon = icon("sliders-h"),
                 tooltip = tooltipOptions(title = "4|3 Options")
@@ -824,13 +891,13 @@ server <- function(input, output, session) {
                   inputId = 'selecttescolor',
                   label = 'TES line and label color',
                   choices = c("red", "green", "blue", "brown", "black", "white"),
-                  selected = "red"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_color[2]
                 ),
                 selectInput(
                   inputId = 'selecttesline',
                   label = 'TES line type',
                   choices = c("dotted", "solid"),
-                  selected = "dotted"
+                  selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[2]
                 ),
                 icon = icon("sliders-h"),
                 status = "danger",
@@ -845,7 +912,7 @@ server <- function(input, output, session) {
                 numericInput(
                   inputId = 'selectvlinesize',
                   "Set vertcal line size",
-                  value = 2,
+                  value = reactive_values$Lines_Labels_List$mysize[1],
                   min = .5,
                   max = 10,
                   step = .5
@@ -853,7 +920,7 @@ server <- function(input, output, session) {
                 numericInput(
                   inputId = 'selectfontsizex',
                   "Set X axis font size",
-                  value = 13,
+                  value = reactive_values$Lines_Labels_List$mysize[3],
                   min = 1,
                   max = 30,
                   step = 1
@@ -861,7 +928,7 @@ server <- function(input, output, session) {
                 numericInput(
                   inputId = 'selectfontsizey',
                   "Set Y axis font size",
-                  value = 13,
+                  value = reactive_values$Lines_Labels_List$mysize[4],
                   min = 1,
                   max = 30,
                   step = 1
@@ -879,15 +946,15 @@ server <- function(input, output, session) {
                 numericInput(
                   inputId = 'selectlinesize',
                   "Set plot line size",
-                  value = 2.5,
+                  value = reactive_values$Lines_Labels_List$mysize[2],
                   min = .5,
                   max = 10,
                   step = .5
                 ),
                 numericInput(
                   inputId = 'selectlegendsize',
-                  "Set plot line size",
-                  value = 10,
+                  "Set legend size",
+                  value = reactive_values$Lines_Labels_List$mysize[5],
                   min = 1,
                   max = 20,
                   step = 1
@@ -907,6 +974,11 @@ server <- function(input, output, session) {
   # observe switching tabs ----
   observeEvent(input$leftSideTabs, ignoreInit = TRUE, {
     print("switch tab")
+    # load files tab ----
+    if (input$leftSideTabs == "loaddata"){
+      updateSelectInput(session, "selectsave",
+                        choices = names(LIST_DATA$gene_file))
+    }
     # main plot tab ----
     if (input$leftSideTabs == "mainplot") {
       reactive_values$Picker_controler <- 
@@ -914,8 +986,8 @@ server <- function(input, output, session) {
       if(LIST_DATA$STATE[1] == 0){
         LIST_DATA$STATE[1] <<- 1
         updateSliderInput(session,"sliderplotBinRange",
-                          min = LIST_DATA$x_plot_range[1],
-                          max = LIST_DATA$x_plot_range[2],
+                          min = reactive_values$setsliders[1],
+                          max = reactive_values$setsliders[2],
                           value = LIST_DATA$x_plot_range)
         reactive_values$droplinesandlabels <- 1
       }
@@ -927,8 +999,8 @@ server <- function(input, output, session) {
           updateSliderInput(
             session,
             "slidersortbinrange",
-            min = LIST_DATA$x_plot_range[1],
-            max = LIST_DATA$x_plot_range[2],
+            min = reactive_values$setsliders[1],
+            max = reactive_values$setsliders[2],
             value = LIST_DATA$x_plot_range
           )
         }
@@ -1016,28 +1088,22 @@ server <- function(input, output, session) {
           updateSliderInput(
             session,
             "sliderbinratio1",
-            min = LIST_DATA$x_plot_range[1],
-            max = LIST_DATA$x_plot_range[2],
-            value = c(
-              floor(LIST_DATA$x_plot_range[2] / 5.5),
-              floor(LIST_DATA$x_plot_range[2] / 4.4)
-            )
+            min = reactive_values$setsliders[1],
+            max = reactive_values$setsliders[2],
+            value = reactive_values$setsliders[3:4]
           )
           updateSliderInput(
             session,
             "sliderbinratio2",
             min = 0,
-            max = LIST_DATA$x_plot_range[2],
-            value = c(
-              floor(LIST_DATA$x_plot_range[2] / 4.4) + 1,
-              floor(LIST_DATA$x_plot_range[2] / 1.77)
-            )
+            max = reactive_values$setsliders[2],
+            value = reactive_values$setsliders[5:6]
           )
           updateSliderInput(
             session,
             "sliderRatioBinNorm",
             min = 0,
-            max = LIST_DATA$x_plot_range[2],
+            max = reactive_values$setsliders[2],
             value = 0
           )
         }
@@ -1080,10 +1146,9 @@ server <- function(input, output, session) {
           updateSliderInput(
             session,
             "sliderbincluster",
-            min = LIST_DATA$x_plot_range[1],
-            max = LIST_DATA$x_plot_range[2],
-            value = c(ceiling(LIST_DATA$x_plot_range[2]/8),
-                                             ceiling(LIST_DATA$x_plot_range[2]/4))
+            min = reactive_values$setsliders[1],
+            max = reactive_values$setsliders[2],
+            value = reactive_values$setsliders[3:4]
           )
         }
       }
@@ -1104,26 +1169,24 @@ server <- function(input, output, session) {
     }
     # CDF switch tab ----
     if(input$leftSideTabs == "cdftool"){
-    updateSliderInput(
-      session,
-      "sliderbincdf1",
-      min = LIST_DATA$x_plot_range[1],
-      max = LIST_DATA$x_plot_range[2],
-      value = c(
-        floor(LIST_DATA$x_plot_range[2] / 5.5),
-        floor(LIST_DATA$x_plot_range[2] / 4.4)
+      if(input$sliderbincdf1[1] == 0){
+      updateSliderInput(
+        session,
+        "sliderbincdf1",
+        min = reactive_values$setsliders[1],
+        max = reactive_values$setsliders[2],
+        value = reactive_values$setsliders[3:4]
       )
-    )
-    updateSliderInput(
-      session,
-      "sliderbincdf2",
-      min = LIST_DATA$x_plot_range[1],
-      max = LIST_DATA$x_plot_range[2],
-      value = c(
-        floor(LIST_DATA$x_plot_range[2] / 4.4) + 1,
-        floor(LIST_DATA$x_plot_range[2] / 1.77)
+      updateSliderInput(
+        session,
+        "sliderbincdf2",
+        min = reactive_values$setsliders[1],
+        max = reactive_values$setsliders[2],
+        value = reactive_values$setsliders[5:6]
       )
-    )
+      }
+    shinyjs::hide('plotcdf')
+    shinyjs::disable('actioncdfcolor')
     pickercdf <- list()
     for (i in names(LIST_DATA$gene_file)) {
       pickercdf[[i]] <-
@@ -1178,14 +1241,6 @@ server <- function(input, output, session) {
     } else {
       shinyjs::hide("showpickercluster_cdf")
     }
-    if(any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
-      output$DynamicCDFPicker_cdf <- renderUI({
-        pickercdf[str_detect(names(LIST_DATA$gene_file),"^CDF")]
-      })
-      shinyjs::show("showpickercdf_cdf")
-    } else {
-      shinyjs::hide("showpickercdf_cdf")
-    }
     output$DynamicCDFPicker_main <- renderUI({
       pickercdf[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")]
     })
@@ -1200,12 +1255,6 @@ server <- function(input, output, session) {
       my_count <-
         n_distinct(LIST_DATA$gene_file[[grep("CDF ", names(LIST_DATA$gene_file))]]$use$gene)
     }
-    output$valueboxcdf <- renderValueBox({
-      valueBox(my_count,
-               "Gene List",
-               icon = icon("list"),
-               color = "green")
-    })
     }
   })
   
@@ -1220,7 +1269,7 @@ server <- function(input, output, session) {
     my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
     if (length(my_pos) == 0) {
       my_label <- "none"
-      my_pos <- LIST_DATA$x_plot_range[2] * 2
+      my_pos <- reactive_values$setsliders[2] * 2
     }
     
     # if tss or tes location make sure there is text
@@ -1252,7 +1301,6 @@ server <- function(input, output, session) {
         input$selectfontsizex,
         input$selectfontsizey,
         input$selectlegendsize,
-        input$selectttestlinesize,
         input$numericbinsize,
         input$numericlabelspaceing
       )
@@ -1716,14 +1764,6 @@ server <- function(input, output, session) {
         shinyjs::show("showpickercluster")
       } else {
         shinyjs::hide("showpickercluster")
-      }
-      if(any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
-        output$DynamicGenePicker_cdf <- renderUI({
-          pickerlist[str_detect(names(LIST_DATA$gene_file),"^CDF")]
-        })
-        shinyjs::show("showpickercdf")
-      } else {
-        shinyjs::hide("showpickercdf")
       }
       output$DynamicGenePicker_main <- renderUI({
         pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")]
@@ -2632,7 +2672,6 @@ server <- function(input, output, session) {
   # CDF tool action ----
   observeEvent(input$actioncdftool, ignoreInit = TRUE, {
     print("CDF tool action")
-    shinyjs::hide('cdftable')
     shinyjs::hide('plotcdf')
     if (any(between(
       input$sliderbincdf1,
@@ -2700,59 +2739,64 @@ server <- function(input, output, session) {
       shinyjs::show('plotcdf')
       newname <-
         grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
-      df_options <-
-        LIST_DATA$gene_info %>%
-        dplyr::filter(gene_list ==  newname) %>%
-        dplyr::mutate(set = paste(
-          sub("\n", " ", newname),
-          gsub("(.{20})", "\\1\n", plot_set),
-          sep = '\n'
-        ))
-      # fix same color problems
-      if (any(duplicated(df_options$mycol))) {
-        df_options$mycol <-
-          brewer.pal(8, "Set1")[1:n_distinct(df_options$set)]
-      }
-      df <- LIST_DATA$gene_file[[newname]]$full %>%
-        dplyr::mutate(set = paste(
-          sub("\n", " ", newname),
-          gsub("(.{20})", "\\1\n", plot_set),
-          sep = '\n'
-        ))
-      use_header <- pull(distinct(df_options, myheader))
-      if (n_groups(group_by(df_options, set)) == 2 &
-          n_distinct(df$gene) > 1) {
-        tt_name <- pull(distinct(df_options, set))
-        tt <-
-          suppressWarnings(ks.test(pull(dplyr::filter(
-            df, set == tt_name[1]
-          ), value),
-          pull(dplyr::filter(
-            df, set == tt_name[2]
-          ), value)))
-        if (tt[[2]] == 0) {
-          use_header <- paste(use_header, "  p-value < 2.2e-16 ")
-        } else {
-          use_header <-
-            paste(use_header, paste("  p-value = ", format(tt[[2]], scientific = TRUE)))
-        }
-      }
-      mycdf <- GGplotC(df, df_options, use_header)
-      print(mycdf)
-      output$plotcdf <- renderPlot({
-        mycdf
-      })
-      output$valueboxcdf <- renderValueBox({
-        valueBox(
-          n_distinct(df$gene),
-          "Gene List",
-          icon = icon("list"),
-          color = "green"
-        )
-      })
+      rr <- range(LIST_DATA$gene_file[[newname]]$full$value)
+      updateSliderInput(session, "sliderrangecdf",
+                        min = floor(rr[1]),
+                        max = ceiling(rr[2]),
+                        value = c(0,0))
+      updateSliderInput(session, "sliderrangecdf",
+                        min = floor(rr[1]),
+                        max = ceiling(rr[2]),
+                        value = c(floor(rr[1]), ceiling(rr[2])))
     } else {
+      shinyjs::disable('actioncdfcolor')
       return()
     }
+  })
+  
+  # CDF x plot range ----
+  observeEvent(c(input$sliderrangecdf, reactive_values$df_options), ignoreInit = TRUE, {
+    print("cdf plot observe range")
+    newname <-
+      grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
+    if(is_empty(newname)){
+      return()
+    }
+    df_options <-
+      LIST_DATA$gene_info %>%
+      dplyr::filter(gene_list ==  newname) %>%
+      dplyr::mutate(set = paste(
+        count,
+        sub(" - ","\n", gsub("\n"," ",plot_set)),sep = "\n")
+      )
+    df <- LIST_DATA$gene_file[[newname]]$full %>%
+      full_join(.,df_options %>% select(set,plot_set),by="plot_set") %>%
+      mutate(set=set.y) %>% select(-set.x,-set.y)
+    
+    use_header <- pull(distinct(df_options, myheader))
+    if (n_groups(group_by(df_options, set)) == 2 &
+        n_distinct(df$gene) > 1) {
+      tt_name <- pull(distinct(df_options, set))
+      tt <-
+        suppressWarnings(ks.test(pull(dplyr::filter(
+          df, set == tt_name[1]
+        ), value),
+        pull(dplyr::filter(
+          df, set == tt_name[2]
+        ), value)))
+      if (tt[[2]] == 0) {
+        use_header <- paste(use_header, "  p-value < 2.2e-16 ")
+      } else {
+        use_header <-
+          paste(use_header, paste("  p-value = ", format(tt[[2]], scientific = TRUE)))
+      }
+    }
+    mycdf <- GGplotC(df, df_options, use_header,as.numeric(input$sliderrangecdf))
+    print(mycdf)
+    output$plotcdf <- renderPlot({
+      mycdf
+    })
+    shinyjs::enable('actioncdfcolor')
   })
   
   
@@ -3011,19 +3055,6 @@ ui <- dashboardPage(
                 collapsed = F,
                 uiOutput("DynamicGenePicker_clusters")
               )
-            )),
-          hidden(
-            div(
-              id = "showpickercdf",
-              box(
-                title = "CDF",
-                width = 6,
-                status = "navy",
-                solidHeader = T,
-                collapsible = T,
-                collapsed = F,
-                uiOutput("DynamicGenePicker_cdf")
-              )
             ))
         ))
       ),
@@ -3209,7 +3240,8 @@ ui <- dashboardPage(
                 post = "%",
                 min = 1,
                 max = 100,
-                value = 75
+                value = 75,
+                step = 0.1
               )
             ),
             ),
@@ -3543,19 +3575,6 @@ ui <- dashboardPage(
                   collapsed = F,
                   uiOutput("DynamicCDFPicker_clusters")
                 )
-              )),
-            hidden(
-              div(
-                id = "showpickercdf_cdf",
-                box(
-                  title = "CDF",
-                  width = 6,
-                  status = "navy",
-                  solidHeader = T,
-                  collapsible = T,
-                  collapsed = F,
-                  uiOutput("DynamicCDFPicker_cdf")
-                )
               ))
           ),
           box(
@@ -3581,7 +3600,15 @@ ui <- dashboardPage(
                 max = 80,
                 value = c(0, 80)
               )),
-              actionButton("actioncdftool", "Plot CDF")
+            sliderInput(
+              "sliderrangecdf",
+              label = "Select plot Range:",
+              min = 0,
+              max = 1,
+              value = c(0, 1)
+            ),
+              actionButton("actioncdftool", "Plot CDF"),
+            actionButton("actioncdfcolor", "Set Plot colors")
           ),
           box(
             title = "CDF Plot",
@@ -3590,8 +3617,7 @@ ui <- dashboardPage(
             width = 12,
             collapsible = TRUE,
             withSpinner(plotOutput("plotcdf"), type = 4)
-          ),
-          valueBoxOutput("valueboxcdf")
+          )
         )
       ),
       tabItem(

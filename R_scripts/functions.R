@@ -510,7 +510,7 @@ ApplyMath <-
     # apply's math to data file
     if (relative_frequency == "rel gene frequency") {
       list_data <- list_data %>% group_by(plot_set, gene) %>%
-        dplyr::mutate(score = score / sum(score, na.rm = TRUE)) %>%
+        dplyr::mutate(score = score / abs(sum(score, na.rm = TRUE))) %>%
         ungroup()
     }
     list_data <- list_data %>% group_by(plot_set, bin) %>%
@@ -520,12 +520,12 @@ ApplyMath <-
       list_data <- list_data %>% 
         group_by(plot_set) %>%
         arrange(bin) %>%
-        dplyr::mutate(value = value / nth(value, normbin)) %>%
+        dplyr::mutate(value = value / abs(nth(value, normbin))) %>%
         ungroup()
     } else if (relative_frequency == "relative frequency") {
       list_data <- list_data %>%
         group_by(plot_set) %>%
-        dplyr::mutate(value = value / sum(value)) %>%
+        dplyr::mutate(value = value / abs(sum(value))) %>%
         ungroup()
     }
     return(list_data %>% dplyr::mutate(set=plot_set))
@@ -954,7 +954,6 @@ LinesLabelsListPlot <-
            fontsizex,
            fontsizey,
            legendsize,
-           ttestlinesize,
            binsize,
            binspace) {
     print("lines and labels plot fun")
@@ -1005,7 +1004,7 @@ LinesLabelsListPlot <-
       mycolors = mycolors,
       mybrakes = use_plot_breaks,
       mylabels = use_plot_breaks_labels,
-      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, ttestlinesize),
+      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize),
       myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
     )
   }
@@ -1327,6 +1326,7 @@ FilterTop <-
                                                       "to",
                                                       end_bin), 
                                          onoff = "0",
+                                         count = paste0("n = ", n_distinct(outlist$gene)),
                                          plot_set = " ")))
     list_data
   }
@@ -1468,6 +1468,7 @@ FilterPer <-
                                                       "to",
                                                       start_end_bin[2]),
                                          onoff = "0",
+                                         count = paste0("n = ", n_distinct(out_list$gene)),
                                          plot_set = " ")))
     
     list_data
@@ -1740,6 +1741,7 @@ ClusterNumList <- function(list_data,
                                            list_name
                                          ), 
                                          onoff = "0",
+                                         count = paste0("n = ", n_distinct(outlist$gene)),
                                          plot_set = " ")))
     setProgress(4, detail = paste("finishing cluster", nn))
   }
@@ -1894,6 +1896,7 @@ CompareRatios <-
                                              list_name
                                            ), 
                                            onoff = "0",
+                                           count = paste0("n = ", n_distinct(upratio$gene)),
                                            plot_set = " ")))
     }
     if(num != 0){
@@ -1952,6 +1955,7 @@ CompareRatios <-
                                              list_name
                                            ), 
                                            onoff = "0",
+                                           count = paste0("n = ", n_distinct(upratio$gene)),
                                            plot_set = " ")))
     }
     if(num != 0){
@@ -2013,6 +2017,7 @@ CompareRatios <-
                                              list_name
                                            ), 
                                            onoff = "0",
+                                           count = paste0("n = ", n_distinct(upratio$gene)),
                                            plot_set = " ")))
     }
     list_data$boxRatio <- NULL
@@ -2054,7 +2059,8 @@ CumulativeDistribution <-
         summarise(sum1 = mean(score[start1_bin:end1_bin],	na.rm = T),
                   sum2 = mean(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
         dplyr::mutate(., value = sum1 / sum2) %>%
-        na_if(Inf) %>% replace_na(list(value = 0)) %>% 
+        dplyr::mutate(value=log2(value)) %>% 
+        na_if(Inf) %>% na_if(-Inf) %>% replace_na(list(value = 0)) %>% 
         group_by(., set) %>%
         arrange(value) %>%
         dplyr::transmute(
@@ -2106,7 +2112,7 @@ CumulativeDistribution <-
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
-                             dplyr::filter(gene_list == names(LIST_DATA$gene_file)[1] &
+                             dplyr::filter(gene_list == list_name &
                                              set %in% onoffs[[list_name]]) %>% 
                              dplyr::mutate(gene_list = nick_name1,
                                            sub =  paste(
@@ -2115,6 +2121,7 @@ CumulativeDistribution <-
                                            ), 
                                            onoff = "0",
                                            plot_set = paste(list_name, "-", set),
+                                           set = paste(list_name, "-", set),
                                            myheader = use_header)))
       setProgress(5, detail = "finishing up")
     }
@@ -2124,14 +2131,15 @@ CumulativeDistribution <-
 GGplotC <-
   function(df2,
            plot_options,
-           use_header) {
+           use_header,
+           plot_range) {
     print("ggplot CDF")
     use_col <- plot_options$mycol
     names(use_col) <- plot_options$set
     legend_space <- max(1, (lengths(strsplit(
       plot_options$set, "\n"
     ))))
-    gp <- ggplot(df2, aes(log2(value), color = set)) +
+    gp <- ggplot(df2, aes(value, color = set)) +
       stat_ecdf(show.legend = TRUE, size = 1.8) +
       scale_color_manual(name = "Sample", values = use_col) +
       ylab("Fraction of genes") +
@@ -2152,7 +2160,8 @@ GGplotC <-
         legend.key = element_rect(size = 5, color = 'white'),
         legend.key.height = unit(legend_space, "line"),
         legend.text = element_text(size = 10)
-      )
+      ) +
+      coord_cartesian(xlim = plot_range)
     suppressMessages(print(gp))
     return(suppressMessages(gp))
   }
