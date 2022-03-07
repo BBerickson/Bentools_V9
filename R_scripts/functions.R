@@ -52,8 +52,13 @@ RgbToHex <- function(x,
 
 # finds first partial match to gene list input 
 MatchGenes <- function(common_list, gene_list){
-  tablefile <-
-    map(gene_list$gene, str_subset, string = common_list$gene) 
+  if(str_detect(tablefile$gene[1],"_")){
+    tablefile <-
+      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) 
+  } else{
+    tablefile <-
+      map(paste0("\\|", gene_list$gene,"$"), str_subset, string = common_list$gene) 
+  }
   tablefile <- distinct(tibble(gene = unlist(tablefile)))
   return(tablefile)
 }
