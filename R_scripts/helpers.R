@@ -1,42 +1,23 @@
-#  
-#     
-#  
-# 
+# add a test to detect _ to add regex for better pattern matching updtate to like V8a
+# make filter tool to remove spike data (set peak area and check if any bin has a higher value)    
+#  filter per reactive on numiric text boxes fix crash
+# if loading a url file have progress bar count number of files completed
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violen,Bar,scatter,cdf
 #    
 # filter per have min and max numbers ajusted based on total number of genes, and set to relitive 1%  filter to start, on 1 file show up and down a few steps making picked a wider line on plot
-# make filter tool to remove spike data (set peak area and check if any bin has a higher value)
+# 
 # smart filter tool ... set high med and low areas have filter % move # gene at a time until pattern found 
-# #### test RF and other norms to not change the sign of the data
-##### test for crashing of what I have set up ### 
+# #### 
+##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
 
-# test loading in grep gene lists ... updtate to like V8a
-# add a test to detect _ to add regex for better pattern matching
-# map(paste0("\\|" , mRNAs_up$name,"$"), str_subset, string = hg19_gene$name) 
-  # MatchGenes <- function(common_list, gene_list){
-    # for(g in seq_along(gene_list$gene)){
-    #   gene_list$gene[g] <- str_subset(
-    #     common_list$gene, gene_list$gene[g]
-    #   )[1]
-    # }
-    # gene_list <- filter(gene_list, !is.na(gene))
-    # return(gene_list)
-  # }
-
-# have ability to change the order of lists (DT function?)
-# if loading a url file have progress bar count number of files completed
-
+# have ability to change the order of legend in plots (DT sort?)
+# 
 # a plot to show delta PI, MA/scatter/dot?
 # #
 # # data options and QC tab
 # #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
 # #     ability to find and remove outliers and filter (add to server R RNAseq filtering outliers )
-# 
-# 
-# ### change observereactive for ggplot to eventReactive??? (direct output)
-# 
-# 
 # in QC add gene size and seperation, deep tools inputs/bin ranges
 # "factoextra" for dendogram plot fviz_dend()
 

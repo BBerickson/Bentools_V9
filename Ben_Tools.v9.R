@@ -1006,19 +1006,17 @@ server <- function(input, output, session) {
         }
       }
       ol <- input$sortGeneList
-      if (!ol %in% names(LIST_DATA$gene_file)) {
-        ol <- "Complete"
+      if(!is.null(ol)){
+        if (!ol %in% names(LIST_DATA$gene_file)) {
+          ol <- "Complete"
+        }
       }
-      olg <- input$sortSamples
-      if (!all(olg %in% c(distinct(LIST_DATA$gene_info, set)$set))) {
-        olg <- "select sample(s)"
-      } 
       updatePickerInput(session, "sortGeneList",
                         choices = names(LIST_DATA$gene_file),
                         selected = ol)
       updatePickerInput(session, "sortSamples",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
-                        selected = olg)
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set)
+                        )
       output$valueboxsort <- renderValueBox({
         valueBox(0,
                  "Gene List Filter",
@@ -1160,19 +1158,18 @@ server <- function(input, output, session) {
         }
       }
       ol <- input$clusterGeneList
-      if (!ol %in% names(LIST_DATA$gene_file)) {
-        ol <- "Complete"
+      if(!is.null(ol)){
+        if (!ol %in% names(LIST_DATA$gene_file)) {
+          ol <- "Complete"
+        }
       }
-      olg <- input$clusterSamples
-      if (!all(olg %in% c(distinct(LIST_DATA$gene_info, set)$set))) {
-        olg <- "select sample(s)"
-      } 
+      
       updatePickerInput(session, "clusterGeneList",
                         choices = names(LIST_DATA$gene_file),
                         selected = ol)
       updatePickerInput(session, "clusterSamples",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
-                        selected = olg)
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set)
+                        )
       output$valueboxsort <- renderValueBox({
         valueBox(0,
                  "Gene List Filter",
@@ -1868,9 +1865,11 @@ server <- function(input, output, session) {
     }
     # updating select and keeping track if sort on sort
     ol <- input$sortGeneList
-    if (!ol %in% names(LIST_DATA$gene_file)) {
-      ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
-    } 
+    if(!is.null(ol)){
+      if (!ol %in% names(LIST_DATA$gene_file)) {
+        ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
+      } 
+    }
     updateSelectInput(
       session,
       "sortGeneList",
@@ -1980,9 +1979,11 @@ server <- function(input, output, session) {
         ggplot()
     }
     ol <- input$sortGeneList
-    if (!ol %in% names(LIST_DATA$gene_file)) {
-      ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
-    } 
+    if(!is.null(ol)){
+      if (!ol %in% names(LIST_DATA$gene_file)) {
+        ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
+      } 
+    }
     updateSelectInput(
       session,
       "sortGeneList",
@@ -2087,11 +2088,12 @@ server <- function(input, output, session) {
                  })
     if (!is_empty(LD$table_file)) {
       LIST_DATA <<- LD
+      
       ol <- input$pickergenelists
-      if (!any(ol %in% names(LIST_DATA$gene_file))) {
-        ol <- grep("Gene_List_", names(LIST_DATA$gene_file), value = TRUE)
-      } else {
-        
+      if(!is.null(ol)){
+        if (!any(ol %in% names(LIST_DATA$gene_file))) {
+          ol <- grep("Gene_List_", names(LIST_DATA$gene_file), value = TRUE)
+        }
       }
       updateSelectInput(
         session,
