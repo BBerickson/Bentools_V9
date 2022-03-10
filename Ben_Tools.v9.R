@@ -1001,7 +1001,14 @@ server <- function(input, output, session) {
             "slidersortbinrange",
             min = reactive_values$setsliders[1],
             max = reactive_values$setsliders[2],
-            value = LIST_DATA$x_plot_range
+            value = reactive_values$setsliders[3:4]
+          )
+          updateSliderInput(
+            session,
+            "slidersortbinrangefilter",
+            min = reactive_values$setsliders[1],
+            max = reactive_values$setsliders[2],
+            value = reactive_values$setsliders[c(5,2)]
           )
         }
       }
@@ -1905,7 +1912,6 @@ server <- function(input, output, session) {
                          input$sortGeneList,
                          input$sortSamples,
                          input$slidersortbinrange,
-                         input$checkboxfilterall,
                          c(input$numericsortmin,input$numericsortmax),
                          input$selectsortper,
                          input$checkboxfilterall)
@@ -1978,6 +1984,105 @@ server <- function(input, output, session) {
       reactive_values$Plot_controler_sort_max <-
         ggplot()
     }
+    ol <- input$sortGeneList
+    if(!is.null(ol)){
+      if (!ol %in% names(LIST_DATA$gene_file)) {
+        ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
+      } 
+    }
+    updateSelectInput(
+      session,
+      "sortGeneList",
+      choices = names(LIST_DATA$gene_file),
+      selected = ol
+    )
+    if(LIST_DATA$STATE[1] !=0 ){
+      LIST_DATA$STATE[1] <<- 0.75
+    }
+  })
+  
+  
+  # sort peak tool action ----
+  observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
+    print("sort Peak")
+    if (input$slidersortbinrange[2] >= input$slidersortbinrangefilter[1]) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("Bins regions should not overlap, \nBins set to default"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      updateSliderInput(
+        session,
+        "slidersortbinrange",
+        min = reactive_values$setsliders[1],
+        max = reactive_values$setsliders[2],
+        value = reactive_values$setsliders[3:4]
+      )
+      updateSliderInput(
+        session,
+        "slidersortbinrangefilter",
+        min = reactive_values$setsliders[1],
+        max = reactive_values$setsliders[2],
+        value = reactive_values$setsliders[c(5,2)]
+      )
+    }
+    sortmin <- FilterPeak(LIST_DATA, 
+                         input$sortGeneList,
+                         input$sortSamples,
+                         input$slidersortbinrange,
+                         input$slidersortbinrangefilter,
+                         input$selectsortpeak,
+                         input$checkboxfilterall)
+    
+    if(!is_empty(sortmin)){
+      LIST_DATA <<- sortmin
+      mylist <- last(grep("^Filter", names(sortmin$gene_file)))
+      sortmin$gene_info <- sortmin$gene_info %>%
+        dplyr::mutate(onoff=if_else(gene_list == names(sortmin$gene_file)[mylist] &
+                                      set %in% input$sortSamples, set, "0"))
+      list_data_frame <- Active_list_data(sortmin)
+      if (!is_empty(list_data_frame)) {
+        withProgress(message = 'Calculation in progress',
+                     detail = 'This may take a while...',
+                     value = 0,
+                     {
+                       Apply_Cluster_Math <-
+                         ApplyMath(
+                           list_data_frame,
+                           "mean",
+                           "none",
+                           0
+                         )
+                     })
+      gp1 <-
+        ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=set)) +
+          geom_line() +
+          ylab("Filtered") +
+          theme(legend.position="bottom",
+                legend.title = element_blank(),
+                axis.title.x=element_blank())
+      output$valueboxsort <- renderValueBox({
+        valueBox(
+          n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
+          "Gene List Filter",
+          icon = icon("list"),
+          color = "green"
+        )
+      })
+      }
+    } else {
+      gp1 <- ggplot()
+      output$valueboxsort <- renderValueBox({
+        valueBox(0,
+                 "Gene List Filter",
+                 icon = icon("list"),
+                 color = "green")
+      })
+    }
+    reactive_values$Plot_controler_sort_min <- gp1
+    # reactive_values$Plot_controler_sort_max <- gp2
+    
     ol <- input$sortGeneList
     if(!is.null(ol)){
       if (!ol %in% names(LIST_DATA$gene_file)) {
@@ -2540,12 +2645,6 @@ server <- function(input, output, session) {
       updateNumericInput(session, "numericratio", value = 2)
     }
     if (input$sliderbinratio2[1] == 0 & input$sliderbinratio2[2] > 0) {
-      showModal(modalDialog(
-        title = "Information message",
-        paste("Bins regions should not overlap, \nBins set to 1/4 3/4"),
-        size = "s",
-        easyClose = TRUE
-      ))
       updateSliderInput(session,
                         "sliderbinratio2",
                         value = c(0,0))
@@ -2807,7 +2906,6 @@ server <- function(input, output, session) {
       }
     }
     mycdf <- GGplotC(df, df_options, use_header,as.numeric(input$sliderrangecdf))
-    print(mycdf)
     output$plotcdf <- renderPlot({
       mycdf
     })
@@ -3115,7 +3213,7 @@ ui <- dashboardPage(
                     "adddata",
                     label = "",
                     status = "primary",
-                    choices = c("/", "+"),
+                    choices = c("/", "+", "-"),
                     selected = "/"
                   )
                 ),
@@ -3223,9 +3321,9 @@ ui <- dashboardPage(
                      sliderInput(
                        "slidersortbinrange",
                        label = "Select Bin Range:",
-                       min = 0,
+                       min = 1,
                        max = 80,
-                       value = c(0, 80)
+                       value = c(1, 80)
                      )
                    )
             ),
@@ -3247,6 +3345,7 @@ ui <- dashboardPage(
             solidHeader = T,
             width = 6,
             status = "navy",
+            collapsible = T,
             fluidRow(column(
               12,
               sliderInput(
@@ -3264,7 +3363,7 @@ ui <- dashboardPage(
               6,
               pickerInput(
                 "selectsorttop",
-                "Filter Options",
+                "Filter to keep",
                 choices = c("Top%", "Middle%", "Bottom%"),
                 selected = "Middle%"
               )
@@ -3274,44 +3373,75 @@ ui <- dashboardPage(
             )
           ),
           box(
-            title = "filter by percentile distribution",
+            title = "filter peaks",
             solidHeader = T,
             width = 6,
             status = "navy",
+            collapsible = T,
             fluidRow(column(
-              6,
-              numericInputIcon("numericsortmin",
-                               "min", 
-                               value = "1",
-                               max = "100", min="0",
-                               step = "1",
-                               icon = icon("percent")
-              )
-              ),
-              column(
-                6,
-                numericInputIcon("numericsortmax",
-                                 "max", 
-                                 value = "99.5",
-                                 max = "100", min="0",
-                                 step = "1",
-                                 icon = icon("percent")
+              12,
+                style = "margin-bottom: -20px;",
+                sliderInput(
+                  "slidersortbinrangefilter",
+                  label = "Select Bin Range to filter:",
+                  min = 1,
+                  max = 80,
+                  value = c(1, 80)
                 )
               )
             ),
             fluidRow(align="center",column(6,
                                            pickerInput(
-                                             "selectsortper",
-                                             "Filter Option",
-                                             choices = c("min%", "between%", "max%"),
-                                             selected = "min%"
+                                             "selectsortpeak",
+                                             "Filter out Option",
+                                             choices = c("peak"),
+                                             selected = "peak"
                                            )
             )),
             fluidRow(align="center",
-                     actionButton("actionsortper", "filter percentile")
-            ),
-            helpText("Hint: use 1 file to display a range of %'s")
+                     actionButton("actionsortpeak", "filter")
+            )
           ),
+        box(
+          title = "filter by percentile distribution",
+          solidHeader = T,
+          width = 6,
+          status = "navy",
+          collapsible = T,
+          fluidRow(column(
+            6,
+            numericInputIcon("numericsortmin",
+                             "min", 
+                             value = "1",
+                             max = "100", min="0",
+                             step = "1",
+                             icon = icon("percent")
+            )
+          ),
+          column(
+            6,
+            numericInputIcon("numericsortmax",
+                             "max", 
+                             value = "99.5",
+                             max = "100", min="0",
+                             step = "1",
+                             icon = icon("percent")
+            )
+          )
+          ),
+          fluidRow(align="center",column(6,
+                                         pickerInput(
+                                           "selectsortper",
+                                           "Filter Option",
+                                           choices = c("min%", "between%", "max%"),
+                                           selected = "min%"
+                                         )
+          )),
+          fluidRow(align="center",
+                   actionButton("actionsortper", "filter percentile")
+          ),
+          helpText("Hint: use 1 file to display a range of %'s")
+        ),
           div(
             id = "hidesortplots1",
             box(headerBorder = F,

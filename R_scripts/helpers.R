@@ -1,18 +1,21 @@
-# add a test to detect _ to add regex for better pattern matching updtate to like V8a
+# add a test to detect NM_|NE_ to add regex for better pattern matching, cdf legend 20 character new line sub
 # make filter tool to remove spike data (set peak area and check if any bin has a higher value)    
-#  filter per reactive on numiric text boxes fix crash
+#  filter per reactive on numeric text boxes fix crash (single/multiple, and clarify min/max profile kept?) ... 
+#  
 # if loading a url file have progress bar count number of files completed
 # # DT tab 
-#    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violen,Bar,scatter,cdf
+#    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violin,Bar,scatter,cdf
 #    
-# filter per have min and max numbers ajusted based on total number of genes, and set to relitive 1%  filter to start, on 1 file show up and down a few steps making picked a wider line on plot
-# 
+# filter per have min and max numbers adjusted based on total number of genes, and set to relative 1%  filter to start, on 1 file show up and down a few steps making picked a wider line on plot
+#    add note to if all bins == 0 or add auto go to next per up or down?
 # smart filter tool ... set high med and low areas have filter % move # gene at a time until pattern found 
 # #### 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
 
 # have ability to change the order of legend in plots (DT sort?)
-# 
+# add benefits for loading matrix files, separation and gene size?
+# lines and labels TSS = bin 1 fix
+
 # a plot to show delta PI, MA/scatter/dot?
 # #
 # # data options and QC tab

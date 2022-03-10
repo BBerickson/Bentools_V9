@@ -178,7 +178,7 @@ LoadTableFile <-
       }
       
       # matrix file
-      if(length(grep(".matrix.gz", file_path[x])) == 1){
+      if(length(grep(".matrix.gz", file_name[x])) == 1){
         num_bins <-
           count_fields(file_path[x],
                        n_max = 1,
@@ -973,8 +973,13 @@ LinesLabelsListPlot <-
       mycolors <- rep("black", length(use_plot_breaks))
       use_virtical_line <- c(NA, NA, NA, NA)
       if (tssbin > 0) {
-        mycolors[which(use_plot_breaks == tssbin  + .5)] <- tsscolor
-        use_virtical_line[1] <- tssbin  + .5
+        if(tssbin > 1){
+          mod <- 0.5
+        } else {
+          mod <- 0
+        }
+        mycolors[which(use_plot_breaks == tssbin  + mod)] <- tsscolor
+        use_virtical_line[1] <- tssbin  + mod
         if (tssbin < body1bin &
             body1bin < body2bin &
             body2bin < tesbin & tesbin <= last(use_plot_breaks)) {
@@ -982,11 +987,16 @@ LinesLabelsListPlot <-
         }
       }
       if (tesbin > 0) {
-        mycolors[which(use_plot_breaks == tesbin  + .5)] <- tescolor
-        use_virtical_line[2] <- tesbin + .5
+        if(tesbin > 1){
+          mod <- 0.5
+        } else {
+          mod <- 0
+        }
+        mycolors[which(use_plot_breaks == tesbin  + mod)] <- tescolor
+        use_virtical_line[2] <- tesbin + mod
       }
     } else {
-      use_plot_breaks <- .5
+      use_plot_breaks <- mod
       use_plot_breaks_labels <- "none"
       use_virtical_line <- c(NA, NA, NA, NA)
     }
@@ -1350,7 +1360,6 @@ FilterPer <-
            list_name,
            file_names,
            start_end_bin,
-           my_filter_all,
            my_per,
            my_type,
            anyall) {
@@ -1367,7 +1376,7 @@ FilterPer <-
       set_names(paste0("my_p_",seq_along(my_per)))
     gene_list <- list_data$gene_file[[list_name]]$use
     out_list <- list_data$table_file %>% 
-      dplyr::filter(set == file_names) %>% 
+      dplyr::filter(set %in% file_names) %>% 
       semi_join(.,gene_list,by="gene") %>% 
       dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2]) 
     
@@ -1445,7 +1454,7 @@ FilterPer <-
         dplyr::mutate(set=paste0(round(as.numeric(set),2),"%"))
     } else {
       out_list1 <- list_data$table_file %>% 
-        dplyr::filter(set == file_names) %>% 
+        dplyr::filter(set %in% file_names) %>% 
         semi_join(.,gene_list,by="gene") %>% 
         full_join(.,out_per,by=c("bin","set")) %>% 
         replace_na(list(my_p_1 = 0, my_p_2 = 0)) %>% 
@@ -1488,6 +1497,99 @@ FilterPer <-
     list_data
   }
 
+# filter peaks
+FilterPeak <-
+  function(list_data,
+           list_name,
+           file_names,
+           start_end_bin_peak,
+           start_end_bin_filter,
+           my_type,
+           anyall) {
+    if (is.null(file_names)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("No file selected to work on"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return(NULL)
+    }
+    gene_list <- list_data$gene_file[[list_name]]$use
+    out_list <- list_data$table_file %>% 
+      dplyr::filter(set %in% file_names) %>% 
+      semi_join(.,gene_list,by="gene") 
+    
+    my_filter <- out_list %>% 
+      dplyr::filter(bin %in% start_end_bin_peak[1]:start_end_bin_peak[2]) %>% 
+      group_by(set,gene) %>% summarise(score2=max(score,rm.na=T),.groups = "drop")
+    out_list <- out_list %>% 
+      dplyr::filter((bin %in% start_end_bin_filter[1]:start_end_bin_filter[2])) %>% 
+      full_join(.,my_filter,by=c("gene","set")) 
+    
+    if(my_type == "peak"){
+      if(anyall){
+        out_gene <- out_list %>% 
+          group_by(gene) %>% 
+          dplyr::filter(all(score<=score2)) %>% 
+          ungroup() %>% distinct(gene)
+      } else {
+        out_gene <- out_list %>%
+          group_by(gene,set) %>% 
+          dplyr::filter(all(score<=score2)) %>% 
+          ungroup() %>% distinct(gene)
+      }
+    } 
+    if (length(out_gene$gene) == 0) {
+      return(NULL)
+    }
+    old_names <- grep("^Filter", names(LIST_DATA$gene_file), value = T)
+    if (length(old_names) > 3) {
+      # remove old sort gene list keeping 4
+      list_data$gene_file[[first(old_names)]] <- NULL
+      list_data$gene_info <- dplyr::filter(list_data$gene_info,
+                                           gene_list != first(old_names))
+    }
+    nick_name <-
+      strtrim(gsub("(.{30})",
+                   "\\1... ",
+                   paste0("Filter ",my_type, "\nn = ", n_distinct(out_gene$gene))), 33)
+    list_data$gene_file[[nick_name]]$full <- out_gene
+    list_data$gene_file[[nick_name]]$use <- out_gene
+    list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
+                                                      paste(
+                                                        "Filter peak:",
+                                                        my_type,
+                                                        "bins",
+                                                        start_end_bin_peak[1],
+                                                        "to",
+                                                        start_end_bin_peak[2],
+                                                        "filter bins",
+                                                        start_end_bin_filter[1],
+                                                        "to",
+                                                        start_end_bin_filter[2],
+                                                        "from",
+                                                        list_name,
+                                                        paste(file_names, collapse = " "),
+                                                        Sys.Date(),
+                                                        list_data$gene_file[[list_name]]$info
+                                                      ),
+                                                    matching = FALSE)
+    list_data$gene_info <-
+      distinct(bind_rows(list_data$gene_info,
+                         list_data$gene_info %>%
+                           dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>%
+                           dplyr::mutate(gene_list = nick_name,
+                                         sub =  paste("Filter peak:",
+                                                      my_type,
+                                                      "peak bins"),
+                                         onoff = "0",
+                                         count = paste0("n = ", n_distinct(out_gene$gene)),
+                                         plot_set = " ")))
+    
+    list_data
+  }
+
 # make a new normalized file by dividing one file by the other
 MakeNormFile <-
   function(list_data,
@@ -1509,6 +1611,26 @@ MakeNormFile <-
     if(nchar(nickname)<1){
       nickname <- paste(nom, addfiles, dnom,sep = " ")
     }
+    # if min/2 find Na's and 0's, and replace
+    if (divzerofix) {
+      nd <- nd %>% 
+        dplyr::mutate(score=if_else(set == dnom & score == 0, NA_real_, score))
+      myname <- paste0(myname, "_0->min/2")
+      new_min_for_dom <-
+        min(nd$score, na.rm = TRUE) / 2
+      nd <-
+        replace_na(nd, list(score = new_min_for_dom))
+    }
+    # files numbers are replaced with mean of bins if applied
+    if (gbyg != "bin by bin") {
+      myname <- "mean_of_bins"
+      if (divzerofix) {
+        myname <- paste0(myname, "_0->min/2")
+      }
+      nd <- nd %>% 
+        group_by(bin, set) %>%
+        dplyr::mutate(score = mean(score, na.rm = TRUE)) %>% ungroup()
+    }
     # applies custom norm factor(s)
     legend_nickname <- nickname
     if (addfiles == "+") {
@@ -1522,27 +1644,19 @@ MakeNormFile <-
         set = legend_nickname,
         score = score.x + score.y
       )
+    } else if(addfiles == "-"){
+      new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
+                                 dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
+        replace_na(., list(score = 0))
+      new_gene_list <- transmute(
+        new_gene_list,
+        gene = gene,
+        bin = bin,
+        set = legend_nickname,
+        score = score.x - score.y
+      )
     } else {
-      # if min/2 find Na's and 0's, and replace
-      if (divzerofix) {
-        nd <- nd %>% 
-          dplyr::mutate(score=if_else(set == dnom & score == 0, NA_real_, score))
-        myname <- paste0(myname, "_0->min/2")
-        new_min_for_dom <-
-          min(nd$score, na.rm = TRUE) / 2
-        nd <-
-          replace_na(nd, list(score = new_min_for_dom))
-      }
-      # files numbers are replaced with mean of bins if applied
-      if (gbyg != "bin by bin") {
-        myname <- "mean_of_bins"
-        if (divzerofix) {
-          myname <- paste0(myname, "_0->min/2")
-        }
-        nd <- nd %>% 
-          group_by(bin, set) %>%
-          dplyr::mutate(score = mean(score, na.rm = TRUE)) %>% ungroup()
-      }
+      
       new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
                                  dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
         replace_na(., list(score = 0))
@@ -2073,15 +2187,24 @@ CumulativeDistribution <-
     for (list_name in names(onoffs)) {
       setProgress(1, detail = paste("dividing one by the other"))
       # Complete within gene list and sum regions
+      tf <- dplyr::filter(list_data$table_file, set %in% onoffs[[list_name]])
+      gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
+      gene_common <- gene_common %>% 
+        group_by(gene) %>% 
+        filter(n_distinct(set)==n_distinct(gene_common$set)) %>% 
+        distinct(gene) %>% ungroup()
+      tf <- tf %>% 
+        semi_join(., gene_common, by = "gene")
       outlist[[list_name]] <-
-        semi_join(dplyr::filter(list_data$table_file, set %in% onoffs[[list_name]]), 
+        semi_join(tf, 
                   list_data$gene_file[[list_name]]$use, by = 'gene') %>% 
         group_by(gene,set) %>%
         summarise(sum1 = mean(score[start1_bin:end1_bin],	na.rm = T),
                   sum2 = mean(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
         dplyr::mutate(., value = sum1 / sum2) %>%
         dplyr::mutate(value=log2(value)) %>% 
-        na_if(Inf) %>% na_if(-Inf) %>% replace_na(list(value = 0)) %>% 
+        na_if(Inf) %>% na_if(-Inf) %>% group_by(gene) %>% 
+        dplyr::filter(!any(is.na(value))) %>% ungroup() %>% 
         group_by(., set) %>%
         arrange(value) %>%
         dplyr::transmute(
@@ -2142,8 +2265,9 @@ CumulativeDistribution <-
                                              list_name
                                            ), 
                                            onoff = "0",
+                                           count = paste("n =", outlist %>% 
+                                                           summarise(n=n_distinct(bin))),
                                            plot_set = paste(list_name, "-", set),
-                                           set = paste(list_name, "-", set),
                                            myheader = use_header)))
       setProgress(5, detail = "finishing up")
     }
