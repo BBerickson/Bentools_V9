@@ -1,5 +1,5 @@
 # add a test to detect NM_|NE_ to add regex for better pattern matching, cdf legend 20 character new line sub
-# make filter tool to remove spike data (set peak area and check if any bin has a higher value)    
+# filter tools: have search for last include type name? is that the replot problem?    
 #  filter per reactive on numeric text boxes fix crash (single/multiple, and clarify min/max profile kept?) ... 
 #  
 # if loading a url file have progress bar count number of files completed

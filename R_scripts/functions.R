@@ -1539,7 +1539,19 @@ FilterPeak <-
           dplyr::filter(all(score<=score2)) %>% 
           ungroup() %>% distinct(gene)
       }
-    } 
+    } else {
+      if(anyall){
+        out_gene <- out_list %>% 
+          group_by(gene) %>% 
+          dplyr::filter(!all(score<=score2)) %>% 
+          ungroup() %>% distinct(gene)
+      } else {
+        out_gene <- out_list %>%
+          group_by(gene,set) %>% 
+          dplyr::filter(!all(score<=score2)) %>% 
+          ungroup() %>% distinct(gene)
+      }
+    }
     if (length(out_gene$gene) == 0) {
       return(NULL)
     }

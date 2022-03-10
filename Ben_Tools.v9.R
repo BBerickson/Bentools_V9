@@ -2062,6 +2062,8 @@ server <- function(input, output, session) {
           theme(legend.position="bottom",
                 legend.title = element_blank(),
                 axis.title.x=element_blank())
+      shinyjs::show("hidesortplots1")
+      shinyjs::hide("hidesortplots2")
       output$valueboxsort <- renderValueBox({
         valueBox(
           n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
@@ -2080,6 +2082,7 @@ server <- function(input, output, session) {
                  color = "green")
       })
     }
+    print(gp1)
     reactive_values$Plot_controler_sort_min <- gp1
     # reactive_values$Plot_controler_sort_max <- gp2
     
@@ -3394,7 +3397,7 @@ ui <- dashboardPage(
                                            pickerInput(
                                              "selectsortpeak",
                                              "Filter out Option",
-                                             choices = c("peak"),
+                                             choices = c("peak","keep peak"),
                                              selected = "peak"
                                            )
             )),
