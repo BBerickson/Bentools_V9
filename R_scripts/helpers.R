@@ -1,4 +1,10 @@
-# add a test to detect NM_|NE_ to add regex for better pattern matching, cdf legend 20 character new line sub
+
+# plot mean group with min and max means + geom_ribbon(aes(ymin=min,ymax=max),alpha = 0.3) check box
+# don't loose min/max in applymath
+# add make group to file norm ... run apply math on each, then take min max values, score == mean scores per bin/gene or all bins?
+
+
+# cdf legend 20 character new line sub
 # filter tools: have search for last include type name? is that the replot problem?    
 #  filter per reactive on numeric text boxes fix crash (single/multiple, and clarify min/max profile kept?) ... 
 #  

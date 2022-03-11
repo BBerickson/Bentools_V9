@@ -671,7 +671,6 @@ GGplotLineDot <-
         geom_line(size = line_list$mysize[2],alpha=0.8)
     }
     gp <- gp +
-      geom_point(stroke = .001) +
       scale_size_manual(values = plot_options$mysizedot) +
       scale_color_manual(values = plot_options$mycol) +
       scale_shape_manual(values = plot_options$mydot) +

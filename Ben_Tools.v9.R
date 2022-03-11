@@ -3192,11 +3192,13 @@ ui <- dashboardPage(
       tabItem(
         # filenorm ----
         tabName = "filenorm",
+        div(
         box(
           title = "Select files for normalization",
           width = 12,
           status = "primary",
           solidHeader = T,
+          collapsible = T,
           div(style = "padding-left: 15%;",
               fluidRow(
                 pickerInput(
@@ -3248,7 +3250,64 @@ ui <- dashboardPage(
             "checkboxnormzero",
             label = "replace 0 with min/2",value = FALSE),
           valueBoxOutput("valueboxnormfile")
-        )
+        ),
+        # box(
+        #   title = "Select files for group mean",
+        #   width = 12,
+        #   status = "primary",
+        #   solidHeader = T,
+        #   collapsible = T,
+        #   collapsed = T,
+        #   div(style = "padding-left: 15%;",
+        #       fluidRow(
+        #         pickerInput(
+        #           "pickergroup",
+        #           label = "Pick group",
+        #           width = "90%",
+        #           choices = "Load data file",
+        #           multiple = T,
+        #           options = list(title = "Select at least 2 files")
+        #         )
+        #       )),
+        #   div(style = "padding-left: 15%;",
+        #       fluidRow(
+        #         column(
+        #           3,
+        #           radioGroupButtons(
+        #             "groupdata",
+        #             label = "",
+        #             status = "primary",
+        #             choices = c("mean", "median"),
+        #             selected = "mean"
+        #           ),
+        #           radioGroupButtons(
+        #             "groupdatastat",
+        #             label = "",
+        #             status = "primary",
+        #             choices = c("mean", "sd","sem"),
+        #             selected = "mean"
+        #           )
+        #         ),
+        #         column(4, style = "padding-top: 4%;",
+        #                actionButton("actiongroup", label = "create file"))
+        #       )),
+        #   div(style = "padding-left: 15%;",
+        #       fluidRow(
+        #         textInput("textgroupname", "group file name",
+        #                   width = "90%",))
+        #   ),
+        #   awesomeRadio(
+        #     "radiogenebygene",
+        #     label = "",
+        #     choices = c("bin by bin", "mean of bins by mean of bins"),
+        #     selected = "bin by bin"
+        #   ),
+        #   awesomeCheckbox(
+        #     "checkboxnormzero",
+        #     label = "replace 0 with min/2",value = FALSE),
+        #   valueBoxOutput("valueboxnormfile")
+        # )
+      )
       ),
       tabItem(
         # genelists ----
