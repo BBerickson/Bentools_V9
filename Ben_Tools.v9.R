@@ -66,7 +66,7 @@ server <- function(input, output, session) {
                              mysize = c(2.0, 2.5, 13.0, 13.0, 10.0),
                              myset = c(20, 40, 15, 45, 100, 5)),
     Picker_controler = NULL,
-    mymath = c("mean", "none", "0", "FALSE", "FALSE", "0", "80"),
+    mymath = c("mean", "none", "0", "FALSE", "FALSE", "1", "80", "none"),
     ttest = NULL,
     ttest_values = c("none", "wilcox.test", "two.sided", "FALSE", "FALSE", "-log10", "fdr"),
     ttest_options = c(0, 0, 1, "select sample", 0.05),
@@ -375,7 +375,7 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
-                   list_data_frame <- Active_list_data(LIST_DATA)
+                   list_data_frame <- Active_list_data(LIST_DATA,input$mygroup)
                    if (!is_empty(list_data_frame)) {
                      LIST_DATA$gene_info <<- rows_update(LIST_DATA$gene_info,
                                                          list_data_frame %>% 
@@ -385,7 +385,8 @@ server <- function(input, output, session) {
                        list_data_frame,
                        input$myMath,
                        input$selectplotnrom,
-                       as.numeric(input$selectplotBinNorm)
+                       as.numeric(input$selectplotBinNorm),
+                       input$mygroup
                      )
                      reactive_values$Y_Axis_numbers <-
                        YAxisValues(
@@ -416,7 +417,7 @@ server <- function(input, output, session) {
                      }
                      reactive_values$Plot_Options <- NULL
                      reactive_values$Plot_Options <-
-                       MakePlotOptionFrame(LIST_DATA$gene_info)
+                       MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
                      
                    } else {
                      LIST_DATA$STATE[2] <<- 2
@@ -444,20 +445,20 @@ server <- function(input, output, session) {
                 input$selectplotBinNorm,
                 input$checkboxsmooth,
                 input$checkboxlog2,
-                input$sliderplotBinRange
+                input$sliderplotBinRange,
+                input$mygroup
     )
     Y_Axis_numbers <-
       c(input$numericYRangeLow,input$numericYRangeHigh)
-    
-    if(sum(reactive_values$mymath == mymath) != 7){
+    if(!identical(reactive_values$mymath, mymath)){
       reactive_values$mymath <- mymath
       reactive_values$myplot <- mymath
-    } else if(sum(reactive_values$Y_Axis_numbers == Y_Axis_numbers) != 2){
+    } else if(!identical(reactive_values$Y_Axis_numbers, Y_Axis_numbers)){
       reactive_values$Y_Axis_numbers <- Y_Axis_numbers
       if (!is_empty(reactive_values$Apply_Math)) {
         reactive_values$Plot_Options <- NULL
         reactive_values$Plot_Options <-
-          MakePlotOptionFrame(LIST_DATA$gene_info)
+          MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
       }
     }
     updateBoxSidebar(id = "sidebarmath")
@@ -672,7 +673,7 @@ server <- function(input, output, session) {
                                         set == input$selectdataoption,
                                       input$colourhex, mycol))
         if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
-          reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
+          reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
         } else if(input$leftSideTabs == "cdftool"){
           reactive_values$df_options <- my_sel
         }
@@ -1053,6 +1054,11 @@ server <- function(input, output, session) {
           dplyr::filter(LIST_DATA$gene_info,
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"))
+      )
+      updatePickerInput(
+        session,
+        "pickergroupsample",
+        choices = distinct(LIST_DATA$gene_info, set)$set
       )
       output$valueboxnormfile <- renderValueBox({
         valueBox("0%",
@@ -1588,7 +1594,7 @@ server <- function(input, output, session) {
     
     if (LIST_DATA$STATE[2] != 2){
       print("t.test button")
-      list_data_frame <- Active_list_data(LIST_DATA)
+      list_data_frame <- Active_list_data(LIST_DATA,input$mygroup)
       if (!is_empty(list_data_frame)) {
         if (sum(ttest_values == reactive_values$ttest_values) != 7){
           reactive_values$ttest_values <- ttest_values
@@ -1632,7 +1638,7 @@ server <- function(input, output, session) {
         }
         reactive_values$Plot_Options <- NULL
         reactive_values$Plot_Options <-
-          MakePlotOptionFrame(LIST_DATA$gene_info)
+          MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
       } else {
         LIST_DATA$STATE[2] <<- 2
         text = paste("Nothing selected to plot.\n")
@@ -2177,6 +2183,26 @@ server <- function(input, output, session) {
                  icon = icon("cogs"),
                  color = "red")
       })
+    }
+  })
+  
+  # observe norm gene pickers ----
+  observeEvent(input$pickergroupsample, ignoreNULL = T,ignoreInit = T,{
+                     updateTextInput(session, "textgroupname",
+                                     value = input$pickergroupsample)
+                 })
+  
+  # create groups file ----
+  observeEvent(input$actiongroup, ignoreInit = TRUE, {
+    if (!is.null(input$pickergroupsample)) {
+    LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+      mutate(group = if_else(set %in% input$pickergroupsample,
+                             gsub("(.{20})", "\\1\n",
+                                  gsub(",",":",input$textgroupname)), group))
+      updatePickerInput(session,
+                        "pickergroupsample", selected = "",
+                        options = list(title = "Select at least 2 files"))
+      updateTextInput(session, "textgroupname", value = "")
     }
   })
   
@@ -3073,6 +3099,13 @@ ui <- dashboardPage(
                 numericInput("numericYRangeHigh", label = "Plot Y max:", value = 0)
               ),
               column(
+                4,
+                selectInput("mygroup",
+                            label = "plot group",
+                            choices = c("none", "groups only", "groups and single"),
+                            selected = "none"
+                )),
+              column(
                 11,
                 sliderInput(
                   "sliderplotBinRange",
@@ -3251,62 +3284,32 @@ ui <- dashboardPage(
             label = "replace 0 with min/2",value = FALSE),
           valueBoxOutput("valueboxnormfile")
         ),
-        # box(
-        #   title = "Select files for group mean",
-        #   width = 12,
-        #   status = "primary",
-        #   solidHeader = T,
-        #   collapsible = T,
-        #   collapsed = T,
-        #   div(style = "padding-left: 15%;",
-        #       fluidRow(
-        #         pickerInput(
-        #           "pickergroup",
-        #           label = "Pick group",
-        #           width = "90%",
-        #           choices = "Load data file",
-        #           multiple = T,
-        #           options = list(title = "Select at least 2 files")
-        #         )
-        #       )),
-        #   div(style = "padding-left: 15%;",
-        #       fluidRow(
-        #         column(
-        #           3,
-        #           radioGroupButtons(
-        #             "groupdata",
-        #             label = "",
-        #             status = "primary",
-        #             choices = c("mean", "median"),
-        #             selected = "mean"
-        #           ),
-        #           radioGroupButtons(
-        #             "groupdatastat",
-        #             label = "",
-        #             status = "primary",
-        #             choices = c("mean", "sd","sem"),
-        #             selected = "mean"
-        #           )
-        #         ),
-        #         column(4, style = "padding-top: 4%;",
-        #                actionButton("actiongroup", label = "create file"))
-        #       )),
-        #   div(style = "padding-left: 15%;",
-        #       fluidRow(
-        #         textInput("textgroupname", "group file name",
-        #                   width = "90%",))
-        #   ),
-        #   awesomeRadio(
-        #     "radiogenebygene",
-        #     label = "",
-        #     choices = c("bin by bin", "mean of bins by mean of bins"),
-        #     selected = "bin by bin"
-        #   ),
-        #   awesomeCheckbox(
-        #     "checkboxnormzero",
-        #     label = "replace 0 with min/2",value = FALSE),
-        #   valueBoxOutput("valueboxnormfile")
-        # )
+        box(
+          title = "Select files for group mean",
+          width = 12,
+          status = "primary",
+          solidHeader = T,
+          collapsible = T,
+          collapsed = T,
+          div(style = "padding-left: 15%;",
+              fluidRow(
+                pickerInput(
+                  "pickergroupsample",
+                  label = "Pick group samples",
+                  width = "90%",
+                  choices = "Load data file",
+                  multiple = T,
+                  options = list(title = "Select at least 2 files")
+                )
+              )),
+          div(style = "padding-left: 15%;",
+              fluidRow(
+                textInput("textgroupname", "group file name",
+                          width = "90%",)),
+              column(4, style = "padding-top: 4%;",
+                     actionButton("actiongroup", label = "create group"))
+          )
+        )
       )
       ),
       tabItem(

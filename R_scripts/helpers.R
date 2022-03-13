@@ -1,10 +1,13 @@
-
-# plot mean group with min and max means + geom_ribbon(aes(ymin=min,ymax=max),alpha = 0.3) check box
-# don't loose min/max in applymath
-# add make group to file norm ... run apply math on each, then take min max values, score == mean scores per bin/gene or all bins?
-
-
-# cdf legend 20 character new line sub
+# test groups with ttest... if groups only restrict it to ttest on groups not on all active
+  # multiple gene lists with same group get combinded ... 
+  # test with tools before and after test with loading gene lists before and after
+# 
+# 
+# add table of groups
+# update picker when norm file created
+ # 
+# test groups with ttest... turn off?
+# cdf legend 20 character new line sub ... normaly happens in Active_list_data()
 # filter tools: have search for last include type name? is that the replot problem?    
 #  filter per reactive on numeric text boxes fix crash (single/multiple, and clarify min/max profile kept?) ... 
 #  

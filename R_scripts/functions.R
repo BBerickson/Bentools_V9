@@ -291,7 +291,8 @@ LoadTableFile <-
         mycol = my_color[x],
         onoff = oo,
         sub = " ",
-        plot_set = " "
+        plot_set = " ",
+        group = legend_nickname[x]
       )))
       # adding table file after gene list had been loaded
       for(gg in seq_along(list_data$gene_file)[-1]){
@@ -475,7 +476,7 @@ colorModal <- function(list_data, tt){
 
 Active_list_data <-
   # input data list, output filtered and bound data with plot legend column
-  function(list_data) {
+  function(list_data,group="none") {
     table_file <- list_data$table_file
     gene_file <- list_data$gene_file
     gene_info <- list_data$gene_info
@@ -486,6 +487,10 @@ Active_list_data <-
       if (gene_info %>% dplyr::filter(gene_list == i & onoff != 0) %>% nrow() == 0) {
         next()
       } else {
+        if(group != "none"){
+          gene_info <- gene_info %>% group_by(group) %>% 
+            mutate(onoff=if_else(gene_list == i & any(onoff != 0),set,onoff))
+        }
         my_sel <- gene_info %>% dplyr::filter(gene_list == i & onoff != 0)
         tf <- table_file %>% 
           dplyr::filter(set %in% my_sel$onoff)
@@ -506,7 +511,9 @@ Active_list_data <-
                str_split_fixed(i, "\nn = ", n=2)[,1]),
           paste0("n = ", n_distinct(list_data_out[[i]]$gene)),
           sep = '\n'
-        )) %>% select(set,plot_set)
+        ),group=paste(
+          gsub("(.{20})", "\\1\n", group)
+        )) %>% dplyr::select(set,plot_set,group)
         list_data_out[[i]] <- list_data_out[[i]] %>% inner_join(.,my_sel2,by="set")
       }
     }
@@ -517,17 +524,40 @@ ApplyMath <-
   function(list_data,
            use_math,
            relative_frequency,
-           normbin) {
+           normbin,
+           group="none") {
     setProgress(1, detail = paste("Gathering info"))
-    # apply's math to data file
+    # apply math to data file
     if (relative_frequency == "rel gene frequency") {
       list_data <- list_data %>% group_by(plot_set, gene) %>%
         dplyr::mutate(score = score / abs(sum(score, na.rm = TRUE))) %>%
         ungroup()
     }
-    list_data <- list_data %>% group_by(plot_set, bin) %>%
+    list_data <- list_data %>% group_by(set, plot_set, bin, group) %>%
       summarise(value = get(use_math)(score, na.rm = T), .groups="drop")
-    
+    if(group == "groups only"){
+      list_data <- list_data %>% group_by(bin,group) %>% dplyr::mutate(set2=plot_set) %>% 
+        separate(plot_set,c("cc","plot_set"),"\n",extra = "merge") %>% select(-cc) %>% 
+        mutate(plot_set=if_else(set != group, paste(group,plot_set,sep = "\n"),set2)) %>%
+        mutate(min=min(value),max=max(value),
+               value = mean(value)) %>% 
+        distinct(bin,group,.keep_all = T) %>%
+        ungroup() %>% dplyr::select(-set) %>% dplyr::rename(set=set2)
+      } else if (group == "groups and single"){
+        list_data2 <- list_data %>% group_by(bin,group) %>% dplyr::mutate(set2=plot_set) %>% 
+          separate(plot_set,c("cc","plot_set"),"\n",extra = "merge") %>% select(-cc) %>% 
+          mutate(plot_set=if_else(set != group, paste(group,plot_set,sep = "\n"),set2)) %>%
+          mutate(min=min(value),max=max(value),
+                 value = mean(value)) %>% 
+          distinct(bin,group,.keep_all = T) %>%
+          ungroup() %>% dplyr::select(-set) %>% dplyr::rename(set=set2)
+        list_data <- list_data %>% 
+          mutate(set=plot_set,min=value,max=value) %>% 
+            bind_rows(.,list_data2)
+      } else {
+        list_data <- list_data %>% 
+          mutate(set=plot_set,min=value,max=value)
+    }
     if (normbin > 0) {
       list_data <- list_data %>% 
         group_by(plot_set) %>%
@@ -540,7 +570,7 @@ ApplyMath <-
         dplyr::mutate(value = value / abs(sum(value))) %>%
         ungroup()
     }
-    return(list_data %>% dplyr::mutate(set=plot_set))
+    return(list_data)
   }
 
 # get min and max from apply math data set
@@ -552,7 +582,7 @@ YAxisValues <-
     tt <- group_by(apply_math, set) %>%
       dplyr::filter(bin %in% xBinRange[1]:xBinRange[2]) %>%
       ungroup() %>%
-      summarise(min(value, na.rm = T), max(value, na.rm = T),.groups="drop") %>%
+      summarise(min(min, na.rm = T), max(max, na.rm = T),.groups="drop") %>%
       unlist(., use.names = FALSE)
     tt <-
       c(tt[1] + (tt[1] * (yBinRange[1] / 100)), tt[2] + (tt[2] * ((yBinRange[2] -
@@ -560,6 +590,7 @@ YAxisValues <-
     if (log_2) {
       tt <- log2((abs(tt))^(sign(tt)))
     }
+    tt <- c(round(min(tt), 4),round(max(tt), 4))
     tt
   }
 
@@ -596,19 +627,16 @@ YAxisLabel <-
   }
 
 # gather relevant plot options from gene_info, outputs for ggplot
-MakePlotOptionFrame <- function(gene_info) {
+MakePlotOptionFrame <- function(gene_info, group = "none") {
   print("plot options fun")
   # checks to see if at least one file in list is active
   if (gene_info %>% dplyr::filter(onoff != 0) %>% nrow() == 0) {
     return(NULL)
   } else {
-    gene_info <- gene_info %>% dplyr::filter(onoff != 0)
     gene_info <- gene_info %>%
       dplyr::mutate(
         myline = 1,
-        mydot = 0,
-        mysizedot = 0.01,
-        set = plot_set
+        set=plot_set
       )
   }
   # tint if same color is used more then once
@@ -633,6 +661,12 @@ GGplotLineDot <-
            use_log2,
            use_y_label,
            plot_occupancy) {
+    plot_options <- list_long_data_frame %>% 
+      distinct(set,plot_set) %>% right_join(plot_options,.,by="set") %>% 
+      dplyr::rename(plot_set=plot_set.y) %>% dplyr::select(-plot_set.x) %>% 
+      dplyr::mutate(set = plot_set)
+    list_long_data_frame <- list_long_data_frame %>% 
+      dplyr::mutate(set = plot_set)
     list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
     legend_space <- lengths(strsplit(sort(plot_options$set), "\n")) / 1.1
     if (use_log2) {
@@ -665,15 +699,15 @@ GGplotLineDot <-
       gp <- gp +
         geom_smooth(se = FALSE,
                     size = line_list$mysize[2],
-                    span = .2) 
+                    span = .2, alpha=0.8) 
     } else{
       gp <- gp +
         geom_line(size = line_list$mysize[2],alpha=0.8)
     }
-    gp <- gp +
-      scale_size_manual(values = plot_options$mysizedot) +
+    gp <- gp + 
+      geom_ribbon(aes(ymin=min,ymax=max,fill=set),linetype=0,alpha = 0.2) +
       scale_color_manual(values = plot_options$mycol) +
-      scale_shape_manual(values = plot_options$mydot) +
+      scale_fill_manual(values = plot_options$mycol) +
       scale_linetype_manual(values = plot_options$myline) +
       ylab(use_y_label) +
       geom_vline(
@@ -754,7 +788,6 @@ GGplotLineDot <-
         theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) +
         theme(
           axis.text.x = element_text(
-            #fix for coord_cartesian [between(line_list$mybrakes, xBinRange[1], xBinRange[2])]
             color = line_list$mycolors[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
             size = line_list$mysize[3],
             angle = -45,
@@ -1115,8 +1148,7 @@ ApplyTtest <-
           ttest[[i]] <- bind_rows(try_t_test(list_data %>% dplyr::filter(gene_list == i),i,
                                              use_tmath,switchttesttype,padjust,
                                              my_alt, noquote(my_exact), noquote(my_paired))) %>% 
-            dplyr::mutate(mydot = 0,
-                          myline = 1,
+            dplyr::mutate(myline = 1,
                           mycol = "#000000" )
         } 
       }
@@ -1187,7 +1219,7 @@ MakePlotOptionttest <- function(list_data, Y_Axis_TT,my_ttest_log,hlineTT,pajust
     return(NULL)
   }
   print("plot options ttest fun")
-  out_options <- list_data %>% select(-bin, -p.value) %>% distinct(set,mydot,myline,mycol)
+  out_options <- list_data %>% select(-bin, -p.value) %>% distinct(set,myline,mycol)
   list_data_frame <- NULL
   
   ldf <- duplicated(out_options$mycol)
