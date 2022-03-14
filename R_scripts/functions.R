@@ -536,7 +536,7 @@ ApplyMath <-
     list_data <- list_data %>% group_by(set, plot_set, bin, group) %>%
       summarise(value = get(use_math)(score, na.rm = T), .groups="drop")
     if(group == "groups only"){
-      list_data <- list_data %>% group_by(bin,group) %>% dplyr::mutate(set2=plot_set) %>% 
+      list_data <- list_data %>% group_by(bin,group,plot_set) %>% dplyr::mutate(set2=plot_set) %>% 
         separate(plot_set,c("cc","plot_set"),"\n",extra = "merge") %>% select(-cc) %>% 
         mutate(plot_set=if_else(set != group, paste(group,plot_set,sep = "\n"),set2)) %>%
         mutate(min=min(value),max=max(value),
@@ -544,7 +544,7 @@ ApplyMath <-
         distinct(bin,group,.keep_all = T) %>%
         ungroup() %>% dplyr::select(-set) %>% dplyr::rename(set=set2)
       } else if (group == "groups and single"){
-        list_data2 <- list_data %>% group_by(bin,group) %>% dplyr::mutate(set2=plot_set) %>% 
+        list_data2 <- list_data %>% group_by(bin,group,plot_set) %>% dplyr::mutate(set2=plot_set) %>% 
           separate(plot_set,c("cc","plot_set"),"\n",extra = "merge") %>% select(-cc) %>% 
           mutate(plot_set=if_else(set != group, paste(group,plot_set,sep = "\n"),set2)) %>%
           mutate(min=min(value),max=max(value),
@@ -640,7 +640,7 @@ MakePlotOptionFrame <- function(gene_info, group = "none") {
       )
   }
   # tint if same color is used more then once
-  ldf <- duplicated(gene_info$mycol)
+  ldf <- duplicated(LIST_DATA$gene_info[c("mycol","onoff")])
   for (i in seq_along(gene_info$mycol)) {
     if (ldf[i]) {
       gene_info$mycol[i] <- RgbToHex(gene_info$mycol[i], convert = "hex", tint = log(i,10))

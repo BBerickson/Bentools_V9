@@ -2011,28 +2011,28 @@ server <- function(input, output, session) {
   # sort peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
     print("sort Peak")
-    if (input$slidersortbinrange[2] >= input$slidersortbinrangefilter[1]) {
-      showModal(modalDialog(
-        title = "Information message",
-        paste("Bins regions should not overlap, \nBins set to default"),
-        size = "s",
-        easyClose = TRUE
-      ))
-      updateSliderInput(
-        session,
-        "slidersortbinrange",
-        min = reactive_values$setsliders[1],
-        max = reactive_values$setsliders[2],
-        value = reactive_values$setsliders[3:4]
-      )
-      updateSliderInput(
-        session,
-        "slidersortbinrangefilter",
-        min = reactive_values$setsliders[1],
-        max = reactive_values$setsliders[2],
-        value = reactive_values$setsliders[c(5,2)]
-      )
-    }
+    # if (input$slidersortbinrange[2] >= input$slidersortbinrangefilter[1]) {
+    #   showModal(modalDialog(
+    #     title = "Information message",
+    #     paste("Bins regions should not overlap, \nBins set to default"),
+    #     size = "s",
+    #     easyClose = TRUE
+    #   ))
+    #   updateSliderInput(
+    #     session,
+    #     "slidersortbinrange",
+    #     min = reactive_values$setsliders[1],
+    #     max = reactive_values$setsliders[2],
+    #     value = reactive_values$setsliders[3:4]
+    #   )
+    #   updateSliderInput(
+    #     session,
+    #     "slidersortbinrangefilter",
+    #     min = reactive_values$setsliders[1],
+    #     max = reactive_values$setsliders[2],
+    #     value = reactive_values$setsliders[c(5,2)]
+    #   )
+    # }
     sortmin <- FilterPeak(LIST_DATA, 
                          input$sortGeneList,
                          input$sortSamples,

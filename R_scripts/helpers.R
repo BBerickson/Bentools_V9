@@ -1,16 +1,16 @@
 # test groups with ttest... if groups only restrict it to ttest on groups not on all active
   # multiple gene lists with same group get combinded ... 
   # test with tools before and after test with loading gene lists before and after
-# 
-# 
-# add table of groups
+#  color change messes up groups ... check for other mix ups, hide group picker - show on creating a group 
+# filter peak ... clear up which is peak and which is filter area, keep/loose peak correctely labels, overlapping test fix
+# add table of groups along with color/ add color box for new norm files as well, have name text box width be 20 charictors to resemble legend new line laent
 # update picker when norm file created
- # 
+ # fix shading MakePlotOptionFrame()
 # test groups with ttest... turn off?
 # cdf legend 20 character new line sub ... normaly happens in Active_list_data()
 # filter tools: have search for last include type name? is that the replot problem?    
 #  filter per reactive on numeric text boxes fix crash (single/multiple, and clarify min/max profile kept?) ... 
-#  
+#color set update pickers  
 # if loading a url file have progress bar count number of files completed
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violin,Bar,scatter,cdf
@@ -20,11 +20,11 @@
 # smart filter tool ... set high med and low areas have filter % move # gene at a time until pattern found 
 # #### 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
-
+# size of memory used limit/warning
 # have ability to change the order of legend in plots (DT sort?)
 # add benefits for loading matrix files, separation and gene size?
 # lines and labels TSS = bin 1 fix
-
+# checks on pickers left side?, have then stay within view (word wrap)?
 # a plot to show delta PI, MA/scatter/dot?
 # #
 # # data options and QC tab
