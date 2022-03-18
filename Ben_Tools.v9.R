@@ -356,8 +356,8 @@ server <- function(input, output, session) {
       } else {
         # intersect $use with full and save values with comments on values
         new_comments2 <-
-          LIST_DATA$gene_file[["1k_hg19_10k_isolate_bed"]]$full %>%
-          semi_join(., LIST_DATA$gene_file[["1k_hg19_10k_isolate_bed"]]$use)
+          LIST_DATA$gene_file[[input$selectsave]]$full %>%
+          semi_join(., LIST_DATA$gene_file[[input$selectsave]]$use)
       }
       write_lines(new_comments, file)
       write_tsv(new_comments2,

@@ -52,10 +52,14 @@ RgbToHex <- function(x,
 
 # finds first partial match to gene list input 
 MatchGenes <- function(common_list, gene_list){
-  if(str_detect(tablefile$gene[1],"_")){
+  print("gene match fun")
+  if(str_detect(gene_list$gene[1],"|")){
     tablefile <-
       map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) 
-  } else{
+  } else if(str_detect(gene_list$gene[1],"_")){
+    tablefile <-
+      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) 
+  }else {
     tablefile <-
       map(paste0("\\|", gene_list$gene,"$"), str_subset, string = common_list$gene) 
   }
@@ -474,9 +478,9 @@ colorModal <- function(list_data, tt){
   return(list_data)
 }
 
+# input data list, output filtered and bound data with plot legend column
 Active_list_data <-
-  # input data list, output filtered and bound data with plot legend column
-  function(list_data,group="none") {
+  function(list_data, group="none") {
     table_file <- list_data$table_file
     gene_file <- list_data$gene_file
     gene_info <- list_data$gene_info
@@ -488,8 +492,9 @@ Active_list_data <-
         next()
       } else {
         if(group != "none"){
-          gene_info <- gene_info %>% group_by(group) %>% 
-            mutate(onoff=if_else(gene_list == i & any(onoff != 0),set,onoff))
+          gene_info <- gene_info %>% group_by(group,gene_list) %>% 
+            mutate(onoff=if_else(gene_list == i & any(onoff != 0),set,onoff)) %>% 
+            ungroup()
         }
         my_sel <- gene_info %>% dplyr::filter(gene_list == i & onoff != 0)
         tf <- table_file %>% 
@@ -520,44 +525,25 @@ Active_list_data <-
     return(bind_rows(list_data_out))
   }
 
+# apply math to data file and get ready to plot
 ApplyMath <-
   function(list_data,
            use_math,
            relative_frequency,
            normbin,
            group="none") {
+    print("applymath fun")
     setProgress(1, detail = paste("Gathering info"))
-    # apply math to data file
+    # normalize per gene relative frequency
     if (relative_frequency == "rel gene frequency") {
       list_data <- list_data %>% group_by(plot_set, gene) %>%
         dplyr::mutate(score = score / abs(sum(score, na.rm = TRUE))) %>%
         ungroup()
     }
-    list_data <- list_data %>% group_by(set, plot_set, bin, group) %>%
+    # apply mean/median/sum/var
+    list_data <- list_data %>% group_by(set, plot_set, bin, group, gene_list) %>%
       summarise(value = get(use_math)(score, na.rm = T), .groups="drop")
-    if(group == "groups only"){
-      list_data <- list_data %>% group_by(bin,group,plot_set) %>% dplyr::mutate(set2=plot_set) %>% 
-        separate(plot_set,c("cc","plot_set"),"\n",extra = "merge") %>% select(-cc) %>% 
-        mutate(plot_set=if_else(set != group, paste(group,plot_set,sep = "\n"),set2)) %>%
-        mutate(min=min(value),max=max(value),
-               value = mean(value)) %>% 
-        distinct(bin,group,.keep_all = T) %>%
-        ungroup() %>% dplyr::select(-set) %>% dplyr::rename(set=set2)
-      } else if (group == "groups and single"){
-        list_data2 <- list_data %>% group_by(bin,group,plot_set) %>% dplyr::mutate(set2=plot_set) %>% 
-          separate(plot_set,c("cc","plot_set"),"\n",extra = "merge") %>% select(-cc) %>% 
-          mutate(plot_set=if_else(set != group, paste(group,plot_set,sep = "\n"),set2)) %>%
-          mutate(min=min(value),max=max(value),
-                 value = mean(value)) %>% 
-          distinct(bin,group,.keep_all = T) %>%
-          ungroup() %>% dplyr::select(-set) %>% dplyr::rename(set=set2)
-        list_data <- list_data %>% 
-          mutate(set=plot_set,min=value,max=value) %>% 
-            bind_rows(.,list_data2)
-      } else {
-        list_data <- list_data %>% 
-          mutate(set=plot_set,min=value,max=value)
-    }
+    # norm to bin or overall relative frequency
     if (normbin > 0) {
       list_data <- list_data %>% 
         group_by(plot_set) %>%
@@ -569,6 +555,34 @@ ApplyMath <-
         group_by(plot_set) %>%
         dplyr::mutate(value = value / abs(sum(value))) %>%
         ungroup()
+    }
+    # finish making file ready for ggplot
+    if(group == "groups only"){
+      list_data <- select(list_data, -plot_set) %>% 
+        right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
+                                select(group, plot_set, gene_list),by=c("group","gene_list")) %>% 
+        separate(plot_set,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
+        dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_set)) %>%
+        transmute(set = plot_set,plot_set=group,bin=bin,value=value) %>% 
+         group_by(set, bin,plot_set) %>% 
+        summarise(min=min(value),max=max(value),
+                  value = mean(value), .groups = "drop") 
+      } else if (group == "groups and single"){
+        list_data2 <- select(list_data, -plot_set) %>% 
+          right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
+                       select(group, plot_set, gene_list),by=c("group","gene_list")) %>% 
+          separate(plot_set,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
+          dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_set)) %>%
+          transmute(set = plot_set,plot_set=group,bin=bin,value=value) %>% 
+          group_by(set, bin,plot_set) %>% 
+          summarise(min=min(value),max=max(value),
+                    value = mean(value), .groups = "drop") 
+        list_data <- list_data %>% 
+          mutate(set=plot_set,min=value,max=value) %>% 
+            bind_rows(.,list_data2)
+      } else {
+        list_data <- list_data %>% 
+          mutate(set=plot_set,min=value,max=value)
     }
     return(list_data)
   }
@@ -661,6 +675,7 @@ GGplotLineDot <-
            use_log2,
            use_y_label,
            plot_occupancy) {
+    
     plot_options <- list_long_data_frame %>% 
       distinct(set,plot_set) %>% right_join(plot_options,.,by="set") %>% 
       dplyr::rename(plot_set=plot_set.y) %>% dplyr::select(-plot_set.x) %>% 
@@ -668,6 +683,7 @@ GGplotLineDot <-
     list_long_data_frame <- list_long_data_frame %>% 
       dplyr::mutate(set = plot_set)
     list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
+    
     legend_space <- lengths(strsplit(sort(plot_options$set), "\n")) / 1.1
     if (use_log2) {
       gp <-

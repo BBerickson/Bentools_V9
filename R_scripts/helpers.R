@@ -1,12 +1,17 @@
+# speed up plot ... why is it running so slow?
 # test groups with ttest... if groups only restrict it to ttest on groups not on all active
-  # multiple gene lists with same group get combinded ... 
+  # multiple gene lists with same group get combined ... 
   # test with tools before and after test with loading gene lists before and after
 #  color change messes up groups ... check for other mix ups, hide group picker - show on creating a group 
 # filter peak ... clear up which is peak and which is filter area, keep/loose peak correctely labels, overlapping test fix
 # add table of groups along with color/ add color box for new norm files as well, have name text box width be 20 charictors to resemble legend new line laent
-# update picker when norm file created
+# update picker when norm file created, have group picker show number of files
  # fix shading MakePlotOptionFrame()
-# test groups with ttest... turn off?
+# ration switch tap not updateing genelists
+# if filter has same number of genes will it update, what happens if all genes are filtered out?
+# intersecting more than 2 items is not compleatly inclusive (check on other checkbox filters), update lists on run
+# work on TSS bin 1 lines and labels, RF norm y axis settings fix
+# save file needs work on output format (including a just gene list output option), file name, and loading files with complex names does not show in DT summury?
 # cdf legend 20 character new line sub ... normaly happens in Active_list_data()
 # filter tools: have search for last include type name? is that the replot problem?    
 #  filter per reactive on numeric text boxes fix crash (single/multiple, and clarify min/max profile kept?) ... 
@@ -14,7 +19,7 @@
 # if loading a url file have progress bar count number of files completed
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violin,Bar,scatter,cdf
-#    
+#  get big spinner running while thinkig- loading files, clustinging,   
 # filter per have min and max numbers adjusted based on total number of genes, and set to relative 1%  filter to start, on 1 file show up and down a few steps making picked a wider line on plot
 #    add note to if all bins == 0 or add auto go to next per up or down?
 # smart filter tool ... set high med and low areas have filter % move # gene at a time until pattern found 
@@ -26,13 +31,13 @@
 # lines and labels TSS = bin 1 fix
 # checks on pickers left side?, have then stay within view (word wrap)?
 # a plot to show delta PI, MA/scatter/dot?
-# #
+# # 5'  and 3' files  focused sliders optimize
 # # data options and QC tab
 # #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
 # #     ability to find and remove outliers and filter (add to server R RNAseq filtering outliers )
 # in QC add gene size and seperation, deep tools inputs/bin ranges
 # "factoextra" for dendogram plot fviz_dend()
-
+# load old style table files (mod matrix?)
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {
