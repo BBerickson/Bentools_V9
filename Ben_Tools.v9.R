@@ -568,7 +568,9 @@ server <- function(input, output, session) {
             width = 8,
             status = "navy",
             solidHeader = T,
-            pickerInput("selectgenelistoptions", "", width = 300, choices = distinct(LIST_DATA$gene_info,gene_list)$gene_list,
+            pickerInput("selectgenelistoptions", "", 
+                        width = 300, 
+                        choices = distinct(LIST_DATA$gene_info,gene_list)$gene_list,
                         selected = distinct(LIST_DATA$gene_info,gene_list)$gene_list[1]),
             pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info,set)$set, 
                         selected = distinct(LIST_DATA$gene_info,set)$set[1]),
@@ -701,7 +703,11 @@ server <- function(input, output, session) {
                                     input$textnickname, set)) %>% 
         dplyr::mutate(onoff = if_else(onoff == input$selectdataoption,
                                       input$textnickname, onoff)) %>% 
-        dplyr::mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,paste0("^",input$selectdataoption),input$textnickname))
+        dplyr::mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,
+                                             paste0("^",input$selectdataoption),input$textnickname)) %>% 
+        dplyr::mutate(group = str_replace(LIST_DATA$gene_info$group,
+                                          input$selectdataoption,input$textnickname))
+      
       LIST_DATA$table_file <<- LIST_DATA$table_file %>%
         dplyr::mutate(set = if_else(set == input$selectdataoption,
                                     input$textnickname, set))
@@ -710,7 +716,11 @@ server <- function(input, output, session) {
       ff <- distinct(LIST_DATA$table_file, set)$set
       updatePickerInput(session,
                         "selectdataoption",
-                        choices = ff,selected = input$textnickname)
+                        choices = ff,
+                        selected = input$textnickname,
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", ff)
+                        ))
       LIST_DATA$STATE[2] <<- -10
     }
   })
@@ -1021,9 +1031,15 @@ server <- function(input, output, session) {
       }
       updatePickerInput(session, "sortGeneList",
                         choices = names(LIST_DATA$gene_file),
-                        selected = ol)
+                        selected = ol,
+                        choicesOpt = list(
+                          content = gsub("(.{55})", "\\1<br>", names(LIST_DATA$gene_file))
+                        ))
       updatePickerInput(session, "sortSamples",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set)
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choicesOpt = list(
+                          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                        )
                         )
       output$valueboxsort <- renderValueBox({
         valueBox(0,
@@ -1044,7 +1060,9 @@ server <- function(input, output, session) {
         choicesOpt = list(style = paste("color", dplyr::select(
           dplyr::filter(LIST_DATA$gene_info,
                         gene_list == names(LIST_DATA$gene_file)[1]),
-          mycol)$mycol, sep = ":"))
+          mycol)$mycol, sep = ":"),
+          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          )
       )
       updatePickerInput(
         session,
@@ -1053,12 +1071,17 @@ server <- function(input, output, session) {
         choicesOpt = list(style = paste("color", dplyr::select(
           dplyr::filter(LIST_DATA$gene_info,
                         gene_list == names(LIST_DATA$gene_file)[1]),
-          mycol)$mycol, sep = ":"))
+          mycol)$mycol, sep = ":"),
+          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          )
       )
       updatePickerInput(
         session,
         "pickergroupsample",
-        choices = distinct(LIST_DATA$gene_info, set)$set
+        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choicesOpt = list(
+          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+        )
       )
       output$valueboxnormfile <- renderValueBox({
         valueBox("0%",
@@ -1073,7 +1096,10 @@ server <- function(input, output, session) {
       updatePickerInput(
           session,
           "pickergenelists",
-          choices = names(LIST_DATA$gene_file)
+          choices = names(LIST_DATA$gene_file),
+          choicesOpt = list(
+            content = gsub("(.{55})", "\\1<br>", names(LIST_DATA$gene_file))
+          )
         )
       output$valueboxgene1 <- renderValueBox({
         valueBox(0,
@@ -1131,9 +1157,15 @@ server <- function(input, output, session) {
       }
       
       updatePickerInput(session, "pickerratio1file",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set))
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                        ))
       updatePickerInput(session, "pickerratio2file",
-                        choices = c("none", distinct(LIST_DATA$gene_info, set)$set))
+                        choices = c("none", distinct(LIST_DATA$gene_info, set)$set),
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                        ))
       output$valueboxratio1 <- renderValueBox({
         valueBox(0,
                  "Ratio Up file1",
@@ -1179,9 +1211,15 @@ server <- function(input, output, session) {
       
       updatePickerInput(session, "clusterGeneList",
                         choices = names(LIST_DATA$gene_file),
-                        selected = ol)
+                        selected = ol,
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                        ))
       updatePickerInput(session, "clusterSamples",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set)
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                        )
                         )
       output$valueboxsort <- renderValueBox({
         valueBox(0,
@@ -1228,7 +1266,8 @@ server <- function(input, output, session) {
             choicesOpt = list(style = paste("color", dplyr::select(
               dplyr::filter(LIST_DATA$gene_info,
                             gene_list == names(LIST_DATA$gene_file)[1]),
-              mycol)$mycol, sep = ":"))
+              mycol)$mycol, sep = ":"),
+              content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set))
           )
         ))
     }
@@ -1752,7 +1791,8 @@ server <- function(input, output, session) {
               choicesOpt = list(style = paste("color", 
                                               dplyr::select(dplyr::filter(LIST_DATA$gene_info, 
                                                                           gene_list == i), mycol)$mycol,
-                                              sep = ":"))
+                                              sep = ":"),
+                                content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set))
             )
           ))
       }
@@ -2151,7 +2191,9 @@ server <- function(input, output, session) {
                                                                         gene_list == names(
                                                                           LIST_DATA$gene_file)[1]), 
                                                           mycol)$mycol, 
-                                                        sep = ":")))
+                                                        sep = ":"),
+                                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                                          ))
       updatePickerInput(session,
                         "pickerdenominator", selected = "",
                         choices = distinct(LIST_DATA$gene_info, set)$set,
@@ -2161,7 +2203,9 @@ server <- function(input, output, session) {
                                                                         gene_list == names(
                                                                           LIST_DATA$gene_file)[1]),
                                                           mycol)$mycol, 
-                                                        sep = ":")))
+                                                        sep = ":"),
+                                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                                          ))
       updateTextInput(session, "textnromname", value = "")
       output$valueboxnormfile <- renderValueBox({
         valueBox(
@@ -2203,6 +2247,7 @@ server <- function(input, output, session) {
                         "pickergroupsample", selected = "",
                         options = list(title = "Select at least 2 files"))
       updateTextInput(session, "textgroupname", value = "")
+      shinyjs::show("hideplotgroup")
     }
   })
   
@@ -3098,13 +3143,15 @@ ui <- dashboardPage(
                 3,
                 numericInput("numericYRangeHigh", label = "Plot Y max:", value = 0)
               ),
-              column(
-                4,
-                selectInput("mygroup",
-                            label = "plot group",
-                            choices = c("none", "groups only", "groups and single"),
-                            selected = "none"
-                )),
+              hidden(div(id = "hideplotgroup",
+                column(
+                  4,
+                  selectInput("mygroup",
+                              label = "plot group",
+                              choices = c("none", "groups only", "groups and single"),
+                              selected = "none"
+                  ))
+              )),
               column(
                 11,
                 sliderInput(
@@ -3127,7 +3174,6 @@ ui <- dashboardPage(
             )
           ),
           shinycssloaders::withSpinner(plotOutput("plot"), type = 4),
-          # hidden(
           div(
             id = "actionmyplotshow",
             style = "position: absolute; z-index: 1; left: 45%; top: 50%;",
@@ -3138,7 +3184,6 @@ ui <- dashboardPage(
               style = "color: #fff; background-color: #337ab7; border-color: #2e6da4;"
             )
           )
-          # )
         )),
         fluidRow(box(
           width = 12, 

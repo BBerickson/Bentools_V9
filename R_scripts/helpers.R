@@ -1,8 +1,8 @@
 # speed up plot ... why is it running so slow?
 # test groups with ttest... if groups only restrict it to ttest on groups not on all active
-  # multiple gene lists with same group get combined ... 
-  # test with tools before and after test with loading gene lists before and after
-#  color change messes up groups ... check for other mix ups, hide group picker - show on creating a group 
+  #  
+  # 
+#  
 # filter peak ... clear up which is peak and which is filter area, keep/loose peak correctely labels, overlapping test fix
 # add table of groups along with color/ add color box for new norm files as well, have name text box width be 20 charictors to resemble legend new line laent
 # update picker when norm file created, have group picker show number of files

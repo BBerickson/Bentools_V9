@@ -472,12 +472,6 @@ LoadGeneFile <-
     return(list_data)
   }
 
-# color module dialog box update
-colorModal <- function(list_data, tt){
-  list_data$test <- tt
-  return(list_data)
-}
-
 # input data list, output filtered and bound data with plot legend column
 Active_list_data <-
   function(list_data, group="none") {
