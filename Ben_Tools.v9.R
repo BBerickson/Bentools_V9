@@ -417,7 +417,7 @@ server <- function(input, output, session) {
                      }
                      reactive_values$Plot_Options <- NULL
                      reactive_values$Plot_Options <-
-                       MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
+                       MakePlotOptionFrame(LIST_DATA$gene_info)
                      
                    } else {
                      LIST_DATA$STATE[2] <<- 2
@@ -458,7 +458,7 @@ server <- function(input, output, session) {
       if (!is_empty(reactive_values$Apply_Math)) {
         reactive_values$Plot_Options <- NULL
         reactive_values$Plot_Options <-
-          MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
+          MakePlotOptionFrame(LIST_DATA$gene_info)
       }
     }
     updateBoxSidebar(id = "sidebarmath")
@@ -675,7 +675,7 @@ server <- function(input, output, session) {
                                         set == input$selectdataoption,
                                       input$colourhex, mycol))
         if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
-          reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
+          reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
         } else if(input$leftSideTabs == "cdftool"){
           reactive_values$df_options <- my_sel
         }
@@ -1089,6 +1089,41 @@ server <- function(input, output, session) {
                  icon = icon("cogs"),
                  color = "yellow")
       })
+      gts <- LIST_DATA$gene_info %>% 
+        filter(gene_list == "Complete") %>% 
+        mutate(group = if_else(gsub("\n","", group) != set,as.character(as.integer(as.factor(group))),"self" )) %>% 
+        select(set,group) %>%
+        rename(File = set)
+      dt <- datatable(
+        gts,
+        colnames = names(gts),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = TRUE,
+          width = 20,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = FALSE,
+          lengthChange = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 25 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
+                "}"
+              )
+            )
+          )
+        )
+      )
+      output$loadedfilestable2 <- DT::renderDataTable(dt)
     }
     # genelists tab ----
     if (input$leftSideTabs == "genelists") {
@@ -1124,11 +1159,6 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "ratiotool"){
       if(!is.null(input$selectratiofile)){
         if(input$selectratiofile == "Load data file"){
-          updateSelectInput(
-            session,
-            "selectratiofile",
-            choices = names(LIST_DATA$gene_file)
-          )
           updateSliderInput(
             session,
             "sliderbinratio1",
@@ -1151,11 +1181,12 @@ server <- function(input, output, session) {
             value = 0
           )
         }
-      } else {
-        updateSelectInput(session, "selectratiofile",
-                          choices = c(distinct(LIST_DATA$gene_info, gene_list)$gene_list))
-      }
-      
+      } 
+      updateSelectInput(
+        session,
+        "selectratiofile",
+        choices = names(LIST_DATA$gene_file)
+      )
       updatePickerInput(session, "pickerratio1file",
                         choices = c(distinct(LIST_DATA$gene_info, set)$set),
                         choicesOpt = list(
@@ -1677,7 +1708,7 @@ server <- function(input, output, session) {
         }
         reactive_values$Plot_Options <- NULL
         reactive_values$Plot_Options <-
-          MakePlotOptionFrame(LIST_DATA$gene_info,input$mygroup)
+          MakePlotOptionFrame(LIST_DATA$gene_info)
       } else {
         LIST_DATA$STATE[2] <<- 2
         text = paste("Nothing selected to plot.\n")
@@ -2206,6 +2237,49 @@ server <- function(input, output, session) {
                                                         sep = ":"),
                                           content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
                                           ))
+      updatePickerInput(
+        session,
+        "pickergroupsample",
+        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choicesOpt = list(
+          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+        )
+      )
+      gts <- LIST_DATA$gene_info %>% 
+        filter(gene_list == "Complete") %>% 
+        mutate(group = if_else(gsub("\n","", group) != set,as.character(as.integer(as.factor(group))),"self" )) %>% 
+        select(set,group) %>%
+        rename(File = set)
+      dt <- datatable(
+        gts,
+        colnames = names(gts),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = TRUE,
+          width = 20,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = FALSE,
+          lengthChange = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 35 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 37) + '...</span>' : data;",
+                "}"
+              )
+            )
+          )
+        )
+      )
+      output$loadedfilestable2 <- DT::renderDataTable(dt)
       updateTextInput(session, "textnromname", value = "")
       output$valueboxnormfile <- renderValueBox({
         valueBox(
@@ -2247,6 +2321,41 @@ server <- function(input, output, session) {
                         "pickergroupsample", selected = "",
                         options = list(title = "Select at least 2 files"))
       updateTextInput(session, "textgroupname", value = "")
+      gts <- LIST_DATA$gene_info %>% 
+        filter(gene_list == "Complete") %>% 
+        mutate(group = if_else(gsub("\n","", group) != set,as.character(as.integer(as.factor(group))),"self" )) %>% 
+        select(set,group) %>%
+        rename(File = set)
+      dt <- datatable(
+        gts,
+        colnames = names(gts),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = TRUE,
+          width = 20,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = FALSE,
+          lengthChange = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 35 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 37) + '...</span>' : data;",
+                "}"
+              )
+            )
+          )
+        )
+      )
+      output$loadedfilestable2 <- DT::renderDataTable(dt)
       shinyjs::show("hideplotgroup")
     }
   })
@@ -3336,6 +3445,7 @@ ui <- dashboardPage(
           solidHeader = T,
           collapsible = T,
           collapsed = T,
+          align = "center",
           div(style = "padding-left: 15%;",
               fluidRow(
                 pickerInput(
@@ -3344,15 +3454,19 @@ ui <- dashboardPage(
                   width = "90%",
                   choices = "Load data file",
                   multiple = T,
-                  options = list(title = "Select at least 2 files")
-                )
+                  options = list(title = "Select at least 2 files",
+                                 `selected-text-format` = "count > 0"
+                                 )
+                ),
+                DT::dataTableOutput('loadedfilestable2')
               )),
           div(style = "padding-left: 15%;",
               fluidRow(
                 textInput("textgroupname", "group file name",
                           width = "90%",)),
               column(4, style = "padding-top: 4%;",
-                     actionButton("actiongroup", label = "create group"))
+                     actionButton("actiongroup", label = "create group"),
+                     helpText("will have the same color as the top sample in the group"))
           )
         )
       )

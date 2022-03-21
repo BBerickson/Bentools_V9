@@ -2,12 +2,12 @@
 # test groups with ttest... if groups only restrict it to ttest on groups not on all active
   #  
   # 
-#  
+#  making norm file add count to gene_info
 # filter peak ... clear up which is peak and which is filter area, keep/loose peak correctely labels, overlapping test fix
-# add table of groups along with color/ add color box for new norm files as well, have name text box width be 20 charictors to resemble legend new line laent
-# update picker when norm file created, have group picker show number of files
- # fix shading MakePlotOptionFrame()
-# ration switch tap not updateing genelists
+# 
+# 
+ # 
+# 
 # if filter has same number of genes will it update, what happens if all genes are filtered out?
 # intersecting more than 2 items is not compleatly inclusive (check on other checkbox filters), update lists on run
 # work on TSS bin 1 lines and labels, RF norm y axis settings fix

@@ -635,7 +635,7 @@ YAxisLabel <-
   }
 
 # gather relevant plot options from gene_info, outputs for ggplot
-MakePlotOptionFrame <- function(gene_info, group = "none") {
+MakePlotOptionFrame <- function(gene_info) {
   print("plot options fun")
   # checks to see if at least one file in list is active
   if (gene_info %>% dplyr::filter(onoff != 0) %>% nrow() == 0) {
@@ -648,7 +648,7 @@ MakePlotOptionFrame <- function(gene_info, group = "none") {
       )
   }
   # tint if same color is used more then once
-  ldf <- duplicated(LIST_DATA$gene_info[c("mycol","onoff")])
+  ldf <- duplicated(gene_info[c("mycol","onoff")]) & gene_info$onoff != 0
   for (i in seq_along(gene_info$mycol)) {
     if (ldf[i]) {
       gene_info$mycol[i] <- RgbToHex(gene_info$mycol[i], convert = "hex", tint = log(i,10))
