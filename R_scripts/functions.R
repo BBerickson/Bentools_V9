@@ -495,9 +495,8 @@ Active_list_data <-
           dplyr::filter(set %in% my_sel$onoff)
         gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
         gene_common <- gene_common %>% 
-          group_by(gene) %>% 
-          filter(n_distinct(set)==n_distinct(gene_common$set)) %>% 
-          distinct(gene) %>% ungroup()
+          group_by(gene) %>% filter(n_distinct(set)==length(my_sel$set)) %>% 
+          ungroup() %>% distinct(gene)
         list_data_out[[i]] <-
           tf %>% 
           semi_join(., gene_common, by = "gene") %>%
@@ -1143,19 +1142,28 @@ ApplyTtest <-
            switchttest,
            use_tmath,
            switchttesttype,
-           padjust,my_alt, my_exact, my_paired) {
+           padjust,
+           my_alt, 
+           my_exact, 
+           my_paired,
+           group = "none") {
     # t.test comparing files in same gene list
     ttest <- NULL
-    if(switchttest == "by lists" & n_distinct(list_data$gene_list) > 1){
-      list_data <- list_data %>% 
-        rename(set=gene_list,gene_list=set)
-    }
-    n_test <- list_data %>% group_by(gene_list) %>% 
-      summarise(n=n_distinct(set), .groups= "drop")
     if(switchttest != "none"){
-      for(i in distinct(list_data, gene_list)$gene_list){
+      if(group == "groups only"){
+        list_data <- list_data %>% 
+          dplyr::mutate(set= gsub("\n", "", group)) 
+      }
+      if(switchttest == "by lists" & n_distinct(list_data$gene_list) > 1){
+        list_data <- list_data %>% 
+          rename(set=gene_list,gene_list=set)
+      }
+      n_test <- list_data %>% group_by(gene_list) %>% 
+      summarise(n=n_distinct(set), .groups= "drop")
+    
+      for(i in n_test$gene_list){
         if(n_test %>% dplyr::filter(gene_list == i) %>% dplyr::select(n) > 1){
-          ttest[[i]] <- bind_rows(try_t_test(list_data %>% dplyr::filter(gene_list == i),i,
+          ttest[[i]] <- bind_rows(try_t_test(list_data %>% dplyr::filter(gene_list == i), i,
                                              use_tmath,switchttesttype,padjust,
                                              my_alt, noquote(my_exact), noquote(my_paired))) %>% 
             dplyr::mutate(myline = 1,
@@ -1206,7 +1214,7 @@ try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
     } else if(my_math =="-log10"){
       myTtest <- myTtest %>% dplyr::mutate(p.value=if_else(p.value==0,2.2e-16,p.value)) %>% dplyr::mutate(p.value=-log10(p.value))
     }
-    db_out[[str_c(i,collapse = "-")]] <- myTtest%>% 
+    db_out[[str_c(i,collapse = "-")]] <- myTtest %>% 
       dplyr::mutate(., set = paste(
         paste0(gsub("(.{20})", "\\1\n", 
                     str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,1]),
@@ -1742,7 +1750,10 @@ MakeNormFile <-
     list_data$gene_info <- bind_rows(list_data$gene_info,
                                      tibble(
                                        gene_list = names(list_data$gene_file)[1],
+                                       count = distinct(list_data$gene_info %>% 
+                                                          filter(gene_list == names(list_data$gene_file)[1]),count)$count,
                                        set = legend_nickname,
+                                       group = legend_nickname,
                                        mycol = sample(suppressWarnings(brewer.pal(11, sample(kBrewerList,size=1)))[-c(4:7)],size = 1),
                                        onoff = "0",
                                        sub = " ",
@@ -1761,7 +1772,9 @@ IntersectGeneLists <-
     outlist <- NULL
     # grab selected gene list(s)
     lapply(list_name, function(j) {
-      outlist[[j]] <<- list_data$gene_file[[j]]$use %>% dplyr::select(gene)
+      outlist[[j]] <<- list_data$gene_file[[j]]$use %>% 
+        dplyr::select(gene) %>% 
+        dplyr::mutate(set=j)
     })
     # collapses into one list
     outlist <- bind_rows(outlist)
@@ -1775,8 +1788,8 @@ IntersectGeneLists <-
       nick_name1 <-
         paste("Gene_List_Total\nn =", n_distinct(outlist$gene))
       # record for info
-      list_data$gene_file[[nick_name1]]$full <- distinct(outlist)
-      list_data$gene_file[[nick_name1]]$use <- distinct(dplyr::select(outlist, gene))
+      list_data$gene_file[[nick_name1]]$full <- distinct(outlist,gene)
+      list_data$gene_file[[nick_name1]]$use <- distinct(outlist,gene)
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
         paste("Gene_List_Total",
               "from",
@@ -1793,7 +1806,9 @@ IntersectGeneLists <-
                                            plot_set = " ")))
     }
     setProgress(3, detail = paste("building intersect list"))
-    intersected <- dplyr::filter(outlist, duplicated(gene))
+    intersected <- outlist %>% group_by(gene) %>% 
+      filter(n_distinct(set)==length(list_name)) %>% 
+      distinct(gene)
     if (n_distinct(intersected$gene) > 0) {
       nick_name1 <-
         paste("Gene_List_intersect\nn =", n_distinct(intersected$gene))
@@ -1815,7 +1830,7 @@ IntersectGeneLists <-
                                            onoff = "0",
                                            plot_set = " ")))
       setProgress(4, detail = paste("building exclusive list"))
-      exclusive <- anti_join(outlist, intersected, by = "gene")
+      exclusive <- anti_join(distinct(outlist,gene), intersected, by = "gene")
       if (n_distinct(exclusive$gene) == 0) {
         exclusive <- distinct(outlist)
       }
@@ -2244,7 +2259,7 @@ CumulativeDistribution <-
       gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
       gene_common <- gene_common %>% 
         group_by(gene) %>% 
-        filter(n_distinct(set)==n_distinct(gene_common$set)) %>% 
+        filter(n_distinct(set)==n_distinct(tf$set)) %>% 
         distinct(gene) %>% ungroup()
       tf <- tf %>% 
         semi_join(., gene_common, by = "gene")

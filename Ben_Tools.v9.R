@@ -410,7 +410,8 @@ server <- function(input, output, session) {
                                                       input$padjust,
                                                       input$selectttestalt,
                                                       input$selectttestexact,
-                                                      input$selectttestpaired)
+                                                      input$selectttestpaired,
+                                                      input$mygroup)
                        } else {
                        LIST_DATA$ttest <<- NULL
                        }
@@ -1629,7 +1630,8 @@ server <- function(input, output, session) {
                            selected = reactive_values$ttest_options[4]),
         colourInput("selectcolorttest", "Select color")
       ),
-        actionButton("actionttest","Apply")
+        actionButton("actionttest","Apply"),
+      helpText("does not currently deal with grouped data using 'groups and single' option")
       )
     ))
   })
@@ -1697,7 +1699,8 @@ server <- function(input, output, session) {
                                                           input$padjust,
                                                           input$selectttestalt,
                                                           input$selectttestexact,
-                                                          input$selectttestpaired)
+                                                          input$selectttestpaired,
+                                                          input$mygroup)
                            mm <- YaxisValuetTest(LIST_DATA$ttest, input$hlinettest, input$selectttestlog )
                          })
           } else {
@@ -2082,28 +2085,30 @@ server <- function(input, output, session) {
   # sort peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
     print("sort Peak")
-    # if (input$slidersortbinrange[2] >= input$slidersortbinrangefilter[1]) {
-    #   showModal(modalDialog(
-    #     title = "Information message",
-    #     paste("Bins regions should not overlap, \nBins set to default"),
-    #     size = "s",
-    #     easyClose = TRUE
-    #   ))
-    #   updateSliderInput(
-    #     session,
-    #     "slidersortbinrange",
-    #     min = reactive_values$setsliders[1],
-    #     max = reactive_values$setsliders[2],
-    #     value = reactive_values$setsliders[3:4]
-    #   )
-    #   updateSliderInput(
-    #     session,
-    #     "slidersortbinrangefilter",
-    #     min = reactive_values$setsliders[1],
-    #     max = reactive_values$setsliders[2],
-    #     value = reactive_values$setsliders[c(5,2)]
-    #   )
-    # }
+    if (any(between(input$slidersortbinrange,
+                    input$slidersortbinrangefilter[1],
+                    input$slidersortbinrangefilter[2]))) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("Bins regions should not overlap, \nBins set to default"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      updateSliderInput(
+        session,
+        "slidersortbinrange",
+        min = reactive_values$setsliders[1],
+        max = reactive_values$setsliders[2],
+        value = reactive_values$setsliders[3:4]
+      )
+      updateSliderInput(
+        session,
+        "slidersortbinrangefilter",
+        min = reactive_values$setsliders[1],
+        max = reactive_values$setsliders[2],
+        value = reactive_values$setsliders[c(5,2)]
+      )
+    }
     sortmin <- FilterPeak(LIST_DATA, 
                          input$sortGeneList,
                          input$sortSamples,
@@ -2383,11 +2388,14 @@ server <- function(input, output, session) {
           ol <- grep("Gene_List_", names(LIST_DATA$gene_file), value = TRUE)
         }
       }
-      updateSelectInput(
+      updatePickerInput(
         session,
-        "selectsortfile",
+        "pickergenelists",
         choices = names(LIST_DATA$gene_file),
-        selected = ol
+        selected = ol,
+        choicesOpt = list(
+          content = gsub("(.{55})", "\\1<br>", names(LIST_DATA$gene_file))
+        )
       )
       shinyjs::show('actiongenelistsdatatable')
       if (any(grep("Gene_List_intersect\nn =", names(LIST_DATA$gene_file)) > 0)) {
@@ -3607,7 +3615,7 @@ ui <- dashboardPage(
                 style = "margin-bottom: -20px;",
                 sliderInput(
                   "slidersortbinrangefilter",
-                  label = "Select Bin Range to filter:",
+                  label = "Select Bin Range of non-peak:",
                   min = 1,
                   max = 80,
                   value = c(1, 80)

@@ -1,15 +1,7 @@
-# speed up plot ... why is it running so slow?
-# test groups with ttest... if groups only restrict it to ttest on groups not on all active
-  #  
-  # 
-#  making norm file add count to gene_info
-# filter peak ... clear up which is peak and which is filter area, keep/loose peak correctely labels, overlapping test fix
-# 
-# 
- # 
+# # # # # # # # # 
 # 
 # if filter has same number of genes will it update, what happens if all genes are filtered out?
-# intersecting more than 2 items is not compleatly inclusive (check on other checkbox filters), update lists on run
+# 
 # work on TSS bin 1 lines and labels, RF norm y axis settings fix
 # save file needs work on output format (including a just gene list output option), file name, and loading files with complex names does not show in DT summury?
 # cdf legend 20 character new line sub ... normaly happens in Active_list_data()
