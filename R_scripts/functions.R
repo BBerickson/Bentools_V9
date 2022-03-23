@@ -497,11 +497,18 @@ Active_list_data <-
         gene_common <- gene_common %>% 
           group_by(gene) %>% filter(n_distinct(set)==length(my_sel$set)) %>% 
           ungroup() %>% distinct(gene)
-        list_data_out[[i]] <-
-          tf %>% 
+        list_data_out[[i]] <- tf %>% 
           semi_join(., gene_common, by = "gene") %>%
           semi_join(., gene_file[[i]]$use, by = "gene") %>% 
           dplyr::mutate(., gene_list = i)
+        # test for empty results
+        if(is_empty(list_data_out[[i]]$gene)){
+          list_data_out[[i]] <- tf %>% 
+            semi_join(., gene_file[[i]]$use, by = "gene") %>% 
+            complete(.,my_sel %>% select(set),bin,gene) %>% 
+            replace_na(list(score = 0)) %>% 
+            dplyr::mutate(., gene_list = i)
+        }
         # adds line brake at 20 character for legend spacing
         my_sel2 <- my_sel %>% dplyr::mutate(.,plot_set = paste(
           gsub("(.{20})", "\\1\n", set),
@@ -1431,7 +1438,14 @@ FilterPer <-
     
     out_per <- out_list %>%
       group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() 
-    
+    # finds the first point signal starts
+    while(sum(out_per$my_p_1,na.rm = T) == 0 & my_per[1] < 100){
+      my_per[1] <- my_per[1]+.01 
+      p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+        set_names(paste0("my_p_",seq_along(my_per)))
+      out_per <- out_list %>%
+        group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() 
+    }
     if(my_type == "min%"){
       if(anyall){
         out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
@@ -1481,9 +1495,9 @@ FilterPer <-
                    "\\1... ",
                    paste0("Filter Prob ",topbottom2, "\nn = ", n_distinct(out_list$gene))), 33)
     if(length(file_names) == 1){
-      my_per <- seq(my_per[1],my_per[2]/2.1,length.out = 5)
-      p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
-        set_names(my_per)
+      my_per2 <- seq(my_per[1],my_per[2]/2.1,length.out = 5)
+      p_funs <- map(my_per2/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+        set_names(my_per2)
       my_list <- list_data$table_file %>% 
         dplyr::filter(set == file_names) %>% 
         semi_join(.,gene_list,by="gene") %>% 
@@ -1492,9 +1506,9 @@ FilterPer <-
         group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
         gather(.,key = set,value = "my_p_1",-bin,-set)
       
-      my_per <- seq(my_per[2]/2,my_per[2],length.out = 5)
-      p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
-        set_names(my_per)
+      my_per2 <- seq(my_per[2]/2,my_per[2],length.out = 5)
+      p_funs <- map(my_per2/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+        set_names(my_per2)
       
       out_per2 <- my_list %>%
         group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 

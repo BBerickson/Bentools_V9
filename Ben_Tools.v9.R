@@ -1954,7 +1954,7 @@ server <- function(input, output, session) {
     ol <- input$sortGeneList
     if(!is.null(ol)){
       if (!ol %in% names(LIST_DATA$gene_file)) {
-        ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
+        ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
       } 
     }
     updateSelectInput(
@@ -2067,7 +2067,7 @@ server <- function(input, output, session) {
     ol <- input$sortGeneList
     if(!is.null(ol)){
       if (!ol %in% names(LIST_DATA$gene_file)) {
-        ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
+        ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
       } 
     }
     updateSelectInput(
@@ -2085,6 +2085,8 @@ server <- function(input, output, session) {
   # sort peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
     print("sort Peak")
+    shinyjs::hide("hidesortplots1")
+    shinyjs::hide("hidesortplots2")
     if (any(between(input$slidersortbinrange,
                     input$slidersortbinrangefilter[1],
                     input$slidersortbinrangefilter[2]))) {
@@ -2117,11 +2119,12 @@ server <- function(input, output, session) {
                          input$selectsortpeak,
                          input$checkboxfilterall)
     
-    if(!is_empty(sortmin)){
+    if(!is.null(sortmin)){
       LIST_DATA <<- sortmin
-      mylist <- last(grep("^Filter", names(sortmin$gene_file)))
+      # pull info for preview plot
+      mylist <- last(grep("^Filter", names(sortmin$gene_file),value = T))
       sortmin$gene_info <- sortmin$gene_info %>%
-        dplyr::mutate(onoff=if_else(gene_list == names(sortmin$gene_file)[mylist] &
+        dplyr::mutate(onoff=if_else(gene_list == mylist &
                                       set %in% input$sortSamples, set, "0"))
       list_data_frame <- Active_list_data(sortmin)
       if (!is_empty(list_data_frame)) {
@@ -2129,7 +2132,7 @@ server <- function(input, output, session) {
                      detail = 'This may take a while...',
                      value = 0,
                      {
-                       Apply_Cluster_Math <-
+                       Apply_Math <-
                          ApplyMath(
                            list_data_frame,
                            "mean",
@@ -2138,14 +2141,15 @@ server <- function(input, output, session) {
                          )
                      })
       gp1 <-
-        ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=set)) +
+        ggplot(Apply_Math ,aes(as.numeric(bin),value,color=set)) +
           geom_line() +
           ylab("Filtered") +
           theme(legend.position="bottom",
                 legend.title = element_blank(),
                 axis.title.x=element_blank())
+      print(gp1)
+      reactive_values$Plot_controler_sort_min <- gp1
       shinyjs::show("hidesortplots1")
-      shinyjs::hide("hidesortplots2")
       output$valueboxsort <- renderValueBox({
         valueBox(
           n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
@@ -2154,34 +2158,35 @@ server <- function(input, output, session) {
           color = "green"
         )
       })
+        ol <- input$sortGeneList
+        if(!is.null(ol)){
+          if (!ol %in% names(LIST_DATA$gene_file)) {
+            ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
+          }
+        }
+        updateSelectInput(
+          session,
+          "sortGeneList",
+          choices = names(LIST_DATA$gene_file),
+          selected = ol
+        )
+        if(LIST_DATA$STATE[1] != 0 ){
+          LIST_DATA$STATE[1] <<- 0.75
+        }
       }
     } else {
-      gp1 <- ggplot()
       output$valueboxsort <- renderValueBox({
         valueBox(0,
                  "Gene List Filter",
                  icon = icon("list"),
                  color = "green")
       })
-    }
-    print(gp1)
-    reactive_values$Plot_controler_sort_min <- gp1
-    # reactive_values$Plot_controler_sort_max <- gp2
-    
-    ol <- input$sortGeneList
-    if(!is.null(ol)){
-      if (!ol %in% names(LIST_DATA$gene_file)) {
-        ol <- grep("^Filter", names(LIST_DATA$gene_file), value = TRUE)
-      } 
-    }
-    updateSelectInput(
-      session,
-      "sortGeneList",
-      choices = names(LIST_DATA$gene_file),
-      selected = ol
-    )
-    if(LIST_DATA$STATE[1] !=0 ){
-      LIST_DATA$STATE[1] <<- 0.75
+      showModal(modalDialog(
+        title = "Information message",
+        paste("no bins in non-peak range that are bigger than max in peak range"),
+        size = "s",
+        easyClose = TRUE
+      ))
     }
   })
   

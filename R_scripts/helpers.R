@@ -1,7 +1,7 @@
 # # # # # # # # # 
+# add better spiners while thinking
 # 
-# if filter has same number of genes will it update, what happens if all genes are filtered out?
-# 
+#  
 # work on TSS bin 1 lines and labels, RF norm y axis settings fix
 # save file needs work on output format (including a just gene list output option), file name, and loading files with complex names does not show in DT summury?
 # cdf legend 20 character new line sub ... normaly happens in Active_list_data()
@@ -12,9 +12,10 @@
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violin,Bar,scatter,cdf
 #  get big spinner running while thinkig- loading files, clustinging,   
-# filter per have min and max numbers adjusted based on total number of genes, and set to relative 1%  filter to start, on 1 file show up and down a few steps making picked a wider line on plot
-#    add note to if all bins == 0 or add auto go to next per up or down?
-# smart filter tool ... set high med and low areas have filter % move # gene at a time until pattern found 
+# filter per have min and max starting numbers adjusted based on total number of genes, 
+      # add spinner for waiting, include step for looking for first bit of signal (test with big data set and adjust amout going up)
+#    auto looking down conditions?
+# 
 # #### 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
 # size of memory used limit/warning
