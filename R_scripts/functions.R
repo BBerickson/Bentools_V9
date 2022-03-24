@@ -721,7 +721,7 @@ GGplotLineDot <-
         geom_line(size = line_list$mysize[2],alpha=0.8)
     }
     gp <- gp + 
-      geom_ribbon(aes(ymin=min,ymax=max,fill=set),linetype=0,alpha = 0.2) +
+      geom_ribbon(aes(ymin=min,ymax=max,fill=set),linetype=0,alpha = 0.5) +
       scale_color_manual(values = plot_options$mycol) +
       scale_fill_manual(values = plot_options$mycol) +
       scale_linetype_manual(values = plot_options$myline) +
@@ -1437,14 +1437,34 @@ FilterPer <-
       dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2]) 
     
     out_per <- out_list %>%
-      group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() 
-    # finds the first point signal starts
+      group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup()
+    # if all == 0 finds the first point signal starts
+    my_step <- .1
     while(sum(out_per$my_p_1,na.rm = T) == 0 & my_per[1] < 100){
-      my_per[1] <- my_per[1]+.01 
-      p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
-        set_names(paste0("my_p_",seq_along(my_per)))
+      my_per[1] <- my_per[1] + my_step
+      print(my_per)
+      if(my_per[1] > 100){
+        my_per[1] <- 99.9
+      }
+      p_funs <- map(my_per[1]/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>%
+        set_names(paste0("my_p_",seq_along(my_per[1])))
       out_per <- out_list %>%
-        group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() 
+        group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
+        rows_update(out_per,.,by=c("set","bin"))
+      if(my_step < 1){
+        my_step <- my_step + .1
+      } else if(between(my_step,1,10)){
+        my_step <- my_step + 2
+      }else if(between(my_step,10,50)){
+        my_step <- my_step + 10
+      }else if(between(my_step,50,.100)){
+        my_step <- my_step + 5
+      } else {
+        my_step <- my_step + 1
+      }
+      if(my_per[1] >= 99.9){
+        my_per[1] <- 100
+      }
     }
     if(my_type == "min%"){
       if(anyall){
@@ -1504,7 +1524,9 @@ FilterPer <-
         dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2]) 
       out_per1 <- my_list %>%
         group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
-        gather(.,key = set,value = "my_p_1",-bin,-set)
+        dplyr::mutate(across(where(is.double),as.character)) %>% 
+        gather(.,key = set,value = "my_p_1",-bin,-set) %>% 
+        dplyr::mutate(my_p_1=as.double(my_p_1))
       
       my_per2 <- seq(my_per[2]/2,my_per[2],length.out = 5)
       p_funs <- map(my_per2/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
@@ -1512,7 +1534,9 @@ FilterPer <-
       
       out_per2 <- my_list %>%
         group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
-        gather(.,key = set,value = "my_p_2",-bin,-set)
+        dplyr::mutate(across(where(is.double),as.character)) %>% 
+        gather(.,key = set,value = "my_p_2",-bin,-set) %>% 
+        dplyr::mutate(my_p_2=as.double(my_p_2))
       out_list1 <- full_join(out_per1,out_per2,by=c("bin","set")) %>% 
         dplyr::mutate(set=paste0(round(as.numeric(set),2),"%"))
     } else {
@@ -1526,7 +1550,7 @@ FilterPer <-
     
     list_data$gene_file[[nick_name]]$full <- out_list %>% dplyr::mutate(min=my_per[1],max=my_per[2])
     list_data$gene_file[[nick_name]]$use <- out_list
-    list_data$sortplot <- out_list1
+    list_data$sortplot <- out_list1 %>% dplyr::mutate(set = gsub("(.{15})", "\\1\n", set))
     list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
       paste(
         "Filter Prob:",

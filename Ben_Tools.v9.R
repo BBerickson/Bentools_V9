@@ -675,10 +675,14 @@ server <- function(input, output, session) {
           dplyr::mutate(mycol=if_else(gene_list == input$selectgenelistoptions & 
                                         set == input$selectdataoption,
                                       input$colourhex, mycol))
-        if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
-          reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
-        } else if(input$leftSideTabs == "cdftool"){
-          reactive_values$df_options <- my_sel
+        reactive_values$Picker_controler <- 
+          c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, mycol)$mycol)
+        if(my_sel$onoff != 0){
+          if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
+            reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
+          } else if(input$leftSideTabs == "cdftool"){
+            reactive_values$df_options <- my_sel
+          }
         }
       }
     }
@@ -1868,7 +1872,7 @@ server <- function(input, output, session) {
       
     })
   
-  # sort sum tool action ----
+  # filter sum tool action ----
   observeEvent(input$actionsorttool, {
     print("sort tool")
     if (input$slidersortpercent < 50 &
@@ -1968,26 +1972,37 @@ server <- function(input, output, session) {
     }
   })
   
-  # sort % numeric controller ----
-  observeEvent(c(input$numericsortmin,input$numericsortmax), ignoreInit = TRUE,{
+  # filter % numeric controller ----
+  observeEvent(c(input$numericsortmin,input$numericsortmax, input$selectsortper), ignoreInit = TRUE, ignoreNULL = TRUE, {
     if (!is.numeric(input$numericsortmin)) {
       updateNumericInput(session, "numericsortmin", value = 1)
     }
     if (!is.numeric(input$numericsortmax)) {
       updateNumericInput(session, "numericsortmax", value = 99.5)
     }
-    if (input$numericsortmin < 0 | input$numericsortmin > input$numericsortmax) {
+    if (input$numericsortmin < 0 | input$numericsortmin > 100) {
       updateNumericInput(session, "numericsortmin", value = 1)
     }
-    if (input$numericsortmax < input$numericsortmin | input$numericsortmax > 100) {
+    if (input$numericsortmax < 0 | input$numericsortmax > 100) {
       updateNumericInput(session, "numericsortmax", value = 99.5)
+    }
+    if(input$selectsortper == "between%"){
+      if (input$numericsortmin > input$numericsortmax) {
+        updateNumericInput(session, "numericsortmin", value = 1)
+      }
+      if (input$numericsortmax < input$numericsortmin) {
+        updateNumericInput(session, "numericsortmax", value = 99.5)
+      }
     }
   })
   
-  # sort min max between % tool action ----
+  # filter min max between % tool action ----
   observeEvent(input$actionsortper, ignoreInit = TRUE, {
     print("sort % tool")
-    
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a bit ...',
+                 value = 0,
+                 {
     sortmin <- FilterPer(LIST_DATA, 
                          input$sortGeneList,
                          input$sortSamples,
@@ -1995,6 +2010,7 @@ server <- function(input, output, session) {
                          c(input$numericsortmin,input$numericsortmax),
                          input$selectsortper,
                          input$checkboxfilterall)
+                 })
     
     if(!is_empty(sortmin$sortplot)){
       LIST_DATA <<- sortmin
@@ -2035,8 +2051,7 @@ server <- function(input, output, session) {
       }
       reactive_values$Plot_controler_sort_min <- gp1
       reactive_values$Plot_controler_sort_max <- gp2
-      if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
-        output$valueboxsort <- renderValueBox({
+      output$valueboxsort <- renderValueBox({
           valueBox(
             n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
             "Gene List Filter",
@@ -2044,13 +2059,23 @@ server <- function(input, output, session) {
             color = "green"
           )
         })
-      } else {
-        output$valueboxsort <- renderValueBox({
-          valueBox(0,
-                   "Gene List Filter",
-                   icon = icon("list"),
-                   color = "green")
-        })
+      ol <- input$sortGeneList
+      if(!is.null(ol)){
+        if (!ol %in% names(LIST_DATA$gene_file)) {
+          ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
+        } 
+      }
+      updateSelectInput(
+        session,
+        "sortGeneList",
+        choices = names(LIST_DATA$gene_file),
+        selected = ol
+      )
+      ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
+      updateNumericInput(session, "numericsortmin",
+                         value = distinct(LIST_DATA$gene_file[[ol]]$full, min)$min)
+      if(LIST_DATA$STATE[1] !=0 ){
+        LIST_DATA$STATE[1] <<- 0.75
       }
     } else {
       output$valueboxsort <- renderValueBox({
@@ -2064,25 +2089,10 @@ server <- function(input, output, session) {
       reactive_values$Plot_controler_sort_max <-
         ggplot()
     }
-    ol <- input$sortGeneList
-    if(!is.null(ol)){
-      if (!ol %in% names(LIST_DATA$gene_file)) {
-        ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
-      } 
-    }
-    updateSelectInput(
-      session,
-      "sortGeneList",
-      choices = names(LIST_DATA$gene_file),
-      selected = ol
-    )
-    if(LIST_DATA$STATE[1] !=0 ){
-      LIST_DATA$STATE[1] <<- 0.75
-    }
   })
   
   
-  # sort peak tool action ----
+  # filter peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
     print("sort Peak")
     shinyjs::hide("hidesortplots1")
@@ -2111,6 +2121,10 @@ server <- function(input, output, session) {
         value = reactive_values$setsliders[c(5,2)]
       )
     }
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a bit ...',
+                 value = 0,
+                 {
     sortmin <- FilterPeak(LIST_DATA, 
                          input$sortGeneList,
                          input$sortSamples,
@@ -2118,6 +2132,7 @@ server <- function(input, output, session) {
                          input$slidersortbinrangefilter,
                          input$selectsortpeak,
                          input$checkboxfilterall)
+                 })
     
     if(!is.null(sortmin)){
       LIST_DATA <<- sortmin
@@ -3124,7 +3139,15 @@ ui <- dashboardPage(
       tags$style(".inactiveLink {
                             pointer-events: none;
                            cursor: default;
-                           }")
+                           }",
+                 ".shiny-notification {
+                         position: fixed;
+                         top: 50%;
+                         left: 50%;
+                         transform: translate(-50%, -50%);
+                         color: purple;
+                         font-size: 20px;
+                         font-style: italic;}")
     ),
     # disables tabs on start
     sidebarMenu(
@@ -3650,8 +3673,8 @@ ui <- dashboardPage(
             numericInputIcon("numericsortmin",
                              "min", 
                              value = "1",
-                             max = "100", min="0",
-                             step = "1",
+                             max = "100", min="1",
+                             step = ".25",
                              icon = icon("percent")
             )
           ),
@@ -3660,8 +3683,8 @@ ui <- dashboardPage(
             numericInputIcon("numericsortmax",
                              "max", 
                              value = "99.5",
-                             max = "100", min="0",
-                             step = "1",
+                             max = "100", min="1",
+                             step = ".25",
                              icon = icon("percent")
             )
           )

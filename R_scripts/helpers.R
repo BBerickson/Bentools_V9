@@ -1,5 +1,3 @@
-# # # # # # # # # 
-# add better spiners while thinking
 # 
 #  
 # work on TSS bin 1 lines and labels, RF norm y axis settings fix
@@ -31,6 +29,10 @@
 # in QC add gene size and seperation, deep tools inputs/bin ranges
 # "factoextra" for dendogram plot fviz_dend()
 # load old style table files (mod matrix?)
+
+###### long term plans ####
+# brake up functions into smaller functions so I can more easly add setprogress recycle common fun for more consistency 
+
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {
