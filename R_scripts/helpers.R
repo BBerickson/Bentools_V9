@@ -1,11 +1,10 @@
 # 
 #  
-# work on TSS bin 1 lines and labels, RF norm y axis settings fix
 # save file needs work on output format (including a just gene list output option), file name, and loading files with complex names does not show in DT summury?
 # cdf legend 20 character new line sub ... normaly happens in Active_list_data()
-# filter tools: have search for last include type name? is that the replot problem?    
-#  filter per reactive on numeric text boxes fix crash (single/multiple, and clarify min/max profile kept?) ... 
-#color set update pickers  
+#    
+#  filter per reactive on numeric text boxes fix crash (single/multiple) ... 
+#  
 # if loading a url file have progress bar count number of files completed
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violin,Bar,scatter,cdf

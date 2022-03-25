@@ -832,7 +832,7 @@ LinesLabelsListset <- function(body1bin = 20,
                                tesbin = 45,
                                binbp = 100,
                                totbins = 80,
-                               everybin = 5,
+                               everybin = 1,
                                tssname = "TSS",
                                tesname = "pA") {
   # I create this in steps bin 1 to next land mark (TSS TES) then go from there to next land mark until end of bins
@@ -842,17 +842,23 @@ LinesLabelsListset <- function(body1bin = 20,
     my_3prim <- NULL
     if (tssbin > 0) {
       # set up 1 to TSS'
+      if(tssbin > 1){
+        mod <- 0.5
+      } else {
+        tssbin <- 0
+        mod <- 1
+      }
       TSSname <- seq(-tssbin * binbp, 0, by = everybp)
       TSSloc <- seq(1,  by = everybin, length.out = length(TSSname))
       # make sure TSS is included
       if (any(TSSname == 0)) {
-        TSSloc[TSSname == 0] <- tssbin + .5
+        TSSloc[TSSname == 0] <- tssbin + mod
         TSSname[TSSname == 0] <- tssname
       } else if(any(TSSloc == tssbin)){
         TSSname[TSSloc == tssbin] <- tssname
-        TSSloc[TSSloc == tssbin] <- tssbin + .5
+        TSSloc[TSSloc == tssbin] <- tssbin + mod
       } else {
-        TSSloc <- sort(c(TSSloc, tssbin + .5))
+        TSSloc <- sort(c(TSSloc, tssbin + mod))
         TSSname <- append(TSSname, tssname)
       }
       my_5prim <-
@@ -861,6 +867,9 @@ LinesLabelsListset <- function(body1bin = 20,
       nextStart <- tssbin + everybin
       if (body1bin > 0 & tesbin > 0 & body2bin > 0) {
         nextEnd <- body1bin
+      } else if (tssbin == 0) {
+        nextEnd <- totbins - 1
+        nextStart <- 2
       } else if (tesbin == 0) {
         nextEnd <- totbins
       } else {
@@ -872,6 +881,9 @@ LinesLabelsListset <- function(body1bin = 20,
           seq(nextStart,
               by = everybin,
               length.out = length(TSSname1))
+        if(everybp == 1){
+          TSSname1 <- TSSname1 +1
+        }
         # make sure body brake is included
         if (!any(TSSloc1 == nextEnd)) {
           TSSname1 <- append(TSSname1, (nextEnd - tssbin) * binbp)

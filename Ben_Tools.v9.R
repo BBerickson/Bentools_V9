@@ -362,7 +362,7 @@ server <- function(input, output, session) {
       write_lines(new_comments, file)
       write_tsv(new_comments2,
                 file,
-                col_names = FALSE,
+                col_names = TRUE,
                 append = T)
       
     }
