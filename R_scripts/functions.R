@@ -2022,7 +2022,7 @@ CompareRatios <-
     }
     outlist <- NULL
     if (ratio2file == "None" | ratio2file == "") {
-      if(sum(start2_bin,end2_bin) == 0){
+      if(start2_bin == 0){
         showModal(modalDialog(
           title = "Information message",
           paste("no file or bins to compare to"),
@@ -2050,7 +2050,7 @@ CompareRatios <-
                   sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
         ungroup()
       # if min/2 find Na's and 0's, and replace
-      if(sum(start2_bin,end2_bin) == 0){
+      if(start2_bin == 0){
         df$sum2 <- 1
       }
       if (divzerofix) {

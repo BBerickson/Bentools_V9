@@ -1,10 +1,16 @@
 # 
 #  
-# save file needs work on output format (including a just gene list output option), file name, and loading files with complex names does not show in DT summury?
+# save file needs work on output format, 
+    # make file name auto fill better, less details compair, filter sum, per, peak, ratio, cluster, cdf, 
+    # gene_list$info up date description on all created gene lists
+    # add a line to discribe columns in file
+    # remove any unneeded columns, add any needed ones
+    # make sure saved file will load in correctly
+# loading files with complex names does not show in DT summery?
 # cdf legend 20 character new line sub ... normaly happens in Active_list_data()
 #    
-#  filter per reactive on numeric text boxes fix crash (single/multiple) ... 
-#  
+#  filter per reactive on numeric text boxes fix crash (single/multiple) ... change behavior of all user dependent sliders and boxes? denies running + message box?
+#  try and have filter plot show in better postion
 # if loading a url file have progress bar count number of files completed
 # # DT tab 
 #    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violin,Bar,scatter,cdf

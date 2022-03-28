@@ -1976,9 +1976,11 @@ server <- function(input, output, session) {
   observeEvent(c(input$numericsortmin,input$numericsortmax, input$selectsortper), ignoreInit = TRUE, ignoreNULL = TRUE, {
     if (!is.numeric(input$numericsortmin)) {
       updateNumericInput(session, "numericsortmin", value = 1)
+      return()
     }
     if (!is.numeric(input$numericsortmax)) {
       updateNumericInput(session, "numericsortmax", value = 99.5)
+      return()
     }
     if (input$numericsortmin < 0 | input$numericsortmin > 100) {
       updateNumericInput(session, "numericsortmin", value = 1)
@@ -2848,19 +2850,21 @@ server <- function(input, output, session) {
     shinyjs::hide('ratio1table')
     shinyjs::hide('ratio2table')
     shinyjs::hide('ratio3table')
+    numericratio <- input$numericratio
     if (is.numeric(input$numericratio)) {
       if (input$numericratio < 0) {
         updateNumericInput(session, "numericratio", value = 2)
+        numericratio <- 2
       }
     } else {
       updateNumericInput(session, "numericratio", value = 2)
+      numericratio <- 2
     }
     if (input$sliderbinratio2[1] == 0 & input$sliderbinratio2[2] > 0) {
       updateSliderInput(session,
                         "sliderbinratio2",
                         value = c(0,0))
     }
-    
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -2875,7 +2879,7 @@ server <- function(input, output, session) {
                        input$sliderbinratio1[2],
                        input$sliderbinratio2[1],
                        input$sliderbinratio2[2],
-                       input$numericratio,
+                       numericratio,
                        input$checkratiozero,
                        input$sliderRatioBinNorm
                      )
