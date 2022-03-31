@@ -37,7 +37,7 @@ LIST_DATA <<- list(
   gene_info = NULL,
   # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_set")]
   ttest = NULL,
-  # t.test results $use is for numbers $gene_info for holding plotting options
+  # t.test results $full is for numbers $gene_info for holding plotting options
   clust = NULL,
   # Cluster holder
   x_plot_range = c(0, 0),
@@ -163,7 +163,9 @@ server <- function(input, output, session) {
     }
     # enables tabs after loading file
     shinyjs::enable("startoff")
-    shinyjs::enable("startoff2")
+    if(length(names(LIST_DATA$gene_file))>1){
+      shinyjs::enable("startoff2")
+    }
     shinyjs::reset("filetable")
     removeCssClass(selector = "a[data-value='qcOptions']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='mainplot']", class = "inactiveLink")
@@ -176,7 +178,7 @@ server <- function(input, output, session) {
     removeCssClass(selector = "a[data-value='resultstool']", class = "inactiveLink")
     
     gts <- LIST_DATA$table_file %>% group_by(set) %>%
-      summarise(number_of_genes = n_distinct(gene)) %>%
+      summarise(number_of_genes = n_distinct(gene, na.rm = T)) %>%
       rename(File = set)
     dt <- datatable(
       gts,
@@ -209,7 +211,7 @@ server <- function(input, output, session) {
     )
     output$loadedfilestable <- DT::renderDataTable(dt)
     gts2 <-
-      LIST_DATA$gene_file[["Complete"]]$use %>% summarise(total_number_distinct_genes = n_distinct(gene))
+      LIST_DATA$gene_file[["Complete"]]$full %>% summarise(total_number_distinct_genes = n_distinct(gene, na.rm = T))
     dt2 <- datatable(
       gts2,
       colnames = names(gts2),
@@ -233,7 +235,7 @@ server <- function(input, output, session) {
     )
     output$loadedfilestotaltable <- DT::renderDataTable(dt2)
     if (length(LIST_DATA$gene_file) > 1) {
-      gg <- LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")) %>%
+      gg <- LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete")) %>%
         select(., gene_list, count) %>% dplyr::rename(Usable = count) %>% 
         distinct()
       ggg <- NULL
@@ -289,7 +291,7 @@ server <- function(input, output, session) {
     shinyjs::reset("filegene1")
     
     gg <-
-      LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")) %>%
+      LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete")) %>%
       select(., gene_list, count) %>% dplyr::rename(Usable = count) %>%
       distinct()
     ggg <- NULL
@@ -323,8 +325,10 @@ server <- function(input, output, session) {
       )
     )
     output$loadedgenetable <- DT::renderDataTable(dtg)
+    shinyjs::enable("startoff2")
     updateSelectInput(session, "selectsave",
-                      choices = names(LIST_DATA$gene_file))
+                      choices = names(LIST_DATA$gene_file)[-1],
+                      selected = names(LIST_DATA$gene_file)[2])
     if( LIST_DATA$STATE[1] != 0){
       LIST_DATA$STATE[1] <<- .5
     }
@@ -333,8 +337,7 @@ server <- function(input, output, session) {
   # save functions, gene list ----
   output$downloadGeneList <- downloadHandler(
     filename = function() {
-      paste0(input$selectsave, "_",
-             Sys.Date(), "_",
+      paste0(LIST_DATA$gene_file[[input$selectsave]]$info$save_name,
              ".txt")
     },
     content = function(file) {
@@ -347,18 +350,14 @@ server <- function(input, output, session) {
       new_comments <-
         c(new_comments, paste("#", gsub(
           "\nn = ", " n = ",
-          paste(LIST_DATA$gene_file[[input$selectsave]]$info)
+          paste(LIST_DATA$gene_file[[input$selectsave]]$info$loaded_info)
         )))
-      if (input$selectsave == "Complete") {
-        # save $use
-        new_comments2 <-
-          LIST_DATA$gene_file[[input$selectsave]]$use$gene
-      } else {
-        # intersect $use with full and save values with comments on values
-        new_comments2 <-
-          LIST_DATA$gene_file[[input$selectsave]]$full %>%
-          semi_join(., LIST_DATA$gene_file[[input$selectsave]]$use)
-      }
+      new_comments <-
+        c(new_comments, paste("#", 
+          paste(LIST_DATA$gene_file[[input$selectsave]]$info$col_info)
+        ))
+      new_comments2 <-
+          LIST_DATA$gene_file[[input$selectsave]]$full
       write_lines(new_comments, file)
       write_tsv(new_comments2,
                 file,
@@ -398,8 +397,8 @@ server <- function(input, output, session) {
                      reactive_values$Y_Axis_numbers_set <- reactive_values$Y_Axis_numbers
                      if(!is.null(reactive_values$ttest)){
                        if(input$switchttest == "by lists" & 
-                          n_distinct(list_data_frame$gene_list) == 1 | 
-                          input$switchttest == "by files" & n_distinct(list_data_frame$set) == 1) {
+                          n_distinct(list_data_frame$gene_list, na.rm = T) == 1 | 
+                          input$switchttest == "by files" & n_distinct(list_data_frame$set, na.rm = T) == 1) {
                          updatePickerInput(session, "switchttest", selected = "none")
                        }
                        if (input$switchttest != "none"){ 
@@ -572,9 +571,15 @@ server <- function(input, output, session) {
             pickerInput("selectgenelistoptions", "", 
                         width = 300, 
                         choices = distinct(LIST_DATA$gene_info,gene_list)$gene_list,
-                        selected = distinct(LIST_DATA$gene_info,gene_list)$gene_list[1]),
+                        selected = distinct(LIST_DATA$gene_info,gene_list)$gene_list[1],
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info,gene_list)$gene_list)
+                        )),
             pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info,set)$set, 
-                        selected = distinct(LIST_DATA$gene_info,set)$set[1]),
+                        selected = distinct(LIST_DATA$gene_info,set)$set[1],
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info,set)$set)
+                        )),
             tags$hr(style = "color: #2e6da4; background-color: #2e6da4; border-color: #2e6da4;"),
             textInput("textnickname", "Update Nickname",value = distinct(LIST_DATA$gene_info,set)$set[1]),
             actionButton("actionoptions", "Set Nickname"),
@@ -628,10 +633,11 @@ server <- function(input, output, session) {
             solidHeader = T,
             pickerInput("selectgenelistoptions", "", width = 300, choices = "CDF Log2 PI Cumulative plot",
                         selected = "CDF Log2 PI Cumulative plot"),
-            pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info%>% 
-                                                                     dplyr::filter(str_detect(gene_list,"^CDF")),set)$set,
-                        selected = distinct(LIST_DATA$gene_info%>% 
-                                              dplyr::filter(str_detect(gene_list,"^CDF")),set)$set[1])
+            pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info,set)$set,
+                        selected = distinct(LIST_DATA$gene_info,set)$set[1],
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info,set)$set)
+                        ))
         ),
         modalButton("Close")
       )
@@ -992,8 +998,13 @@ server <- function(input, output, session) {
     print("switch tab")
     # load files tab ----
     if (input$leftSideTabs == "loaddata"){
-      updateSelectInput(session, "selectsave",
-                        choices = names(LIST_DATA$gene_file))
+      if(length(names(LIST_DATA$gene_file))>1){
+        shinyjs::enable("startoff2")
+        updateSelectInput(session, "selectsave",
+                          choices = names(LIST_DATA$gene_file)[-1],
+                          selected = names(LIST_DATA$gene_file)[2])
+      }
+      
     }
     # main plot tab ----
     if (input$leftSideTabs == "mainplot") {
@@ -1038,12 +1049,12 @@ server <- function(input, output, session) {
                         choices = names(LIST_DATA$gene_file),
                         selected = ol,
                         choicesOpt = list(
-                          content = gsub("(.{55})", "\\1<br>", names(LIST_DATA$gene_file))
+                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
                         ))
       updatePickerInput(session, "sortSamples",
                         choices = c(distinct(LIST_DATA$gene_info, set)$set),
                         choicesOpt = list(
-                          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
                         )
                         )
       output$valueboxsort <- renderValueBox({
@@ -1066,7 +1077,7 @@ server <- function(input, output, session) {
           dplyr::filter(LIST_DATA$gene_info,
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
-          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
           )
       )
       updatePickerInput(
@@ -1077,7 +1088,7 @@ server <- function(input, output, session) {
           dplyr::filter(LIST_DATA$gene_info,
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
-          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
           )
       )
       updatePickerInput(
@@ -1085,7 +1096,7 @@ server <- function(input, output, session) {
         "pickergroupsample",
         choices = distinct(LIST_DATA$gene_info, set)$set,
         choicesOpt = list(
-          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
         )
       )
       output$valueboxnormfile <- renderValueBox({
@@ -1143,7 +1154,7 @@ server <- function(input, output, session) {
         )
       output$valueboxgene1 <- renderValueBox({
         valueBox(0,
-                 "Gene List intersect",
+                 "Gene List innerjoin",
                  icon = icon("list"),
                  color = "green")
       })
@@ -1155,7 +1166,7 @@ server <- function(input, output, session) {
       })
       output$valueboxgene3 <- renderValueBox({
         valueBox(0,
-                 "Gene List exclusive",
+                 "Gene List antijoin",
                  icon = icon("list"),
                  color = "red")
       })
@@ -1198,9 +1209,9 @@ server <- function(input, output, session) {
                           content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
                         ))
       updatePickerInput(session, "pickerratio2file",
-                        choices = c("none", distinct(LIST_DATA$gene_info, set)$set),
+                        choices = c("None", distinct(LIST_DATA$gene_info, set)$set),
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                          content = gsub("(.{35})", "\\1<br>", c("None", distinct(LIST_DATA$gene_info, set)$set))
                         ))
       output$valueboxratio1 <- renderValueBox({
         valueBox(0,
@@ -1351,7 +1362,7 @@ server <- function(input, output, session) {
       my_count <- 0
     } else {
       my_count <-
-        n_distinct(LIST_DATA$gene_file[[grep("CDF ", names(LIST_DATA$gene_file))]]$use$gene)
+        n_distinct(LIST_DATA$gene_file[[grep("CDF ", names(LIST_DATA$gene_file))]]$full$gene, na.rm = T)
     }
     }
   })
@@ -1521,7 +1532,7 @@ server <- function(input, output, session) {
     } else {
       ttesttype <- reactive_values$ttest_values[1]
     }
-    if(n_distinct(LIST_DATA$gene_info$gene_list) > 1){
+    if(n_distinct(LIST_DATA$gene_info$gene_list, na.rm = T) > 1){
       reactive_values$ttest <- c("none","by files", "by lists")
     } else {
       reactive_values$ttest <- c("none","by files")
@@ -1675,7 +1686,7 @@ server <- function(input, output, session) {
         if (sum(ttest_values == reactive_values$ttest_values) != 7){
           reactive_values$ttest_values <- ttest_values
           if (input$switchttest != "none"){
-            if(input$switchttest == "by lists" & n_distinct(list_data_frame$gene_list) == 1){
+            if(input$switchttest == "by lists" & n_distinct(list_data_frame$gene_list, na.rm = T) == 1){
               showModal(modalDialog(
                 title = "Information message",
                 paste("Only 1 gene list active, replot with more than 1"),
@@ -1683,7 +1694,7 @@ server <- function(input, output, session) {
                 easyClose = TRUE
               ))
               return()
-            } else if (input$switchttest == "by files" & n_distinct(list_data_frame$set) == 1) {
+            } else if (input$switchttest == "by files" & n_distinct(list_data_frame$set, na.rm = T) == 1) {
               showModal(modalDialog(
                 title = "Information message",
                 paste("Only 1 sample active, replot with more than 1"),
@@ -1932,7 +1943,7 @@ server <- function(input, output, session) {
       if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
         output$valueboxsort <- renderValueBox({
           valueBox(
-            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
+            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
             "Gene List Filter",
             icon = icon("list"),
             color = "green"
@@ -2055,7 +2066,7 @@ server <- function(input, output, session) {
       reactive_values$Plot_controler_sort_max <- gp2
       output$valueboxsort <- renderValueBox({
           valueBox(
-            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
+            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
             "Gene List Filter",
             icon = icon("list"),
             color = "green"
@@ -2079,6 +2090,7 @@ server <- function(input, output, session) {
       if(LIST_DATA$STATE[1] !=0 ){
         LIST_DATA$STATE[1] <<- 0.75
       }
+      LIST_DATA$gene_file[[ol]]$full <<- LIST_DATA$gene_file[[ol]]$full %>% select(gene)
     } else {
       output$valueboxsort <- renderValueBox({
         valueBox(0,
@@ -2169,7 +2181,7 @@ server <- function(input, output, session) {
       shinyjs::show("hidesortplots1")
       output$valueboxsort <- renderValueBox({
         valueBox(
-          n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$use$gene),
+          n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
           "Gene List Filter",
           icon = icon("list"),
           color = "green"
@@ -2311,7 +2323,7 @@ server <- function(input, output, session) {
       output$valueboxnormfile <- renderValueBox({
         valueBox(
           "Done",
-          paste("Compleat n =", n_distinct(LIST_DATA$gene_file[[1]]$use$gene)),
+          paste("Compleat n =", n_distinct(LIST_DATA$gene_file[[1]]$full$gene, na.rm = T)),
           icon = icon("thumbs-up", lib = "glyphicon"),
           color = "green"
         )
@@ -2420,12 +2432,12 @@ server <- function(input, output, session) {
         )
       )
       shinyjs::show('actiongenelistsdatatable')
-      if (any(grep("Gene_List_intersect\nn =", names(LIST_DATA$gene_file)) > 0)) {
+      if (any(grep("Gene_List_innerjoin\nn =", names(LIST_DATA$gene_file)) > 0)) {
         output$valueboxgene1 <- renderValueBox({
           valueBox(
-            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_intersect\nn =",
-                                                 names(LIST_DATA$gene_file))]]$use$gene),
-            "Gene List intersect",
+            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_innerjoin\nn =",
+                                                 names(LIST_DATA$gene_file))]]$full$gene, na.rm = T),
+            "Gene List innerjoin",
             icon = icon("list"),
             color = "green"
           )
@@ -2433,7 +2445,7 @@ server <- function(input, output, session) {
       } else{
         output$valueboxgene1 <- renderValueBox({
           valueBox(0,
-                   "Gene List intersect",
+                   "Gene List innerjoin",
                    icon = icon("list"),
                    color = "green")
         })
@@ -2441,7 +2453,7 @@ server <- function(input, output, session) {
       if (any(grep("Gene_List_Total\nn =", names(LIST_DATA$gene_file)) > 0)) {
         output$valueboxgene2 <- renderValueBox({
           valueBox(
-            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_Total\nn =", names(LIST_DATA$gene_file))]]$full$gene),
+            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_Total\nn =", names(LIST_DATA$gene_file))]]$full$gene, na.rm = T),
             "Gene List Total",
             icon = icon("list"),
             color = "yellow"
@@ -2455,12 +2467,12 @@ server <- function(input, output, session) {
                    color = "yellow")
         })
       }
-      if (any(grep("Gene_List_exclusive\nn =", names(LIST_DATA$gene_file)) > 0)) {
+      if (any(grep("Gene_List_antijoin\nn =", names(LIST_DATA$gene_file)) > 0)) {
         output$valueboxgene3 <- renderValueBox({
           valueBox(
-            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_exclusive\nn =",
-                                                 names(LIST_DATA$gene_file))]]$use$gene),
-            "Gene List exclusive",
+            n_distinct(LIST_DATA$gene_file[[grep("Gene_List_antijoin\nn =",
+                                                 names(LIST_DATA$gene_file))]]$full$gene, na.rm = T),
+            "Gene List antijoin",
             icon = icon("list"),
             color = "red"
           )
@@ -2468,7 +2480,7 @@ server <- function(input, output, session) {
       } else{
         output$valueboxgene3 <- renderValueBox({
           valueBox(0,
-                   "Gene List exclusive",
+                   "Gene List antijoin",
                    icon = icon("list"),
                    color = "red")
         })
@@ -2476,7 +2488,7 @@ server <- function(input, output, session) {
     } else {
       output$valueboxgene1 <- renderValueBox({
         valueBox(0,
-                 "Gene List intersect",
+                 "Gene List innerjoin",
                  icon = icon("list"),
                  color = "green")
       })
@@ -2488,7 +2500,7 @@ server <- function(input, output, session) {
       })
       output$valueboxgene3 <- renderValueBox({
         valueBox(0,
-                 "Gene List exclusive",
+                 "Gene List antijoin",
                  icon = icon("list"),
                  color = "red")
       })
@@ -2500,17 +2512,17 @@ server <- function(input, output, session) {
   observeEvent(input$actiongenelistsdatatable, ignoreInit = TRUE, {
     print("generiate gene lists table")
     shinyjs::hide('actiongenelistsdatatable')
-    if (any(grep("Gene_List_intersect\nn =", names(LIST_DATA$gene_file)) >
+    if (any(grep("Gene_List_innerjoin\nn =", names(LIST_DATA$gene_file)) >
             0)) {
       newnames1 <-
         gsub("\n",
              " ",
              grep(
-               "Gene_List_intersect\nn =",
+               "Gene_List_innerjoin\nn =",
                names(LIST_DATA$gene_file),
                value = TRUE
              ))
-      mytab <- "Intersected Gene Lists"
+      mytab <- "innerjoined Gene Lists"
       withProgress(message = 'Calculation in progress',
                    detail = 'This may take a while...',
                    value = 0,
@@ -2518,13 +2530,13 @@ server <- function(input, output, session) {
                      output$genelists1table <-
                        DT::renderDataTable(
                          datatable(
-                           LIST_DATA$gene_file[[grep("Gene_List_intersect\nn =",
-                                                     names(LIST_DATA$gene_file))]]$use,
+                           LIST_DATA$gene_file[[grep("Gene_List_innerjoin\nn =",
+                                                     names(LIST_DATA$gene_file))]]$full,
                            rownames = FALSE,
                            colnames = newnames1,
                            class = 'cell-border stripe compact',
                            filter = "none",
-                           caption = LIST_DATA$gene_file[[grep("Gene_List_intersect\nn =",
+                           caption = LIST_DATA$gene_file[[grep("Gene_List_innerjoin\nn =",
                                                                names(LIST_DATA$gene_file))]]$info,
                            options = list(
                              pageLength = 15,
@@ -2554,7 +2566,7 @@ server <- function(input, output, session) {
           datatable(
             LIST_DATA$gene_file[[1]]$empty,
             rownames = FALSE,
-            colnames = "Gene_List_exclusive n = 0",
+            colnames = "Gene_List_antijoin n = 0",
             options = list(searching = FALSE)
           )
         )
@@ -2578,7 +2590,7 @@ server <- function(input, output, session) {
                        DT::renderDataTable(
                          datatable(
                            LIST_DATA$gene_file[[grep("Gene_List_Total\nn =",
-                                                     names(LIST_DATA$gene_file))]]$use,
+                                                     names(LIST_DATA$gene_file))]]$full,
                            rownames = FALSE,
                            colnames = newnames2,
                            class = 'cell-border stripe compact',
@@ -2613,21 +2625,21 @@ server <- function(input, output, session) {
           datatable(
             LIST_DATA$gene_file[[1]]$empty,
             rownames = FALSE,
-            colnames = "Gene_List_exclusive n = 0",
+            colnames = "Gene_List_antijoin n = 0",
             options = list(searching = FALSE)
           )
         )
       if (mytab == "Total Gene Lists") {
-        mytab <- "Exclusive Gene Lists"
+        mytab <- "antijoin Gene Lists"
       }
     }
-    if (any(grep("Gene_List_exclusive\nn =", names(LIST_DATA$gene_file)) >
+    if (any(grep("Gene_List_antijoin\nn =", names(LIST_DATA$gene_file)) >
             0)) {
       newnames3 <-
         gsub("\n",
              " ",
              grep(
-               "Gene_List_exclusive\nn =",
+               "Gene_List_antijoin\nn =",
                names(LIST_DATA$gene_file),
                value = T
              ))
@@ -2638,13 +2650,13 @@ server <- function(input, output, session) {
                      output$genelists3table <-
                        DT::renderDataTable(
                          datatable(
-                           LIST_DATA$gene_file[[grep("Gene_List_exclusive\nn =",
-                                                     names(LIST_DATA$gene_file))]]$use,
+                           LIST_DATA$gene_file[[grep("Gene_List_antijoin\nn =",
+                                                     names(LIST_DATA$gene_file))]]$full,
                            rownames = FALSE,
                            colnames = newnames3,
                            class = 'cell-border stripe compact',
                            filter = "none",
-                           caption = LIST_DATA$gene_file[[grep("Gene_List_exclusive\nn =",
+                           caption = LIST_DATA$gene_file[[grep("Gene_List_antijoin\nn =",
                                                                names(LIST_DATA$gene_file))]]$info,
                            options = list(
                              pageLength = 15,
@@ -2674,11 +2686,11 @@ server <- function(input, output, session) {
           datatable(
             LIST_DATA$gene_file[[1]]$empty,
             rownames = FALSE,
-            colnames = "Gene_List_exclusive n = 0",
+            colnames = "Gene_List_antijoin n = 0",
             options = list(searching = FALSE)
           )
         )
-      if (mytab == "Exclusive Gene Lists") {
+      if (mytab == "antijoin Gene Lists") {
         mytab <- "Total Gene Lists"
       }
     }
@@ -2690,8 +2702,14 @@ server <- function(input, output, session) {
     print("cluster tool action")
     shinyjs::hide('plot1cluster')
     shinyjs::hide('plot2cluster')
-    if (n_distinct(LIST_DATA$gene_file[[input$clusterGeneList]]$use) < as.numeric(input$selectclusternumber) |
+    if (n_distinct(LIST_DATA$gene_file[[input$clusterGeneList]]$full, na.rm = T) < as.numeric(input$selectclusternumber) |
         is.null(input$clusterSamples)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("Can't make more clusters than number of genes"),
+        size = "s",
+        easyClose = TRUE
+      ))
       return()
     }
     withProgress(message = 'Calculation in progress',
@@ -2770,12 +2788,12 @@ server <- function(input, output, session) {
                                       "mean",
                                       "none",
                                       0
-                                    ) %>% separate(plot_set,c("set","plot_set"),sep = "\n",extra = "drop")
+                                    )
                                   }
                                   reactive_values$Plot_controler_cluster <- ggplot()
                                   reactive_values$Plot_controler_dcluster <- ggplot()
                                   gp1 <-
-                                    ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=plot_set)) +
+                                    ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=gene_list)) +
                                     geom_line() +
                                     ylab("Mean bin value") +
                                     theme(legend.position="bottom",
@@ -2900,7 +2918,7 @@ server <- function(input, output, session) {
       if (any(grep("Ratio_Up_file1\nn =", names(LIST_DATA$gene_file)) > 0)) {
         output$valueboxratio1 <- renderValueBox({
           valueBox(
-            n_distinct(LIST_DATA$gene_file[[grep("Ratio_Up_file1\nn =", names(LIST_DATA$gene_file))]]$use$gene),
+            n_distinct(LIST_DATA$gene_file[[grep("Ratio_Up_file1\nn =", names(LIST_DATA$gene_file))]]$full$gene, na.rm = T),
             "Ratio Up file1",
             icon = icon("list"),
             color = "green"
@@ -2918,7 +2936,7 @@ server <- function(input, output, session) {
         output$valueboxratio2 <- renderValueBox({
           valueBox(
             n_distinct(LIST_DATA$gene_file[[grep("Ratio_Down_file1\nn =",
-                                                 names(LIST_DATA$gene_file))]]$use$gene),
+                                                 names(LIST_DATA$gene_file))]]$full$gene, na.rm = T),
             "Ratio Down file1",
             icon = icon("list"),
             color = "blue"
@@ -2935,7 +2953,7 @@ server <- function(input, output, session) {
       if (any(grep("Ratio_No_Diff\nn =", names(LIST_DATA$gene_file)) > 0)) {
         output$valueboxratio3 <- renderValueBox({
           valueBox(
-            n_distinct(LIST_DATA$gene_file[[grep("Ratio_No_Diff\nn =", names(LIST_DATA$gene_file))]]$use$gene),
+            n_distinct(LIST_DATA$gene_file[[grep("Ratio_No_Diff\nn =", names(LIST_DATA$gene_file))]]$full$gene, na.rm = T),
             "Ratio No Diff",
             icon = icon("list"),
             color = "yellow"
@@ -3096,7 +3114,7 @@ server <- function(input, output, session) {
       dplyr::filter(gene_list ==  newname) %>%
       dplyr::mutate(set = paste(
         count,
-        sub(" - ","\n", gsub("\n"," ",plot_set)),sep = "\n")
+        sub(" - ","\n", plot_set),sep = "\n")
       )
     df <- LIST_DATA$gene_file[[newname]]$full %>%
       full_join(.,df_options %>% select(set,plot_set),by="plot_set") %>%
@@ -3104,7 +3122,7 @@ server <- function(input, output, session) {
     
     use_header <- pull(distinct(df_options, myheader))
     if (n_groups(group_by(df_options, set)) == 2 &
-        n_distinct(df$gene) > 1) {
+        n_distinct(df$gene, na.rm = T) > 1) {
       tt_name <- pull(distinct(df_options, set))
       tt <-
         suppressWarnings(ks.test(pull(dplyr::filter(
@@ -3206,7 +3224,7 @@ ui <- dashboardPage(
                              width = 6,
                              style = "height: 150px;",
                              align = "center",
-                             selectInput("selectsave", "", choices = "Complete", ),
+                             selectInput("selectsave", "", choices = "select list", ),
                              downloadButton("downloadGeneList", "Save List"),
                              helpText("save windowed bedGraph file(s)")
                            )
@@ -3532,7 +3550,7 @@ ui <- dashboardPage(
             )
             ),
             actionButton("actiongenelists", "Compare Gene lists"),
-            helpText("Shows Intersected, Exlusive, and Total gene lists")
+            helpText("Shows innerjoined, Exlusive, and Total gene lists")
           ),
           box(
             title = "Gene List Tables",
@@ -3546,7 +3564,7 @@ ui <- dashboardPage(
               id = "geneliststooltab",
               width = 12,
               tabPanel(
-                "Intersected Gene Lists",
+                "innerjoined Gene Lists",
                 helpText("All filtering applied to gene list usage elsewhere"),
                 DT::dataTableOutput('genelists1table')
               ),
@@ -3556,7 +3574,7 @@ ui <- dashboardPage(
                 DT::dataTableOutput('genelists2table')
               ),
               tabPanel(
-                "Exclusive Gene Lists",
+                "antijoin Gene Lists",
                 helpText("All filtering applied to gene list usage elsewhere"),
                 DT::dataTableOutput('genelists3table')
               )

@@ -1,14 +1,9 @@
 # 
 #  
-# save file needs work on output format, 
-    # make file name auto fill better, less details compair, filter sum, per, peak, ratio, cluster, cdf, 
-    # gene_list$info up date description on all created gene lists
-    # add a line to discribe columns in file
-    # remove any unneeded columns, add any needed ones
-    # make sure saved file will load in correctly
-# loading files with complex names does not show in DT summery?
-# cdf legend 20 character new line sub ... normaly happens in Active_list_data()
-#    
+# 
+#  
+# cdf add triger plot update on closing color change?, add a scatter type plot to be made at the same time
+#  fix change nickname to not replot unless active. relocate/add description to help find  
 #  filter per reactive on numeric text boxes fix crash (single/multiple) ... change behavior of all user dependent sliders and boxes? denies running + message box?
 #  try and have filter plot show in better postion
 # if loading a url file have progress bar count number of files completed
@@ -18,7 +13,7 @@
 # filter per have min and max starting numbers adjusted based on total number of genes, 
       # add spinner for waiting, include step for looking for first bit of signal (test with big data set and adjust amout going up)
 #    auto looking down conditions?
-# 
+# Ratio :smarter labels for single file verses 2 files, CDF smarter PI/EI in info
 # #### 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
 # size of memory used limit/warning
