@@ -92,7 +92,7 @@ server <- function(input, output, session) {
   addCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
-  addCssClass(selector = "a[data-value='resultstool']", class = "inactiveLink")
+  addCssClass(selector = "a[data-value='DataTableTool']", class = "inactiveLink")
   
   # loads data file(s) ----
   observeEvent(input$filetable, {
@@ -175,7 +175,7 @@ server <- function(input, output, session) {
     removeCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='resultstool']", class = "inactiveLink")
+    removeCssClass(selector = "a[data-value='DataTableTool']", class = "inactiveLink")
     
     gts <- LIST_DATA$table_file %>% group_by(set) %>%
       summarise(number_of_genes = n_distinct(gene, na.rm = T)) %>%
@@ -1369,6 +1369,22 @@ server <- function(input, output, session) {
       my_count <-
         n_distinct(LIST_DATA$gene_file[[grep("CDF ", names(LIST_DATA$gene_file))]]$full$gene, na.rm = T)
     }
+    }
+    # DataTable tab ----
+    if(input$leftSideTabs == "DataTableTool"){
+      
+      ol <- input$pickerDT
+      if(!is.null(ol)){
+        if (!ol %in% names(LIST_DATA$gene_file)) {
+          ol <- "Complete"
+        }
+      }
+      updatePickerInput(session, "pickerDT",
+                        choices = names(LIST_DATA$gene_file),
+                        selected = ol,
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                        ))
     }
   })
   
@@ -3165,6 +3181,34 @@ server <- function(input, output, session) {
     shinyjs::enable('actioncdfcolor')
   })
   
+  # show DataTable ----
+  observeEvent(input$pickerDT, ignoreNULL = TRUE, ignoreInit = TRUE,{
+    if (length(LIST_DATA$gene_file) > 0) {
+      gg <- LIST_DATA$gene_file[[input$pickerDT]]$full 
+      dtg <- datatable(
+        gg,
+        colnames = names(gg),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = TRUE,
+          width = 20,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = TRUE,
+          lengthChange = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(targets = 0, width = 20)
+          )
+        )
+      )
+      output$showgenelist <- DT::renderDataTable(dtg)
+    }
+  })
   
 }
 
@@ -3203,7 +3247,7 @@ ui <- dashboardPage(
       menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("percentage")),
       menuItem("Cluster Tools", tabName = "clustertool", icon = icon("object-group")),
       menuItem("CDF Tools", tabName = "cdftool", icon = icon("ruler-combined")),
-      menuItem("Results Tools", tabName = "resultstool", icon = icon("table"))
+      menuItem("Results Tools", tabName = "DataTableTool", icon = icon("table"))
     )
   ),
   body = dashboardBody(
@@ -3971,9 +4015,7 @@ ui <- dashboardPage(
       tabItem(
         # cdf ----
         tabName = "cdftool",
-        div(
-          id = "enablemaincdf",
-          box(
+        box(
             title = "CDF tool",
             status = "primary",
             solidHeader = T,
@@ -4089,21 +4131,21 @@ ui <- dashboardPage(
             collapsible = TRUE,
             withSpinner(plotOutput("plotcdfscatter"), type = 4)
           )
-        )
       ),
       tabItem(
-        # results ----
-        tabName = "resultstool",
+        # DataTable ----
+        tabName = "DataTableTool",
         box(
-          status = "purple",
-          solidHeader = TRUE,
-          title = "QC Options",
-          fileInput(
-            "filetable",
-            label = "",
-            accept = c('.table'),
-            multiple = TRUE
-          )
+            status = "primary",
+            solidHeader = T,
+            collapsible = T,
+            width = 12,
+          title = "Data Table",
+          pickerInput("pickerDT",
+                      label = "select gene list",
+                      choices = "select list",selected = "select list",
+                      multiple = F),
+          DT::dataTableOutput('showgenelist')
         )
       )
     )
