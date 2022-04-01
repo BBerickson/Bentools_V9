@@ -594,7 +594,6 @@ server <- function(input, output, session) {
   # CDF color select dialog box ----
   observeEvent(c(input$actioncdfcolor), ignoreInit = T, {
     print("actioncdfcolor")
-    print(LIST_DATA$gene_info)
     showModal(modalDialog(
       title = "Information message",
       " Update color of samples",
@@ -646,7 +645,7 @@ server <- function(input, output, session) {
   
   # update display selected item info ----
   observeEvent(c(input$selectdataoption, input$selectgenelistoptions),
-               ignoreInit = TRUE,
+               ignoreInit = TRUE, ignoreNULL = TRUE,
                {
                  my_sel <- LIST_DATA$gene_info %>% 
                    dplyr::filter(gene_list == input$selectgenelistoptions & 
@@ -686,9 +685,10 @@ server <- function(input, output, session) {
         if(my_sel$onoff != 0){
           if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
             reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
-          } else if(input$leftSideTabs == "cdftool"){
-            reactive_values$df_options <- my_sel
-          }
+          } 
+        }
+        if(input$leftSideTabs == "cdftool"){
+          reactive_values$df_options <- my_sel
         }
       }
     }
@@ -722,8 +722,8 @@ server <- function(input, output, session) {
       LIST_DATA$table_file <<- LIST_DATA$table_file %>%
         dplyr::mutate(set = if_else(set == input$selectdataoption,
                                     input$textnickname, set))
-      reactive_values$myplot <- LIST_DATA$gene_info
-      
+      reactive_values$Picker_controler <- 
+        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
       ff <- distinct(LIST_DATA$table_file, set)$set
       updatePickerInput(session,
                         "selectdataoption",
@@ -732,7 +732,7 @@ server <- function(input, output, session) {
                         choicesOpt = list(
                           content = gsub("(.{35})", "\\1<br>", ff)
                         ))
-      LIST_DATA$STATE[2] <<- -10
+      
     }
   })
   
@@ -1294,6 +1294,7 @@ server <- function(input, output, session) {
       )
       }
     shinyjs::hide('plotcdf')
+    shinyjs::hide('plotcdfscatter')
     shinyjs::disable('actioncdfcolor')
     pickercdf <- list()
     for (i in names(LIST_DATA$gene_file)) {
@@ -1357,7 +1358,11 @@ server <- function(input, output, session) {
       output$plotcdf <- renderPlot({
         NULL
       })
+      output$plotcdfscatter <- renderPlot({
+        NULL
+      })
       shinyjs::hide('plotcdf')
+      shinyjs::hide('plotcdfscatter')
       shinyjs::hide('actioncdfdatatable')
       my_count <- 0
     } else {
@@ -1876,6 +1881,14 @@ server <- function(input, output, session) {
         shinyjs::show("showpickercluster")
       } else {
         shinyjs::hide("showpickercluster")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
+        output$DynamicGenePicker_cdf <- renderUI({
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^CDF")]
+        })
+        shinyjs::show("showpickercdf")
+      } else if(!any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
+        shinyjs::hide("showpickercdf")
       }
       output$DynamicGenePicker_main <- renderUI({
         pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")]
@@ -3020,6 +3033,7 @@ server <- function(input, output, session) {
   observeEvent(input$actioncdftool, ignoreInit = TRUE, {
     print("CDF tool action")
     shinyjs::hide('plotcdf')
+    shinyjs::hide('plotcdfscatter')
     if (any(between(
       input$sliderbincdf1,
       input$sliderbincdf2[1],
@@ -3084,6 +3098,7 @@ server <- function(input, output, session) {
       }
       shinyjs::show('actioncdfdatatable')
       shinyjs::show('plotcdf')
+      shinyjs::show('plotcdfscatter')
       newname <-
         grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
       rr <- range(LIST_DATA$gene_file[[newname]]$full$value)
@@ -3141,6 +3156,11 @@ server <- function(input, output, session) {
     mycdf <- GGplotC(df, df_options, use_header,as.numeric(input$sliderrangecdf))
     output$plotcdf <- renderPlot({
       mycdf
+    })
+    output$plotcdfscatter <- renderPlot({
+      ggscatter(df %>% arrange(gene,value), y = "value",x="gene",color = "plot_set",
+                alpha=.8, palette = df_options$mycol) + 
+        rremove("x.text") + rremove("legend")
     })
     shinyjs::enable('actioncdfcolor')
   })
@@ -3261,7 +3281,7 @@ ui <- dashboardPage(
           tags$style(".list {color:#00FF00}"),
           dropdownMenu = boxDropdown(
             icon = icon("list",class = "list"),
-            boxDropdownItem("Update sample color", id = "dropcolor", icon = icon("palette")),
+            boxDropdownItem("Update sample color/name", id = "dropcolor", icon = icon("palette")),
             dropdownDivider(),
             boxDropdownItem("Lines and Labels", id = "droplinesandlabels", icon = icon("chart-bar")),
             dropdownDivider(),
@@ -3415,6 +3435,19 @@ ui <- dashboardPage(
                 collapsible = T,
                 collapsed = F,
                 uiOutput("DynamicGenePicker_clusters")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickercdf",
+              box(
+                title = "CDF",
+                width = 6,
+                status = "primary",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicGenePicker_cdf")
               )
             ))
         ))
@@ -3630,6 +3663,7 @@ ui <- dashboardPage(
             collapsible = T,
             fluidRow(column(
               12,
+              style = "margin-bottom: -20px;",
               sliderInput(
                 "slidersortpercent",
                 label = "% select:",
@@ -3641,7 +3675,8 @@ ui <- dashboardPage(
               )
             ),
             ),
-            fluidRow(column(
+            fluidRow(align="center",
+                     column(
               6,
               pickerInput(
                 "selectsorttop",
@@ -3662,24 +3697,25 @@ ui <- dashboardPage(
             collapsible = T,
             fluidRow(column(
               12,
-                style = "margin-bottom: -20px;",
-                sliderInput(
-                  "slidersortbinrangefilter",
-                  label = "Select Bin Range of non-peak:",
-                  min = 1,
-                  max = 80,
-                  value = c(1, 80)
-                )
+              style = "margin-bottom: -20px;",
+              sliderInput(
+                "slidersortbinrangefilter",
+                label = "Select Bin Range of non-peak:",
+                min = 1,
+                max = 80,
+                value = c(1, 80)
               )
+            )
             ),
-            fluidRow(align="center",column(6,
-                                           pickerInput(
-                                             "selectsortpeak",
-                                             "Filter out Option",
-                                             choices = c("peak","keep peak"),
-                                             selected = "peak"
-                                           )
-            )),
+            fluidRow(align="center",
+                     column(6,
+                            pickerInput(
+                              "selectsortpeak",
+                              "Filter out Option",
+                              choices = c("peak","keep peak"),
+                              selected = "peak"
+                            )
+                     )),
             fluidRow(align="center",
                      actionButton("actionsortpeak", "filter")
             )
@@ -4044,6 +4080,14 @@ ui <- dashboardPage(
             width = 12,
             collapsible = TRUE,
             withSpinner(plotOutput("plotcdf"), type = 4)
+          ),
+          box(
+            title = "Scatter Plot",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 12,
+            collapsible = TRUE,
+            withSpinner(plotOutput("plotcdfscatter"), type = 4)
           )
         )
       ),

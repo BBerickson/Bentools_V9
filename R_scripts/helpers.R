@@ -2,26 +2,18 @@
 #  
 # 
 #  
-# cdf add triger plot update on closing color change?, add a scatter type plot to be made at the same time
-#  fix change nickname to not replot unless active. relocate/add description to help find  
-#  filter per reactive on numeric text boxes fix crash (single/multiple) ... change behavior of all user dependent sliders and boxes? denies running + message box?
-#  try and have filter plot show in better postion
-# if loading a url file have progress bar count number of files completed
 # # DT tab 
-#    just for showing/sorting/filtering/clustering/grouping gene lists, plots:CDF,Violin,Bar,scatter,cdf
-#  get big spinner running while thinkig- loading files, clustinging,   
-# filter per have min and max starting numbers adjusted based on total number of genes, 
-      # add spinner for waiting, include step for looking for first bit of signal (test with big data set and adjust amout going up)
-#    auto looking down conditions?
-# Ratio :smarter labels for single file verses 2 files, CDF smarter PI/EI in info
+#    just for showing/sorting/filtering/clustering/grouping/CDF... gene lists, plots:CDF,Violin,Bar,scatter,cdf?
+#  
+# 
 # #### 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
 # size of memory used limit/warning
 # have ability to change the order of legend in plots (DT sort?)
 # add benefits for loading matrix files, separation and gene size?
-# lines and labels TSS = bin 1 fix
-# checks on pickers left side?, have then stay within view (word wrap)?
-# a plot to show delta PI, MA/scatter/dot?
+# 
+# 
+# 
 # # 5'  and 3' files  focused sliders optimize
 # # data options and QC tab
 # #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
@@ -32,7 +24,7 @@
 
 ###### long term plans ####
 # brake up functions into smaller functions so I can more easly add setprogress recycle common fun for more consistency 
-
+#     Ratio :smarter labels for single file verses 2 files, CDF smarter PI/EI in info, and better info other tools
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {
