@@ -3192,17 +3192,27 @@ server <- function(input, output, session) {
         filter = "none",
         class = 'cell-border stripe compact',
         options = list(
+          pageLength = 20,
           scrollX = TRUE,
           scrollY = TRUE,
           autoWidth = TRUE,
-          width = 20,
+          width = 5,
           sDom  = '<"top">lrt<"bottom">ip',
           info = FALSE,
           paging = TRUE,
           lengthChange = FALSE,
           columnDefs = list(
             list(className = 'dt-center ', targets = "_all"),
-            list(targets = 0, width = 20)
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 64 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 59) + '...</span>' : data;",
+                "}"
+              )
+            ),
+            list(targets = -0, width = 5)
           )
         )
       )
