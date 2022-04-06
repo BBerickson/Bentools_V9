@@ -3,6 +3,7 @@
 source("R_scripts/helpers.R", local = TRUE)
 
 # run load needed packages using my_packages(x) ----
+  # "factoextra" for dendogram plot fviz_dend()
 suppressPackageStartupMessages(my_packages(
   c(
     "tidyverse",
@@ -493,13 +494,18 @@ server <- function(input, output, session) {
                                as.numeric(input$selectplotBinNorm),
                                input$checkboxsmooth,
                                input$checkboxlog2)
+    Lines_Labels_List <- reactive_values$Lines_Labels_List
+    # make line smaller so group ribbon stands out more
+    if(input$mygroup == "groups only"){
+      Lines_Labels_List$mysize[2] <- Lines_Labels_List$mysize[2] / 2
+    } 
     reactive_values$Plot_controler <-
       GGplotLineDot(
         reactive_values$Apply_Math,
         input$sliderplotBinRange,
         reactive_values$Plot_Options,
         reactive_values$Y_Axis_numbers,
-        reactive_values$Lines_Labels_List,
+        Lines_Labels_List,
         input$checkboxsmooth, Plot_Options_ttest,
         input$checkboxlog2,
         Y_Axis_Label,
@@ -1386,6 +1392,17 @@ server <- function(input, output, session) {
                           content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
                         ))
     }
+    # QC tab ----
+    if(input$leftSideTabs == "qcOptions"){
+      shinyjs::hide("plotQC")
+      updatePickerInput(session, "QCsample",
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        selected = c(distinct(LIST_DATA$gene_info, set)$set)[1],
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set))
+                        ))
+    }
+    
   })
   
   # action button update lines and labels ----
@@ -2133,7 +2150,6 @@ server <- function(input, output, session) {
         ggplot()
     }
   })
-  
   
   # filter peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
@@ -3220,6 +3236,47 @@ server <- function(input, output, session) {
     }
   })
   
+  # QC action ----
+  observeEvent(input$buttonFilterzero, ignoreInit = TRUE, {
+    print("QC % tool") 
+    out_list <- LIST_DATA$table_file %>% 
+      dplyr::filter(set == input$QCsample)
+    if(input$QCpickerplot == "% 0's per bin"){
+      sortmin <- out_list %>% 
+        group_by(set,bin) %>% 
+        summarise(value = sum(score == 0)/n_distinct(gene)*100, .groups = "drop")
+      ylab = "% zero"
+    } else {
+      if(input$QCpickerplot == "low range percentile"){
+        my_per <- c(0.01, 0.025, 0.05, 0.075, 0.1)
+      } else {
+        my_per <- c(0.1, 0.25, 0.5, 0.75, 0.9)
+      }
+        p_funs <- map(my_per, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+          set_names(my_per)
+        sortmin <- out_list %>%
+          group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
+          dplyr::mutate(across(where(is.double),as.character)) %>% 
+          gather(.,key = set,value = "value",-bin,-set) %>% 
+          dplyr::mutate(value=as.double(value))
+        ylab = "value"
+    }
+    if(!is.null(sortmin)){
+      gp1 <-
+          ggplot(sortmin, aes(as.numeric(bin), value, color=set)) + 
+          geom_line() + 
+          ylab(ylab) +
+          theme(legend.position="bottom", 
+                legend.title = element_blank(),
+                axis.title.x=element_blank())
+      } else{
+        gp1 <- ggplot()
+      }
+      shinyjs::show("plotQC")
+      output$plotQC <- renderPlot({gp1})
+      print(gp1)
+  })
+  
 }
 
 # UI -----
@@ -3257,7 +3314,7 @@ ui <- dashboardPage(
       menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("percentage")),
       menuItem("Cluster Tools", tabName = "clustertool", icon = icon("object-group")),
       menuItem("CDF Tools", tabName = "cdftool", icon = icon("ruler-combined")),
-      menuItem("Results Tools", tabName = "DataTableTool", icon = icon("table"))
+      menuItem("Data Table Veiw", tabName = "DataTableTool", icon = icon("table"))
     )
   ),
   body = dashboardBody(
@@ -3510,15 +3567,30 @@ ui <- dashboardPage(
         # QC ----
         tabName = "qcOptions",
         box(
-          status = "purple",
-          solidHeader = TRUE,
+          width = 12,
+          status = "primary",
           title = "QC Options",
-          fileInput(
-            "filetable",
-            label = "",
-            accept = c('.table'),
-            multiple = TRUE
-          )
+          solidHeader = T,
+          shinycssloaders::withSpinner(plotOutput("plotQC"), type = 4)
+          ),
+        box(width = 12,
+            status = "primary",
+            title = "QC Options",
+            solidHeader = T,
+          pickerInput("QCsample",
+                      label = "select file",
+                      width = "60%",
+                      choices = "Load data file",
+                      multiple = F,
+                      options = list(title = "Select file")),
+          pickerInput("QCpickerplot",
+                      label = "select plot type",
+                      width = "60%",
+                      choices = c("low range percentile", "braod range percentile","% 0's per bin"),
+                      selected = "low range percentile",
+                      multiple = F,
+                      options = list(title = "Select file")),
+          actionButton("buttonFilterzero",label = "Plot")
         )
       ),
       tabItem(

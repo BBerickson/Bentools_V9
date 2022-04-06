@@ -1,25 +1,12 @@
-# 
-#  
-# 
-#  
-# # DT tab 
-#    just for showing/sorting/filtering/clustering/grouping/CDF... gene lists, plots:CDF,Violin,Bar,scatter,cdf?
-#  
-# 
 # #### 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
-# size of memory used limit/warning
-# have ability to change the order of legend in plots (DT sort?)
-# add benefits for loading matrix files, separation and gene size?
 # 
-# 
-# 
-# # 5'  and 3' files  focused sliders optimize
-# # data options and QC tab
-# #     stats on files, distribution of mean signals (5,4,3), number of 0,s na's, peaks, ???
-# #     ability to find and remove outliers and filter (add to server R RNAseq filtering outliers )
-# in QC add gene size and seperation, deep tools inputs/bin ranges
-# "factoextra" for dendogram plot fviz_dend()
+# # QC tab
+# #     stats on files, quantile plots low end and broad  ranges (1, 2.5, 5, 7.5, 10)(10, 25, 50, 75, 90) 
+    # with note on signal being above , % 0,s per bin, 
+#   number of genes that are all 0s, with option to remove these
+# in QC add gene size and separation, deep tools inputs/bin ranges
+
 # load old style table files (mod matrix?)
 
 ###### long term plans ####

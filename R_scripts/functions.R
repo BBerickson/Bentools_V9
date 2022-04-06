@@ -837,9 +837,9 @@ LinesLabelsListset <- function(body1bin = 20,
                                body2bin = 40,
                                tssbin = 15,
                                tesbin = 45,
-                               binbp = 100,
+                               binbp = 1,
                                totbins = 80,
-                               everybin = 1,
+                               everybin = 10,
                                tssname = "TSS",
                                tesname = "pA") {
   # I create this in steps bin 1 to next land mark (TSS TES) then go from there to next land mark until end of bins
@@ -874,10 +874,9 @@ LinesLabelsListset <- function(body1bin = 20,
       nextStart <- tssbin + everybin
       if (body1bin > 0 & tesbin > 0 & body2bin > 0) {
         nextEnd <- body1bin
-      } else if (tssbin == 0) {
+      } else if (tssbin == 0 & everybp == 1) {
         nextEnd <- totbins - 1
-        nextStart <- 2
-      } else if (tesbin == 0) {
+      } else if (tesbin == 0 | tssbin == 0) {
         nextEnd <- totbins
       } else {
         nextEnd <- 0
@@ -888,8 +887,9 @@ LinesLabelsListset <- function(body1bin = 20,
           seq(nextStart,
               by = everybin,
               length.out = length(TSSname1))
-        if(everybp == 1){
-          TSSname1 <- TSSname1 +1
+        if(tssbin == 0 & everybp == 1){
+          TSSname1 <- TSSname1 + 1
+          TSSloc1 <- TSSloc1 + 1
         }
         # make sure body brake is included
         if (!any(TSSloc1 == nextEnd)) {
