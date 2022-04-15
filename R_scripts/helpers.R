@@ -1,17 +1,21 @@
-# #### 
+# brake up functions into smaller functions so I can more easly add setprogress recycle common fun for more consistency
+# LoadTableFile - test - read in file/URL - load gene list before/after - speed - 
+#  add withProgress updates
+# LoadGeneFile - URL? - count_fields and file type test with compatibility - read in file - intersect gene test -
+#     add to LIST_DATA
+# remove setProgress from functions - FindClusters, ClusterNumList, CumulativeDistribution, 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
-# 
-# # QC tab
-# #     stats on files, quantile plots low end and broad  ranges (1, 2.5, 5, 7.5, 10)(10, 25, 50, 75, 90) 
-    # with note on signal being above , % 0,s per bin, 
-#   number of genes that are all 0s, with option to remove these
-# in QC add gene size and separation, deep tools inputs/bin ranges
-
+# don't have the plot button show on first plot
+# GGplotLineDot tidy up code if posible 
+# clean up CompareRatios and consolidate ... function for gene_file$info?
+# move QC to functions
 # load old style table files (mod matrix?)
-
-###### long term plans ####
-# brake up functions into smaller functions so I can more easly add setprogress recycle common fun for more consistency 
 #     Ratio :smarter labels for single file verses 2 files, CDF smarter PI/EI in info, and better info other tools
+# valuebox for peak filter (mabey the others) has total gene count not distinct,
+# for preview plots have show with spinner before calculations
+# CDF with PI proper num denom selection range, add controls for the number of observations on the dot plot
+# fix save file help text, CDF save gather so sets are column names? 
+
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {

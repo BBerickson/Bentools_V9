@@ -73,6 +73,162 @@ MatchGenes <- function(common_list, gene_list){
   return(tablefile)
 }
 
+# sort out info on file/url
+PrepMetaFile <-
+  function(file_path,
+           file_name) {
+    # tests if loading a file with a list of address to remote files, requires .url.txt in file name
+    if (str_detect(file_name, ".url.txt")) {
+      num_col <-
+        try(count_fields(
+          file_path,
+          n_max = 1,
+          skip = 1,
+          tokenizer = tokenizer_delim(" ")
+        ),
+        silent = T)
+      if ("try-error" %in% class(num_col)) {
+        showModal(modalDialog(
+          title = "Information message",
+          paste(file_name, "cant find file to load"),
+          size = "s",
+          easyClose = TRUE
+        ))
+        return(NULL)
+      }
+      if (num_col > 1) {
+        col_names <- c("filepath", "type", "nick", "color")
+        col_types <- cols(
+          filepath = col_character(),
+          type = col_character(),
+          nick = col_character(),
+          color = col_character()
+        )
+      } else {
+        col_names <- c("filepath")
+        col_types <- cols(filepath = col_character())
+      }
+      meta_data <-
+        suppressMessages(read_delim(
+          file_path,
+          delim = " ",
+          col_names = col_names,
+          col_types = col_types
+        )) %>%
+        mutate(nick = str_replace(nick, "\\.", "_"))
+      if (num_col == 1) {
+        meta_data <-
+          meta_data %>% mutate(
+            nick = str_split(filepath, "/", simplify = T) %>%
+              as.tibble(., name_repair =
+                          "unique") %>%
+              select(last_col()) %>% unlist() %>%
+              str_remove(., ".table|.table.gz|.matrix.gz") %>% str_replace("\\.", "_"),
+            type = str_extract(nick, "^(\\d)+") %>%
+              replace_na("none"),
+            color = sample(
+              suppressWarnings(brewer.pal(11, sample(
+                kBrewerList, size = 1
+              ))) %>%
+                grep("#FF", ., value = T, invert = T),
+              size = nrow(meta_data)
+            )
+          )
+      }
+    } else {
+      meta_data <-  tibble(
+        filepath = file_path,
+        nick = last(str_split(file_name, "/", simplify = T)) %>%
+          str_remove(., ".table|.matrix.gz") %>% str_replace("\\.", "_"),
+        type = str_extract(nick, "^(\\d)+") %>%
+          replace_na("none"),
+        color = sample(
+          suppressWarnings(brewer.pal(11, sample(
+            kBrewerList, size = 1
+          ))) %>%
+            grep("#FF", ., value = T, invert = T),
+          size = 1
+        )
+      )
+    }
+    meta_data
+  }
+
+# test file is there and what type
+tableTestbin <- function(meta_data){
+  # get info on file to help know what type it is
+  num_bins <-
+    try(count_fields(meta_data$filepath,
+                     n_max = 1,
+                     tokenizer = tokenizer_tsv()),silent = T)
+  # test if file can be loaded in
+  if ("try-error" %in% class(num_bins)) {
+    showModal(modalDialog(
+      title = "Information message",
+      paste(meta_data$nick, "cant find file to load"),
+      size = "s",
+      easyClose = TRUE
+    ))
+    next()
+  }
+  # check if file is in wide format or deeptools matrix file
+  if (num_bins == 1 | str_detect(meta_data$filepath, "matrix.gz$")) {
+    num_bins <-
+      count_fields(meta_data$filepath,
+                   n_max = 1,
+                   skip = 1,
+                   tokenizer = tokenizer_tsv()) - 5
+    col_names <- c("chr", "start", "end","gene", "value", "sign", 1:(num_bins - 1))
+  } else if (num_bins > 6 ){
+    col_names <- c("gene", 1:(num_bins - 1))
+  } else if (num_bins == 4) {
+    # settings for new style with meta data info
+    col_names <- c("gene", "bin", "score", "set")
+    # settings for reading in bedGraph file style
+  } else if (num_bins == 3) {
+    col_names <- c("gene", "bin", "score")
+  } else {
+    col_names <- NULL
+  }
+  list(num_bins = num_bins, col_names = col_names)
+}
+
+LoadTableFile2 <-
+  function(meta_data,
+           bin_colname) {
+    # wide file
+    if (bin_colname$num_bin > 6) {
+      tablefile <- suppressMessages(
+        read_tsv(
+          meta_data$filepath,
+          comment = "#",
+          col_names = bin_colname$col_names,
+          skip = 1
+        )
+      ) %>%
+        select(gene, num_range(
+          range = 1:(bin_colname$num_bins - 1),
+          prefix = ""
+        )) %>%
+        gather(., bin, score, 2:(bin_colname$num_bins))
+      # long file
+    } else {
+      tablefile <-
+        suppressMessages(read_tsv(
+          meta_data$filepath,
+          comment = "#",
+          col_names = bin_colname$col_names
+        ))
+    }
+    tablefile %>%
+      dplyr::mutate(bin = as.numeric(bin),
+                    score = as.numeric(score),
+                    set = meta_data$nick) %>%
+      na_if(Inf) %>%
+      replace_na(list(score = 0)) %>%
+      distinct(gene, bin, .keep_all = T)
+  }
+
 # reads in table file(s), tests, fills out info and returns list_data
 LoadTableFile <-
   function(file_path,

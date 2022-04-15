@@ -108,7 +108,106 @@ server <- function(input, output, session) {
                                        input$filetable$name,
                                        LIST_DATA)
                  })
-    
+    # meta_data <- PrepMetaFile(input$filetable$datapath,
+    #                           input$filetable$name)
+    # if (!is_empty(meta_data)) {
+    #   for (i in seq_along(meta_data$filepath)) {
+    #     if (meta_data$nick[i] %in% names(LIST_DATA$table_file)) {
+    #       showModal(modalDialog(
+    #         title = "Information message",
+    #         paste(meta_data$nick[i], "has already been loaded"),
+    #         size = "s",
+    #         easyClose = TRUE
+    #       ))
+    #       next()
+    #     }
+    #     bin_colname <- tableTestbin(meta_data[i, ])
+    # 
+    #     if (LIST_DATA$x_plot_range[2] == 0) {
+    #       LIST_DATA$x_plot_range <<- c(1, bin_colname$num_bins)
+    #       LIST_DATA$STATE[3] <<- meta_data$type[i]
+    #     } else if (bin_colname$num_bins != LIST_DATA$x_plot_range[2]) {
+    #       showModal(
+    #         modalDialog(
+    #           title = "Information message",
+    #           "Can't load file, different number of bins",
+    #           size = "s",
+    #           easyClose = TRUE
+    #         )
+    #       )
+    #       next()
+    #     }
+    #     LD2 <- LoadTableFile2(meta_data[i, ], bin_colname)
+    #     gene_names <-
+    #       semi_join(LD2, LIST_DATA$gene_file[[1]]$full, by = "gene") %>% distinct(gene)
+    #     if (n_distinct(gene_names$gene) == 0) {
+    #       showModal(
+    #         modalDialog(
+    #           title = "Information message",
+    #           " No genes in common ",
+    #           size = "s",
+    #           easyClose = TRUE
+    #         )
+    #       )
+    #       next()
+    #     } else if (!is_empty(LIST_DATA$gene_file)){
+    #       # make complete gene list
+    #       LIST_DATA$gene_file[[1]]$full <<-
+    #         full_join(LD2, LIST_DATA$gene_file[[1]]$full, by = "gene") %>% 
+    #         distinct(gene)
+    #       LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+    #         dplyr::mutate(count = if_else(gene_list == "Complete", 
+    #                                       paste("n =", n_distinct(LIST_DATA$gene_file[[1]]$full, na.rm = T)), count))
+    #     } else {
+    #       LIST_DATA$gene_file[[1]]$full <<- distinct(LD2, gene)
+    #     }
+    #     if (LIST_DATA$STATE[2] == 0 &
+    #         n_distinct(LIST_DATA$table_file$set) < 2) {
+    #       oo <- meta_data$nick[i]
+    #     } else {
+    #       oo <- "0"
+    #     }
+    #     LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD2))
+    #     LIST_DATA$gene_file[["Complete"]]$info <- tibble(loaded_info = paste("all loaded genes",
+    #                                                                          Sys.Date()))
+    #     LIST_DATA$gene_info <- distinct(bind_rows(LIST_DATA$gene_info,tibble(
+    #       gene_list = "Complete",
+    #       count = paste("n =", n_distinct(LIST_DATA$gene_file[[1]]$full, na.rm = T)),
+    #       set = meta_data$nick[i],
+    #       mycol = meta_data$color[i],
+    #       onoff = oo,
+    #       sub = " ",
+    #       plot_set = " ",
+    #       group = meta_data$nick[i]
+    #     )))
+    #     ### check if grep of gene has occurred 
+    #     for(gg in seq_along(LIST_DATA$gene_file)[-1]){
+    #       if("org_gene" %in% LIST_DATA$gene_file[[gg]]$full){
+    #         new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full, 
+    #                                      LIST_DATA$gene_file[[gg]]$full %>% select(org_gene) %>% 
+    #                                        dplyr::rename(gene = org_gene))
+    #         if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
+    #           # fix name, fix info
+    #           listname <- names(LIST_DATA$gene_file)[gg]
+    #           LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+    #             dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)), 
+    #                                         count))
+    #         }
+    #       }
+    #       # add missing data
+    #       LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+    #         dplyr::filter(gene_list == names(LIST_DATA$gene_file)[gg]) %>%
+    #         dplyr::mutate(set = meta_data$nick[i],
+    #                       count = count[i],
+    #                       mycol = meta_data$color[i],
+    #                       onoff = "0",
+    #                       sub = " ",
+    #                       plot_set = " ") %>%
+    #         bind_rows(LIST_DATA$gene_info, .)
+    #     }
+    #   }
+    # }
+
     if (!is_empty(LD$table_file)) {
       LIST_DATA <<- LD
     } else {
@@ -359,6 +458,9 @@ server <- function(input, output, session) {
         ))
       new_comments2 <-
           LIST_DATA$gene_file[[input$selectsave]]$full
+      if(input$selectsave == "CDF Log2 PI Cumulative plot"){
+        new_comments2 <- new_comments2 %>% select(-plot_set)
+      }
       write_lines(new_comments, file)
       write_tsv(new_comments2,
                 file,
@@ -3336,8 +3438,8 @@ ui <- dashboardPage(
                       "filetable",
                       width = "75%",
                       label = "",
-                      accept = c('.table'),
-                      multiple = TRUE
+                      accept = c('.table','.url.txt'),
+                      multiple = FALSE
                     ),
                     helpText("load windowed bedGraph file(s)"),
                     br(),
