@@ -33,7 +33,9 @@ options(shiny.maxRequestSize = 500 * 1024 ^ 2)
 LIST_DATA <<- list(
   table_file = NULL,
   # gene bin score set
-  gene_file = NULL,
+  gene_file = list(Compleat = list(full = tibble(gene = "")
+  )
+  ),
   # holds $Complete genes from files and $gene file(s)
   gene_info = NULL,
   # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_set")]
@@ -111,17 +113,17 @@ server <- function(input, output, session) {
     # meta_data <- PrepMetaFile(input$filetable$datapath,
     #                           input$filetable$name)
     # if (!is_empty(meta_data)) {
-    #   for (i in seq_along(meta_data$filepath)) {
-    #     if (meta_data$nick[i] %in% names(LIST_DATA$table_file)) {
-    #       showModal(modalDialog(
-    #         title = "Information message",
-    #         paste(meta_data$nick[i], "has already been loaded"),
-    #         size = "s",
-    #         easyClose = TRUE
-    #       ))
-    #       next()
-    #     }
-    #     bin_colname <- tableTestbin(meta_data[i, ])
+      # for (i in seq_along(meta_data$filepath)) {
+      #   if (meta_data$nick[i] %in% names(LIST_DATA$table_file)) {
+      #     showModal(modalDialog(
+      #       title = "Information message",
+      #       paste(meta_data$nick[i], "has already been loaded"),
+      #       size = "s",
+      #       easyClose = TRUE
+      #     ))
+      #     next()
+      #   }
+      #   bin_colname <- tableTestbin(meta_data[i, ])
     # 
     #     if (LIST_DATA$x_plot_range[2] == 0) {
     #       LIST_DATA$x_plot_range <<- c(1, bin_colname$num_bins)
@@ -137,20 +139,21 @@ server <- function(input, output, session) {
     #       )
     #       next()
     #     }
-    #     LD2 <- LoadTableFile2(meta_data[i, ], bin_colname)
-    #     gene_names <-
-    #       semi_join(LD2, LIST_DATA$gene_file[[1]]$full, by = "gene") %>% distinct(gene)
-    #     if (n_distinct(gene_names$gene) == 0) {
-    #       showModal(
-    #         modalDialog(
-    #           title = "Information message",
-    #           " No genes in common ",
-    #           size = "s",
-    #           easyClose = TRUE
-    #         )
-    #       )
-    #       next()
-    #     } else if (!is_empty(LIST_DATA$gene_file)){
+        # LD2 <- LoadTableFile2(meta_data[i, ], bin_colname)
+    # if (!is_empty(LIST_DATA$gene_file)){
+        # gene_names <-
+        #   semi_join(LD2, LIST_DATA$gene_file[[1]]$full, by = "gene") %>% distinct(gene)
+        #     if (n_distinct(gene_names$gene) == 0) {
+        #       showModal(
+        #         modalDialog(
+        #           title = "Information message",
+        #           " No genes in common ",
+        #           size = "s",
+        #           easyClose = TRUE
+        #         )
+        #       )
+        #       next()
+        #     } 
     #       # make complete gene list
     #       LIST_DATA$gene_file[[1]]$full <<-
     #         full_join(LD2, LIST_DATA$gene_file[[1]]$full, by = "gene") %>% 
@@ -170,7 +173,7 @@ server <- function(input, output, session) {
     #     LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD2))
     #     LIST_DATA$gene_file[["Complete"]]$info <- tibble(loaded_info = paste("all loaded genes",
     #                                                                          Sys.Date()))
-    #     LIST_DATA$gene_info <- distinct(bind_rows(LIST_DATA$gene_info,tibble(
+    #     LIST_DATA$gene_info <<- distinct(bind_rows(LIST_DATA$gene_info,tibble(
     #       gene_list = "Complete",
     #       count = paste("n =", n_distinct(LIST_DATA$gene_file[[1]]$full, na.rm = T)),
     #       set = meta_data$nick[i],
@@ -205,7 +208,7 @@ server <- function(input, output, session) {
     #                       plot_set = " ") %>%
     #         bind_rows(LIST_DATA$gene_info, .)
     #     }
-    #   }
+      # }
     # }
 
     if (!is_empty(LD$table_file)) {
