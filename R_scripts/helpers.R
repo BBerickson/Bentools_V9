@@ -1,7 +1,7 @@
-# brake up functions into smaller functions so I can more easly add setprogress recycle common fun for more consistency
-# LoadTableFile - test - read in file/URL - load gene list before/after - speed - 
-#  add withProgress updates
-# LoadGeneFile - URL? - count_fields and file type test with compatibility - read in file - intersect gene test -
+# brake up functions into smaller functions so I can more easy add set progress recycle common fun for more consistency
+# LoadTableFile - test - read in file/URL - load gene list before/after - speed - withspinner on DTs
+#  add withProgress updates, reset loading file between each file as well, add examples of files that can be loaded,
+# LoadGeneFile - count_fields and file type test with compatibility - read in file - intersect gene test -
 #     add to LIST_DATA
 # remove setProgress from functions - FindClusters, ClusterNumList, CumulativeDistribution, 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
@@ -11,11 +11,12 @@
 # move QC to functions
 # load old style table files (mod matrix?)
 #     Ratio :smarter labels for single file verses 2 files, CDF smarter PI/EI in info, and better info other tools
-# valuebox for peak filter (mabey the others) has total gene count not distinct,
+# valuebox for peak filter (mabey the others) has total gene count not distinct, have all filters update the gene list picker, don't remove list being filtered on
 # for preview plots have show with spinner before calculations
 # CDF with PI proper num denom selection range, add controls for the number of observations on the dot plot
-# fix save file help text, CDF save gather so sets are column names? 
-
+# fix save file help text, CDF save gather so sets are column names?, fix cluster select sample label  
+# add AUC tool
+# norm -1 add making negitive for antisense plots
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {
@@ -40,7 +41,7 @@ kLinesandlabels <- c(
   "5' 1k 1k 80bins",
   "3' 1k 9k 100bins",
   "5' .25k 10k 205bins",
-  "5'",
+  "5",
   "4",
   "3",
   "generic 543",

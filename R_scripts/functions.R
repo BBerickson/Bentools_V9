@@ -77,6 +77,7 @@ MatchGenes <- function(common_list, gene_list){
 PrepMetaFile <-
   function(file_path,
            file_name) {
+    print("PrepMetaFile")
     # tests if loading a file with a list of address to remote files, requires .url.txt in file name
     if (str_detect(file_name, ".url.txt")) {
       num_col <-
@@ -114,13 +115,12 @@ PrepMetaFile <-
           delim = " ",
           col_names = col_names,
           col_types = col_types
-        )) %>%
-        mutate(nick = str_replace(nick, "\\.", "_"))
+        )) 
       if (num_col == 1) {
         meta_data <-
           meta_data %>% mutate(
             nick = str_split(filepath, "/", simplify = T) %>%
-              as.tibble(., name_repair =
+              as_tibble(., name_repair =
                           "unique") %>%
               select(last_col()) %>% unlist() %>%
               str_remove(., ".table|.table.gz|.matrix.gz") %>% str_replace("\\.", "_"),
@@ -134,6 +134,10 @@ PrepMetaFile <-
               size = nrow(meta_data)
             )
           )
+      } else {
+        meta_data <-
+          meta_data %>%
+          mutate(nick = str_replace(nick, "\\.", "_"))
       }
     } else {
       meta_data <-  tibble(
@@ -157,6 +161,7 @@ PrepMetaFile <-
 # test file is there and what type
 tableTestbin <- function(meta_data){
   # get info on file to help know what type it is
+  print("tableTestbin")
   num_bins <-
     try(count_fields(meta_data$filepath,
                      n_max = 1,
@@ -169,7 +174,7 @@ tableTestbin <- function(meta_data){
       size = "s",
       easyClose = TRUE
     ))
-    next()
+    return()
   }
   # check if file is in wide format or deeptools matrix file
   if (num_bins == 1 | str_detect(meta_data$filepath, "matrix.gz$")) {
@@ -193,9 +198,10 @@ tableTestbin <- function(meta_data){
   list(num_bins = num_bins, col_names = col_names)
 }
 
-LoadTableFile2 <-
+LoadTableFile <-
   function(meta_data,
            bin_colname) {
+    print("LoadTableFile")
     # wide file
     if (bin_colname$num_bin > 6) {
       tablefile <- suppressMessages(
@@ -229,303 +235,18 @@ LoadTableFile2 <-
       distinct(gene, bin, .keep_all = T)
   }
 
-# reads in table file(s), tests, fills out info and returns list_data
-LoadTableFile <-
-  function(file_path,
-           file_name,
-           list_data) {
-    my_color <- NULL
-    my_landl <- NA
-    legend_nickname <- NULL
-    my_remote_file <- NULL
-    file_count <- length(list_data$table_file)
-    # shiny progress bar
-    setProgress(1, detail = "start gathering information on file(s)")
-    # tests if loading a file with a list of address to remote files, requires .url.txt in file name
-    for (i in seq_along(file_name)) {
-      if (str_detect(file_name[i], ".url.txt")) {
-        num_col <-
-          try(count_fields(file_path[i],
-                           n_max = 1,
-                           skip = 1,
-                           tokenizer = tokenizer_delim(" ")),silent = T)
-        if ("try-error" %in% class(num_col)) {
-          showModal(modalDialog(
-            title = "Information message",
-            paste(file_name[i], "cant find file to load"),
-            size = "s",
-            easyClose = TRUE
-          ))
-          next()
-        }
-        if(num_col > 1){
-          col_names <- c("file","type","nick","color")
-          col_types <- cols(file=col_character(),
-                            type=col_character(),
-                            nick=col_character(),
-                            color=col_character())
-        } else {
-          col_names <- c("file")
-          col_types <- cols(file=col_character())
-        }
-        meta_data <- suppressMessages(read_delim(file_path[i],delim = " ", 
-                                                 col_names = col_names,
-                                                 col_types = col_types))
-        if(num_col == 1){
-          meta_data <-  meta_data %>% mutate(type = NA,
-                                             nick = NA,
-                                             color = NA)
-        }
-        my_remote_file <- c(my_remote_file, meta_data$file)
-        my_color <- c(my_color, meta_data$color) 
-        legend_nickname <- c(legend_nickname, str_replace(meta_data$nick,"\\.","_")) 
-        my_landl <- last(meta_data$type)
-        if(i > 1){
-          file_path[i] <- NULL
-        } else {
-          file_path <- NULL
-        }
-      } else {
-        my_color <- c(my_color, NA)
-        legend_nickname <- c(legend_nickname, last(str_split(file_name[i],"/",simplify = T)) %>% 
-                               str_remove(., ".table")) %>% str_replace("\\.","_")
-      }
-    }
-    if (!is.null(my_remote_file)) {
-      file_path <- c(file_path, my_remote_file)
-    }
-    # shiny progress bar
-    setProgress(2, detail = "getting meta data")
-    # loop each item in file_path
-    for (x in seq_along(file_path)) {
-      # gets number of columns in file, used to guess how to deal with file
-      #  and checks if file exits
-      num_col <-
-        try(count_fields(file_path[x],
-                         n_max = 1,
-                         skip = 1,
-                         tokenizer = tokenizer_tsv()),silent = T)
-      if ("try-error" %in% class(num_col) & num_col > 0) {
-        showModal(modalDialog(
-          title = "Information message",
-          paste(file_name[x], "cant find file to load"),
-          size = "s",
-          easyClose = TRUE
-        ))
-        next()
-      }
-      # checking/creating meta data
-      if(is.na(legend_nickname)[x]){
-        legend_nickname[x] <- last(str_split(file_path[x],"/",simplify = T)) %>% 
-          str_remove(., ".table") %>% str_replace("\\.","_")
-      }
-      if(file_count > 0 ){
-        # checks if file with same name is in master list of lists
-        if (legend_nickname[x] %in% list_data$gene_info$set) {
-          showModal(modalDialog(
-            title = "Information message",
-            paste(legend_nickname[x], "has already been loaded"),
-            size = "s",
-            easyClose = TRUE
-          ))
-          next()
-        }
-      }
-      if(is.na(my_landl)){
-        my_landl <- str_extract(legend_nickname[x], "^(\\d)+") %>% 
-          replace_na("none") 
-      }
-      
-      if (is.na(my_color[x])) {
-        my_color[x] <- sample(suppressWarnings(brewer.pal(11, sample(kBrewerList, size=1))) %>% 
-                                grep("#FF",.,value = T,invert = T),size = 1)
-      } else {
-        my_color[x] <- RgbToHex(my_color[x], convert = "hex")
-      }
-      
-      # matrix file
-      if(length(grep(".matrix.gz", file_name[x])) == 1){
-        num_bins <-
-          count_fields(file_path[x],
-                       n_max = 1,
-                       skip = 1,
-                       tokenizer = tokenizer_tsv())
-        tablefile <- suppressMessages(
-          read_tsv(
-            file_path[x],
-            comment = "#",
-            col_names = c("chr", "start", "end","gene", "value", "sign", 1:(num_bins - 6)),
-            skip = 1)) %>%
-          dplyr::select(-chr, -start, -end, -sign, -value) %>% 
-          gather(., bin, score, 2:(num_bins-5)) %>%
-          dplyr::mutate(bin = as.numeric(bin),
-                        score = as.numeric(score),
-                        set = legend_nickname[x]) %>%
-          na_if(Inf) %>%
-          replace_na(list(score = 0)) %>% 
-          distinct(gene,bin,.keep_all = T)
-      } else { 
-        if (num_col == 4) {
-        # settings for new style with meta data info
-        col_names <- c("gene", "bin", "score", "set")
-        # settings for reading in bedGraph file style
-      } else if (num_col == 3) {
-        col_names <- c("gene", "bin", "score")
-      } else {
-        showModal(
-          modalDialog(
-            title = "I dont know how to load this file",
-            "I use binned coverage files with the following columns:\n
-              gene bin score optinal(set) ",
-            size = "s",
-            easyClose = TRUE
-          )
-        )
-        next()
-      }
-      # shiny progress bar
-      setProgress(3, detail = "downloading/reading in file")
-      # reads in file
-      tablefile <-
-        suppressMessages(read_tsv(file_path[x],
-                                  comment = "#",
-                                  col_names = col_names)) %>%
-        dplyr::mutate(set = legend_nickname[x]) %>% na_if(Inf) %>%
-        replace_na(list(score = 0)) %>% distinct(gene,bin,.keep_all = T)
-        }
-      num_bins <- n_distinct(tablefile$bin)
-      # shiny progress bar
-      setProgress(4, detail = "Checking form problems")
-      # checks the number of bins and gene naming is consistent
-      if (file_count > 0) {
-        if (num_bins != list_data$x_plot_range[2]) {
-          showModal(
-            modalDialog(
-              title = "Information message",
-              "Can't load file, different number of bins",
-              size = "s",
-              easyClose = TRUE
-            )
-          )
-          next()
-        }
-        # test data is compatible with already loaded data
-        gene_names <-
-          semi_join(tablefile, list_data$gene_file[[1]]$full, by = "gene") %>% distinct(gene)
-        if (n_distinct(gene_names$gene) == 0) {
-          showModal(
-            modalDialog(
-              title = "Information message",
-              " No genes in common ",
-              size = "s",
-              easyClose = TRUE
-            )
-          )
-          break()
-        } else {
-          # make complete gene list
-          gene_names <-
-            full_join(tablefile, list_data$gene_file[[1]]$full, by = "gene") %>% 
-            distinct(gene)
-        }
-      } else {
-        gene_names <- distinct(tablefile, gene)
-        list_data$x_plot_range <- c(1, num_bins)
-        list_data$STATE[3] <- my_landl
-      }
-      if (file_count > 0) {
-        list_data$gene_info <- list_data$gene_info %>% 
-          dplyr::mutate(count = if_else(gene_list == "Complete" , paste("n =", n_distinct(gene_names$gene, na.rm = T)), count))
-      }
-      # shiny progress bar
-      setProgress(5, detail = "building data and adding to tools")
-      if (list_data$STATE[2] == 0 &
-          n_distinct(list_data$table_file$set) < 3) {
-        oo <- legend_nickname[x]
-      } else {
-        oo <- "0"
-      }
-      # saves data in list of lists
-      list_data$table_file <- distinct(bind_rows(list_data$table_file, tablefile))
-      list_data$gene_file[["Complete"]]$full <- gene_names
-      list_data$gene_file[["Complete"]]$info <- tibble(loaded_info = paste("full gene list",
-                                                                           Sys.Date()))
-      list_data$gene_info <- distinct(bind_rows(list_data$gene_info,tibble(
-        gene_list = "Complete",
-        count = paste("n =", n_distinct(gene_names$gene, na.rm = T)),
-        set = legend_nickname[x],
-        mycol = my_color[x],
-        onoff = oo,
-        sub = " ",
-        plot_set = " ",
-        group = legend_nickname[x]
-      )))
-      # adding table file after gene list had been loaded
-      for(gg in seq_along(list_data$gene_file)[-1]){
-        if("org_gene" %in% list_data$gene_file[[gg]]$full){
-          new_gene_match <- MatchGenes(gene_names, list_data$gene_file[[gg]]$full %>% select(org_gene) %>% 
-                                         dplyr::rename(gene = org_gene))
-          if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
-            # fix name, fix info
-            listname <- names(list_data$gene_file)[gg]
-            list_data$gene_info <- list_data$gene_info %>%
-              dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)), 
-                                          count))
-          }
-        }
-        # add missing data
-        list_data$gene_info <- list_data$gene_info %>%
-          dplyr::filter(gene_list == names(list_data$gene_file)[gg]) %>%
-          dplyr::mutate(set = legend_nickname[x],
-                        count = count[x],
-                        mycol = my_color[x],
-                        onoff = "0",
-                        sub = " ",
-                        plot_set = " ") %>%
-          bind_rows(list_data$gene_info, .)
-      }
-      file_count <- 1
-      setProgress(6, detail = "done with this file")
-    }
-    return(list_data)
-  }
-
 # reads in gene list file(s), tests, fills out info and returns list_data
 LoadGeneFile <-
   function(file_path,
            file_name,
            list_data) {
-    my_remote_file <- NULL
-    legend_nickname <- NULL
-    # shiny progress bar
-    setProgress(1, detail = "start gathering information on file(s)")
-    # tests if loading a file with a list of address to remote files, requires .url.txt in file name
-    for (i in seq_along(file_name)) {
-      if (str_detect(file_name[i], ".url.txt")) {
-        meta_data <- suppressMessages(read_delim(file_path[i],delim = " ",col_names = FALSE))
-        my_remote_file <- c(my_remote_file, meta_data$file)
-        if(i > 1){
-          file_path[i] <- NULL
-        } else {
-          file_path <- NULL
-        }
-      }
-    }
-    if (!is.null(my_remote_file)) {
-      file_path <- c(file_path, my_remote_file)
-    }
-    # shiny progress bar
-    setProgress(2, detail = "downloading/reading in file")
-    # loop though each item in file_path
-    for (x in seq_along(file_path)) {
-      # creating nickname
-      legend_nickname[x] <- last(str_split(file_name[x],"/",simplify = T)) %>% 
+    legend_nickname <- last(str_split(file_name,"/",simplify = T)) %>% 
         str_remove(., ".txt") %>% str_replace("\\.","_")
       # checks if file with same nickname has already been loaded
-      if (legend_nickname[x] %in% names(list_data$gene_file)) {
+      if (legend_nickname %in% names(list_data$gene_file)) {
         showModal(modalDialog(
           title = "Information message",
-          paste(file_name[x], "has already been loaded"),
+          paste(file_name, "has already been loaded"),
           size = "s",
           easyClose = TRUE
         ))
@@ -534,31 +255,31 @@ LoadGeneFile <-
       # gets number of columns in file, used to guess how to deal with file
       #  and checks if file exits
       num_col <-
-        try(count_fields(file_path[x],
+        try(count_fields(file_path,
                          n_max = 1,
                          skip = 1,
                          tokenizer = tokenizer_tsv()),silent = T)
       if ("try-error" %in% class(num_col) & num_col > 0) {
         showModal(modalDialog(
           title = "Information message",
-          paste(file_name[x], "cant find file to load"),
+          paste(file_name, "cant find file to load"),
           size = "s",
           easyClose = TRUE
         ))
         next
       }
-      if(num_col == 1 | str_detect(file_path[x], ".table")){
+      if(num_col == 1){
         #normal gene list
         col_names <- c("gene")
-      } else if(str_detect(file_path[x], ".bed")){
+      } else if(str_detect(file_path, ".bed")){
         col_names <- 1:num_col
         col_names[4] <- "gene"
       } else {
-        col_names <- TRUE
+        col_names <- FALSE
       }
       # reads in file
       tablefile <-
-        suppressMessages(read_tsv(file_path[x],
+        suppressMessages(read_tsv(file_path,
                                   comment = "#",
                                   col_names = col_names)) 
       if(!"gene" %in% names(tablefile)){
@@ -566,11 +287,9 @@ LoadGeneFile <-
       }
       tablefile <- tablefile %>% 
         distinct(gene,.keep_all = T) %>% mutate(gene=as.character(gene))
-      # shiny progress bar
-      setProgress(3, detail = "Checking form problems")
       # checks gene list is a subset of what has been loaded
       gene_names <- tablefile %>% select(gene) %>% 
-        semi_join(., list_data$gene_file[["Complete"]]$full, by = "gene") %>% distinct(gene)
+        semi_join(., list_data$gene_file$Complete$full, by = "gene") %>% distinct(gene)
       # test data is compatible with already loaded data
       if (n_distinct(gene_names$gene, na.rm = T) == 0) {
         showModal(
@@ -583,9 +302,7 @@ LoadGeneFile <-
           )
         )
         # tries to grep lists and find matches
-        # shiny progress bar
-        setProgress(4, detail = "looking for gene name matches")
-        gene_names <- MatchGenes(list_data$gene_file[["Complete"]]$full, tablefile %>% select(gene))
+        gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene))
         if (n_distinct(gene_names$gene, na.rm = T) == 0) {
           showModal(
             modalDialog(
@@ -608,7 +325,7 @@ LoadGeneFile <-
         }
       }
       # adds full n count to nickname
-      my_name <- legend_nickname[x]
+      my_name <- legend_nickname
       # preps meta data
       gene_info <- list_data$gene_info %>% 
         dplyr::filter(gene_list == "Complete") %>% 
@@ -616,22 +333,18 @@ LoadGeneFile <-
                       count = paste("n =", n_distinct(gene_names$gene, na.rm = T)),
                       sub = " ", onoff = "0",
                       plot_set = " ")
-      # shiny progress bar
-      setProgress(5, detail = "building data and adding list")
       # saves data in list of lists
       list_data$gene_file[[my_name]]$full <- distinct(gene_names)
       list_data$gene_file[[my_name]]$info <- tibble(loaded_info =
                                                       paste("Loaded gene list from file",
-                                                            legend_nickname[x],
+                                                            legend_nickname,
                                                             Sys.Date()),
-                                                    save_name = gsub(" ", "_", str_squish(paste(legend_nickname[x],
+                                                    save_name = gsub(" ", "_", str_squish(paste(legend_nickname,
                                                                       Sys.Date(), sep ="_"))),
                                                     col_info = "loaded file"
                                                     )
       list_data$gene_info <- bind_rows(list_data$gene_info, gene_info)
       
-      setProgress(6, detail = "done with this file")
-    }
     return(list_data)
   }
 
@@ -837,7 +550,8 @@ GGplotLineDot <-
            plot_ttest,
            use_log2,
            use_y_label,
-           plot_occupancy) {
+           plot_occupancy,
+           auc = FALSE) {
     
     plot_options <- list_long_data_frame %>% 
       distinct(set,plot_set) %>% right_join(plot_options,.,by="set") %>% 
@@ -845,7 +559,6 @@ GGplotLineDot <-
       dplyr::mutate(set = plot_set)
     list_long_data_frame <- list_long_data_frame %>% 
       dplyr::mutate(set = plot_set)
-    list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
     
     legend_space <- lengths(strsplit(sort(plot_options$set), "\n")) / 1.1
     if (use_log2) {
@@ -904,7 +617,20 @@ GGplotLineDot <-
             panel.grid.major = element_blank()) +
       theme(axis.title.y = element_text(size =  line_list$mysize[4] + 4, margin = margin(2, 10, 2, 2))) +
       theme(axis.text.y = element_text(size = line_list$mysize[4],
-                                       face = 'bold')) 
+                                       face = 'bold'))
+    if(auc){
+      plot_options <- list_long_data_frame %>% 
+        group_by(set) %>% 
+        summarise(AUC=paste("AUC =",round(AUC(value),2))) %>% 
+        inner_join(.,plot_options,by="set") 
+      gp <- gp + 
+        annotate("text",
+                 x=floor(seq(xBinRange[1],xBinRange[2],length=nrow(plot_options))),
+                 y= Inf,vjust = 1.5, hjust = "inward",
+                 color = plot_options$mycol,
+                 label = plot_options$AUC)
+      
+    }
     if(!is_empty(LIST_DATA$ttest)){
       use_col_tt <- plot_ttest$options_main_tt$mycol
       use_line_tt <- plot_ttest$options_main_tt$myline
@@ -1882,8 +1608,9 @@ MakeNormFile <-
     # set up tool info and progress bar
     myname <- "bin_by_bin"
     # get data files
-    nd <- list_data$table_file %>% dplyr::filter(set == nom | set== dnom) %>% 
-      replace_na(., list(score = 0))
+    if(dnom != "-1"){
+      nd <- list_data$table_file %>% dplyr::filter(set == nom | set== dnom) %>% 
+        replace_na(., list(score = 0))
     if(nchar(nickname)<1){
       nickname <- paste(nom, addfiles, dnom,sep = " ")
     }
@@ -1958,6 +1685,12 @@ MakeNormFile <-
       )
       return(NULL)
     }
+    } else {
+      print("not working yet")
+      retrun(NULL)
+    # nd <- list_data$table_file %>% dplyr::filter(set == nom) %>% 
+    #   replace_na(., list(score = 0))
+    } 
     # adds meta data 
     list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
     list_data$gene_info <- dplyr::filter(list_data$gene_info, set != legend_nickname)
@@ -2614,3 +2347,10 @@ GGplotC <-
     suppressMessages(print(gp))
     return(suppressMessages(gp))
   }
+
+# AUC using the trapezoidal rule
+AUC <- function(y){
+  n <- length(y)
+  0.5*(y[1]+y[n]+2*sum(y[-c(1,n)]))
+}
+

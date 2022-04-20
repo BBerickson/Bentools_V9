@@ -33,9 +33,7 @@ options(shiny.maxRequestSize = 500 * 1024 ^ 2)
 LIST_DATA <<- list(
   table_file = NULL,
   # gene bin score set
-  gene_file = list(Compleat = list(full = tibble(gene = "")
-  )
-  ),
+  gene_file = NULL,
   # holds $Complete genes from files and $gene file(s)
   gene_info = NULL,
   # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_set")]
@@ -102,127 +100,135 @@ server <- function(input, output, session) {
     print("load file")
     shinyjs::disable("startoff")
     shinyjs::disable("startoff2")
+    shinyjs::show("hidespiners")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
                  {
-                   LD <- LoadTableFile(input$filetable$datapath,
-                                       input$filetable$name,
-                                       LIST_DATA)
-                 })
-    # meta_data <- PrepMetaFile(input$filetable$datapath,
-    #                           input$filetable$name)
-    # if (!is_empty(meta_data)) {
-      # for (i in seq_along(meta_data$filepath)) {
-      #   if (meta_data$nick[i] %in% names(LIST_DATA$table_file)) {
-      #     showModal(modalDialog(
-      #       title = "Information message",
-      #       paste(meta_data$nick[i], "has already been loaded"),
-      #       size = "s",
-      #       easyClose = TRUE
-      #     ))
-      #     next()
-      #   }
-      #   bin_colname <- tableTestbin(meta_data[i, ])
-    # 
-    #     if (LIST_DATA$x_plot_range[2] == 0) {
-    #       LIST_DATA$x_plot_range <<- c(1, bin_colname$num_bins)
-    #       LIST_DATA$STATE[3] <<- meta_data$type[i]
-    #     } else if (bin_colname$num_bins != LIST_DATA$x_plot_range[2]) {
-    #       showModal(
-    #         modalDialog(
-    #           title = "Information message",
-    #           "Can't load file, different number of bins",
-    #           size = "s",
-    #           easyClose = TRUE
-    #         )
-    #       )
-    #       next()
-    #     }
-        # LD2 <- LoadTableFile2(meta_data[i, ], bin_colname)
-    # if (!is_empty(LIST_DATA$gene_file)){
-        # gene_names <-
-        #   semi_join(LD2, LIST_DATA$gene_file[[1]]$full, by = "gene") %>% distinct(gene)
-        #     if (n_distinct(gene_names$gene) == 0) {
-        #       showModal(
-        #         modalDialog(
-        #           title = "Information message",
-        #           " No genes in common ",
-        #           size = "s",
-        #           easyClose = TRUE
-        #         )
-        #       )
-        #       next()
-        #     } 
-    #       # make complete gene list
-    #       LIST_DATA$gene_file[[1]]$full <<-
-    #         full_join(LD2, LIST_DATA$gene_file[[1]]$full, by = "gene") %>% 
-    #         distinct(gene)
-    #       LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
-    #         dplyr::mutate(count = if_else(gene_list == "Complete", 
-    #                                       paste("n =", n_distinct(LIST_DATA$gene_file[[1]]$full, na.rm = T)), count))
-    #     } else {
-    #       LIST_DATA$gene_file[[1]]$full <<- distinct(LD2, gene)
-    #     }
-    #     if (LIST_DATA$STATE[2] == 0 &
-    #         n_distinct(LIST_DATA$table_file$set) < 2) {
-    #       oo <- meta_data$nick[i]
-    #     } else {
-    #       oo <- "0"
-    #     }
-    #     LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD2))
-    #     LIST_DATA$gene_file[["Complete"]]$info <- tibble(loaded_info = paste("all loaded genes",
-    #                                                                          Sys.Date()))
-    #     LIST_DATA$gene_info <<- distinct(bind_rows(LIST_DATA$gene_info,tibble(
-    #       gene_list = "Complete",
-    #       count = paste("n =", n_distinct(LIST_DATA$gene_file[[1]]$full, na.rm = T)),
-    #       set = meta_data$nick[i],
-    #       mycol = meta_data$color[i],
-    #       onoff = oo,
-    #       sub = " ",
-    #       plot_set = " ",
-    #       group = meta_data$nick[i]
-    #     )))
-    #     ### check if grep of gene has occurred 
-    #     for(gg in seq_along(LIST_DATA$gene_file)[-1]){
-    #       if("org_gene" %in% LIST_DATA$gene_file[[gg]]$full){
-    #         new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full, 
-    #                                      LIST_DATA$gene_file[[gg]]$full %>% select(org_gene) %>% 
-    #                                        dplyr::rename(gene = org_gene))
-    #         if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
-    #           # fix name, fix info
-    #           listname <- names(LIST_DATA$gene_file)[gg]
-    #           LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
-    #             dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)), 
-    #                                         count))
-    #         }
-    #       }
-    #       # add missing data
-    #       LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
-    #         dplyr::filter(gene_list == names(LIST_DATA$gene_file)[gg]) %>%
-    #         dplyr::mutate(set = meta_data$nick[i],
-    #                       count = count[i],
-    #                       mycol = meta_data$color[i],
-    #                       onoff = "0",
-    #                       sub = " ",
-    #                       plot_set = " ") %>%
-    #         bind_rows(LIST_DATA$gene_info, .)
-    #     }
-      # }
-    # }
-
-    if (!is_empty(LD$table_file)) {
-      LIST_DATA <<- LD
+                
+    meta_data <- PrepMetaFile(input$filetable$datapath,
+                              input$filetable$name)
+    if (!is_empty(meta_data)) {
+    for (i in seq_along(meta_data$filepath)) {
+      setProgress(i/length(meta_data$filepath), 
+                  detail = paste("Gathering info on",meta_data$nick[i]))
+      if (meta_data$nick[i] %in% names(LIST_DATA$table_file)) {
+        showModal(modalDialog(
+          title = "Information message",
+          paste(meta_data$nick[i], "has already been loaded"),
+          size = "s",
+          easyClose = TRUE
+        ))
+        next()
+      }
+      bin_colname <- tableTestbin(meta_data[i, ])
+      if(is_empty(bin_colname)){
+        meta_data <- meta_data %>% filter(filepath != meta_data$filepath[i])
+        next()
+      }
+      meta_data$color[i] <- RgbToHex(meta_data$color[i])
+      setProgress(i/length(meta_data$filepath), 
+                  detail = paste("Loading file",meta_data$nick[i]))
+      LD <- LoadTableFile(meta_data[i, ], bin_colname)
+      setProgress(i/length(meta_data$filepath), 
+                  detail = paste("Testing compatiblity",meta_data$nick[i]))
+        if (LIST_DATA$x_plot_range[2] == 0) {
+          LIST_DATA$x_plot_range <<- range(LD$bin)
+          LIST_DATA$STATE[3] <<- meta_data$type[i]
+        } else if (max(LD$bin) != LIST_DATA$x_plot_range[2]) {
+          showModal(
+            modalDialog(
+              title = "Information message",
+              "Can't load file, different number of bins",
+              size = "s",
+              easyClose = TRUE
+            )
+          )
+          next()
+        }
+    
+    if (!is_empty(LIST_DATA$gene_file)){
+    gene_names <-
+      semi_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>% distinct(gene)
+        if (n_distinct(gene_names$gene) == 0) {
+          showModal(
+            modalDialog(
+              title = "Information message",
+              " No genes in common ",
+              size = "s",
+              easyClose = TRUE
+            )
+          )
+          next()
+        }
+    setProgress(i/length(meta_data$filepath), 
+                detail = paste("Finishing up",meta_data$nick[i]))
+          # make complete gene list
+          LIST_DATA$gene_file$Complete$full <<-
+            full_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>%
+            distinct(gene)
+          LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+            dplyr::mutate(count = if_else(gene_list == "Complete",
+                                          paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full, na.rm = T)), count))
+        } else {
+          LIST_DATA$gene_file$Complete$full <<- distinct(LD, gene)
+        }
+        if (LIST_DATA$STATE[2] == 0 &
+            n_distinct(LIST_DATA$table_file$set) < 2) {
+          oo <- meta_data$nick[i]
+        } else {
+          oo <- "0"
+        }
+        LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD))
+        LIST_DATA$gene_file$Complete$info <<- tibble(loaded_info = paste("all loaded genes",
+                                                                             Sys.Date()))
+        LIST_DATA$gene_info <<- distinct(bind_rows(LIST_DATA$gene_info,tibble(
+          gene_list = "Complete",
+          count = paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full, na.rm = T)),
+          set = meta_data$nick[i],
+          mycol = meta_data$color[i],
+          onoff = oo,
+          sub = " ",
+          plot_set = " ",
+          group = meta_data$nick[i]
+        )))
+        ### check if grep of gene has occurred
+        for(gg in seq_along(LIST_DATA$gene_file)[-1]){
+          if("org_gene" %in% LIST_DATA$gene_file[[gg]]$full){
+            setProgress(i/length(meta_data$filepath), 
+                        detail = paste("re-matching gene list",meta_data$nick[i]))
+            new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full,
+                                         LIST_DATA$gene_file[[gg]]$full %>% select(org_gene) %>%
+                                           dplyr::rename(gene = org_gene))
+            if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
+              # fix name, fix info
+              listname <- names(LIST_DATA$gene_file)[gg]
+              LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+                dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)),
+                                            count))
+            }
+          }
+          setProgress(i/length(meta_data$filepath), 
+                      detail = paste("Updating gene lists",meta_data$nick[i]))
+          # add missing data
+          LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+            dplyr::filter(gene_list == names(LIST_DATA$gene_file)[gg]) %>%
+            dplyr::mutate(set = meta_data$nick[i],
+                          count = count[i],
+                          mycol = meta_data$color[i],
+                          onoff = "0",
+                          sub = " ",
+                          plot_set = " ") %>%
+            bind_rows(LIST_DATA$gene_info, .)
+        }
+    }
     } else {
-      showModal(modalDialog(
-        title = "Information message",
-        paste("No files loaded"),
-        size = "s",
-        easyClose = TRUE
-      ))
+      return()
+      }
+  })
+    if(is_empty(meta_data$filepath)){
       return()
     }
-    
     # first time starting
     if (LIST_DATA$STATE[1] == 0) {
       shinyjs::show("startoff")
@@ -245,7 +251,6 @@ server <- function(input, output, session) {
       } else if (LIST_DATA$STATE[3] == '5') {
         reactive_values$setsliders <- c(1,num_bins,1,
                                         num_bins/2,0,0)
-        LIST_DATA$STATE[3] <<- kLinesandlabels[5]
       } else if (LIST_DATA$STATE[3] == '4') {
         reactive_values$setsliders <- c(1,num_bins,1,num_bins,0,0)
         LIST_DATA$STATE[3] <<- kLinesandlabels[6]
@@ -263,7 +268,7 @@ server <- function(input, output, session) {
         floor(num_bins / 1.77))
         LIST_DATA$STATE[3] <<- kLinesandlabels[8]
       }
-    }
+    } 
     # enables tabs after loading file
     shinyjs::enable("startoff")
     if(length(names(LIST_DATA$gene_file))>1){
@@ -314,7 +319,7 @@ server <- function(input, output, session) {
     )
     output$loadedfilestable <- DT::renderDataTable(dt)
     gts2 <-
-      LIST_DATA$gene_file[["Complete"]]$full %>% summarise(total_number_distinct_genes = n_distinct(gene, na.rm = T))
+      LIST_DATA$gene_file$Complete$full %>% summarise(total_number_distinct_genes = n_distinct(gene, na.rm = T))
     dt2 <- datatable(
       gts2,
       colnames = names(gts2),
@@ -552,7 +557,8 @@ server <- function(input, output, session) {
                 input$checkboxsmooth,
                 input$checkboxlog2,
                 input$sliderplotBinRange,
-                input$mygroup
+                input$mygroup,
+                input$checkboxauc
     )
     Y_Axis_numbers <-
       c(input$numericYRangeLow,input$numericYRangeHigh)
@@ -614,7 +620,8 @@ server <- function(input, output, session) {
         input$checkboxsmooth, Plot_Options_ttest,
         input$checkboxlog2,
         Y_Axis_Label,
-        input$sliderplotOccupancy
+        input$sliderplotOccupancy,
+        input$checkboxauc
       )
     LIST_DATA$STATE[2] <<- 1
   })
@@ -1194,12 +1201,12 @@ server <- function(input, output, session) {
       updatePickerInput(
         session,
         "pickerdenominator",
-        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choices = c(distinct(LIST_DATA$gene_info, set)$set,"-1"),
         choicesOpt = list(style = paste("color", dplyr::select(
           dplyr::filter(LIST_DATA$gene_info,
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
-          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"-1"))
           )
       )
       updatePickerInput(
@@ -3405,7 +3412,8 @@ ui <- dashboardPage(
                          transform: translate(-50%, -50%);
                          color: purple;
                          font-size: 20px;
-                         font-style: italic;}")
+                         font-style: italic;}"
+                 )
     ),
     # disables tabs on start
     sidebarMenu(
@@ -3446,8 +3454,8 @@ ui <- dashboardPage(
                     ),
                     helpText("load windowed bedGraph file(s)"),
                     br(),
-                    DT::dataTableOutput('loadedfilestable'),
-                    DT::dataTableOutput('loadedfilestotaltable')
+                    hidden(div(id = "hidespiners", shinycssloaders::withSpinner(DT::dataTableOutput('loadedfilestable'), type = 4),
+                    DT::dataTableOutput('loadedfilestotaltable'), type = 4))
                   )
                 ),
                 tabPanel("SAVE",
@@ -3479,7 +3487,8 @@ ui <- dashboardPage(
                     "filegene1",
                     width = "75%",
                     label = "",
-                    accept = c('.txt', 'bed')
+                    accept = c('.txt', 'bed'),
+                    multiple = FALSE
                   ),
                   helpText("load gene list"),
                   br(),
@@ -3537,7 +3546,8 @@ ui <- dashboardPage(
                 awesomeCheckbox("checkboxsmooth", label = "smooth")),
               column(
                 2,
-                awesomeCheckbox("checkboxlog2", label = "log2")),
+                awesomeCheckbox("checkboxlog2", label = "log2"),
+              awesomeCheckbox("checkboxauc", label = "AUC")),
               column(
                 3,
                 numericInput("numericYRangeLow", label = "Plot Y min:", value = 0)
