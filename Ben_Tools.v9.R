@@ -2096,8 +2096,7 @@ server <- function(input, output, session) {
                      input$slidersortbinrange[1],
                      input$slidersortbinrange[2],
                      input$slidersortpercent,
-                     input$selectsorttop,
-                     input$checkboxfilterall
+                     input$selectsorttop
                    )
                  })
     if (!is_empty(LD$table_file)) {
@@ -2217,8 +2216,7 @@ server <- function(input, output, session) {
                          input$sortSamples,
                          input$slidersortbinrange,
                          c(input$numericsortmin,input$numericsortmax),
-                         input$selectsortper,
-                         input$checkboxfilterall)
+                         input$selectsortper)
                  })
     
     if(!is_empty(sortmin$sortplot)){
@@ -2339,8 +2337,7 @@ server <- function(input, output, session) {
                          input$sortSamples,
                          input$slidersortbinrange,
                          input$slidersortbinrangefilter,
-                         input$selectsortpeak,
-                         input$checkboxfilterall)
+                         input$selectsortpeak)
                  })
     
     if(!is.null(sortmin)){
@@ -3939,11 +3936,7 @@ ui <- dashboardPage(
                                multiple = TRUE,
                                options = list(
                                  `actions-box` = FALSE,
-                                 `selected-text-format` = "count > 0")),
-                   div(
-                     style = "margin-bottom: -20px;",
-                     awesomeCheckbox("checkboxfilterall","Filter on all if any", value = TRUE)
-                   )
+                                 `selected-text-format` = "count > 0"))
             )
           ),
           box(

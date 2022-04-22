@@ -1203,8 +1203,7 @@ FilterTop <-
            start_bin,
            end_bin,
            mynum,
-           topbottom,
-           my_filter_all) {
+           topbottom) {
     if (is.null(file_names)) {
       showModal(modalDialog(
         title = "Information message",
@@ -1249,11 +1248,7 @@ FilterTop <-
         dplyr::select(gene,!!j) %>%
         slice(num2[1]:num2[2])
       if (lc > 0) {
-        if(my_filter_all){
-          outlist <<- inner_join(outlist, outlist2, by = 'gene')
-        } else{
-          outlist <<- full_join(outlist, outlist2, by = 'gene')
-        }
+        outlist <<- inner_join(outlist, outlist2, by = 'gene')
       } else {
         outlist <<- outlist2
       }
@@ -1317,8 +1312,7 @@ FilterPer <-
            file_names,
            start_end_bin,
            my_per,
-           my_type,
-           anyall) {
+           my_type) {
     if (is.null(file_names)) {
       showModal(modalDialog(
         title = "Information message",
@@ -1366,37 +1360,22 @@ FilterPer <-
       }
     }
     if(my_type == "min%"){
-      if(anyall){
-        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene) %>% dplyr::filter(all(score >= my_p_1)) %>% 
+      out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene) %>% dplyr::filter(all(score >= my_p_1)) %>%
+        filter(n_distinct(set)==length(file_names)) %>%
           ungroup() %>% distinct(gene)
-      } else {
-        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene,set) %>% dplyr::filter(all(score >= my_p_1)) %>% 
-          ungroup() %>% distinct(gene)
-      }
       topbottom2 <- paste(str_remove(my_type,"%"), paste0(my_per[1], "%"))
     } else if(my_type == "max%"){
-      if(anyall){
-        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene) %>% dplyr::filter(all(score <= my_p_2)) %>% 
+      out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+          group_by(gene) %>% dplyr::filter(all(score <= my_p_2)) %>%
+        filter(n_distinct(set)==length(file_names)) %>%
           ungroup() %>% distinct(gene)
-      } else {
-        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene,set) %>% dplyr::filter(all(score <= my_p_2)) %>% 
-          ungroup() %>% distinct(gene)
-      }
       topbottom2 <- paste(str_remove(my_type,"%"), paste0(my_per[2], "%"))
     } else {
-      if(anyall){
-        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
+      out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
           group_by(gene) %>% dplyr::filter(all(score >= my_p_1 & score <= my_p_2)) %>% 
+        filter(n_distinct(set)==length(file_names)) %>%
           ungroup() %>% distinct(gene)
-      } else {
-        out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene,set) %>% dplyr::filter(all(score >= my_p_1 & score <= my_p_2)) %>% 
-          ungroup() %>% distinct(gene)
-      }
       topbottom2 <- paste(paste(str_remove(my_type,"%"), paste0(my_per[1], "%")),paste0(my_per[2], "%"),collapse = " and ")
     }
     if (length(out_list$gene) == 0) {
@@ -1492,8 +1471,7 @@ FilterPeak <-
            file_names,
            start_end_bin_peak,
            start_end_bin_filter,
-           my_type,
-           anyall) {
+           my_type) {
     if (is.null(file_names)) {
       showModal(modalDialog(
         title = "Information message",
@@ -1507,8 +1485,8 @@ FilterPeak <-
     out_list <- list_data$table_file %>% 
       dplyr::filter(set %in% file_names) %>% 
       semi_join(.,gene_list,by="gene") %>% 
-      mutate(score=abs(score))
-    
+      mutate(score=abs(score)) 
+      
     my_filter <- out_list %>% 
       dplyr::filter(bin %in% start_end_bin_peak[1]:start_end_bin_peak[2]) %>% 
       group_by(set,gene) %>% summarise(score2=max(score,rm.na=T),.groups = "drop")
@@ -1517,29 +1495,17 @@ FilterPeak <-
       full_join(.,my_filter,by=c("gene","set")) 
     
     if(my_type == "peak"){
-      if(anyall){
-        out_gene <- out_list %>% 
+      out_gene <- out_list %>% 
           group_by(gene) %>% 
+          filter(n_distinct(set)==length(file_names)) %>% 
           dplyr::filter(all(score<=score2)) %>% 
           ungroup() %>% distinct(gene)
-      } else {
-        out_gene <- out_list %>%
-          group_by(gene,set) %>% 
-          dplyr::filter(all(score<=score2)) %>% 
-          ungroup() %>% distinct(gene)
-      }
     } else {
-      if(anyall){
-        out_gene <- out_list %>% 
+      out_gene <- out_list %>% 
           group_by(gene) %>% 
-          dplyr::filter(!all(score<=score2)) %>% 
+          dplyr::filter(!all(score<=score2)) %>%
+          filter(n_distinct(set)==length(file_names)) %>%
           ungroup() %>% distinct(gene)
-      } else {
-        out_gene <- out_list %>%
-          group_by(gene,set) %>% 
-          dplyr::filter(!all(score<=score2)) %>% 
-          ungroup() %>% distinct(gene)
-      }
     }
     if (length(out_gene$gene) == 0) {
       return(NULL)
