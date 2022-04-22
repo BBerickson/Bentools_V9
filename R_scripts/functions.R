@@ -250,7 +250,7 @@ LoadGeneFile <-
           size = "s",
           easyClose = TRUE
         ))
-        next()
+        return()
       }
       # gets number of columns in file, used to guess how to deal with file
       #  and checks if file exits
@@ -266,7 +266,7 @@ LoadGeneFile <-
           size = "s",
           easyClose = TRUE
         ))
-        next
+        return()
       }
       if(num_col == 1){
         #normal gene list
@@ -409,7 +409,6 @@ ApplyMath <-
            normbin,
            group="none") {
     print("applymath fun")
-    setProgress(1, detail = paste("Gathering info"))
     # normalize per gene relative frequency
     if (relative_frequency == "rel gene frequency") {
       list_data <- list_data %>% group_by(plot_set, gene) %>%
@@ -1218,7 +1217,6 @@ FilterTop <-
     lc <- 0
     outlist <- NULL
     lapply(file_names, function(j) {
-      setProgress(lc + 1, detail = paste("sorting", j))
       apply_bins <-
         semi_join(dplyr::filter(list_data$table_file, set == j), 
                   list_data$gene_file[[list_name]]$full, by = 'gene')  
@@ -1264,14 +1262,14 @@ FilterTop <-
     if (length(outlist$gene) == 0) {
       return(NULL)
     }
-    old_name <- grep("^Filter", names(list_data$gene_file), value = T)
-    if (length(old_name) > 3) {
-      # remove old sort gene list keepint 4
-      list_data$gene_file[[first(old_name)]] <- NULL
+    old_names <- grep("^Filter", names(list_data$gene_file), value = T)
+    if (length(old_names) > 3) {
+      old_names <- old_names[!old_names %in% list_name]
+      # remove old sort gene list keeping max 4
+      list_data$gene_file[[first(old_names)]] <- NULL
       list_data$gene_info <- dplyr::filter(list_data$gene_info,
-                                           gene_list != first(old_name))
+                                           gene_list != first(old_names))
     }
-    setProgress(lc + 2, detail = "building list")
     topbottom2 <- paste(str_remove(topbottom,"%"), paste0(mynum, "%"))
     nick_name <-
       strtrim(gsub("(.{30})",
@@ -1406,6 +1404,7 @@ FilterPer <-
     }
     old_names <- grep("^Filter", names(list_data$gene_file), value = T)
     if (length(old_names) > 3) {
+      old_names <- old_names[!old_names %in% list_name]
       # remove old sort gene list keeping 4
       list_data$gene_file[[first(old_names)]] <- NULL
       list_data$gene_info <- dplyr::filter(list_data$gene_info,
@@ -1507,7 +1506,8 @@ FilterPeak <-
     gene_list <- list_data$gene_file[[list_name]]$full
     out_list <- list_data$table_file %>% 
       dplyr::filter(set %in% file_names) %>% 
-      semi_join(.,gene_list,by="gene") 
+      semi_join(.,gene_list,by="gene") %>% 
+      mutate(score=abs(score))
     
     my_filter <- out_list %>% 
       dplyr::filter(bin %in% start_end_bin_peak[1]:start_end_bin_peak[2]) %>% 
@@ -1544,8 +1544,9 @@ FilterPeak <-
     if (length(out_gene$gene) == 0) {
       return(NULL)
     }
-    old_names <- grep("^Filter", names(LIST_DATA$gene_file), value = T)
+    old_names <- grep("^Filter", names(list_data$gene_file), value = T)
     if (length(old_names) > 3) {
+      old_names <- old_names[!old_names %in% list_name]
       # remove old sort gene list keeping 4
       list_data$gene_file[[first(old_names)]] <- NULL
       list_data$gene_info <- dplyr::filter(list_data$gene_info,
@@ -1716,7 +1717,6 @@ IntersectGeneLists <-
     if (is.null(list_name)) {
       return(NULL)
     }
-    setProgress(1, detail = paste("building list"))
     outlist <- NULL
     # grab selected gene list(s)
     lapply(list_name, function(j) {
@@ -1731,7 +1731,6 @@ IntersectGeneLists <-
     list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Gene_List_"))
     
     # record for info
-    setProgress(2, detail = paste("building Total list"))
     if (n_distinct(outlist$gene) > 0) {
       nick_name1 <-
         paste("Gene_List_Total\nn =", n_distinct(outlist$gene, na.rm = T))
@@ -1754,7 +1753,6 @@ IntersectGeneLists <-
                                            onoff = "0",
                                            plot_set = " ")))
     }
-    setProgress(3, detail = paste("building innerjoin list"))
     innerjoined <- outlist %>% group_by(gene) %>% 
       filter(n_distinct(set)==length(list_name)) %>% 
       distinct(gene)
@@ -1779,7 +1777,6 @@ IntersectGeneLists <-
                                            sub =  paste("Gene_List_innerjoin"), 
                                            onoff = "0",
                                            plot_set = " ")))
-      setProgress(4, detail = paste("building antijoin list"))
       antijoin <- anti_join(distinct(outlist,gene), innerjoined, by = "gene")
       if (n_distinct(antijoin$gene) == 0) {
         antijoin <- distinct(outlist)
@@ -1825,11 +1822,9 @@ FindClusters <- function(list_data,
     ))
     return(NULL)
   }
-  setProgress(1, detail = paste("gathering data"))
   df <-
       semi_join(dplyr::filter(list_data$table_file, set == clusterfile), 
                 list_data$gene_file[[list_name]]$full, by = 'gene') 
-    setProgress(2, detail = "hierarchical clustering using ward method")
     list_data$clust <- list()
     list_data$clust$cm <-
       hclust.vector(as.data.frame(spread(df, bin, score))[, c((start_bin:end_bin) + 2)], method = "ward")
@@ -1863,7 +1858,6 @@ ClusterNumList <- function(list_data,
     ))
     return(NULL)
   }
-  setProgress(3, detail = "spliting into clusters")
   list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Cluster_")]
   list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Cluster_"))
   gene_list <-
@@ -1906,7 +1900,6 @@ ClusterNumList <- function(list_data,
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(outlist$gene, na.rm = T)),
                                          plot_set = " ")))
-    setProgress(4, detail = paste("finishing cluster", nn))
   }
   list_data
 }
@@ -2220,7 +2213,6 @@ CumulativeDistribution <-
     list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^CDF"))
     outlist <- NULL
     for (list_name in names(onoffs)) {
-      setProgress(1, detail = paste("dividing one by the other"))
       # Complete within gene list and sum regions
       tf <- dplyr::filter(list_data$table_file, set %in% onoffs[[list_name]])
       gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
@@ -2254,8 +2246,6 @@ CumulativeDistribution <-
     
     # unlist and binds all together
     outlist <- bind_rows(outlist) %>% distinct() %>% arrange(bin)
-    
-    setProgress(2, detail = paste("building list"))
     # removes top and bottom %
     if (sum(start1_bin, end1_bin) > sum(start2_bin, end2_bin)) {
       use_header <- "Log2 EI Cumulative plot"
@@ -2305,7 +2295,6 @@ CumulativeDistribution <-
                                                            summarise(n=n_distinct(bin))),
                                            plot_set = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
                                            myheader = use_header)))
-      setProgress(5, detail = "finishing up")
     }
     list_data
   }

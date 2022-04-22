@@ -1,17 +1,15 @@
 # brake up functions into smaller functions so I can more easy add set progress recycle common fun for more consistency
-# LoadTableFile - test - read in file/URL - load gene list before/after - speed - withspinner on DTs
-#  add withProgress updates, reset loading file between each file as well, add examples of files that can be loaded,
-# LoadGeneFile - count_fields and file type test with compatibility - read in file - intersect gene test -
-#     add to LIST_DATA
-# remove setProgress from functions - FindClusters, ClusterNumList, CumulativeDistribution, 
+# 
+# 
+# 
 ##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
-# don't have the plot button show on first plot
-# GGplotLineDot tidy up code if posible 
+# 
+# 
 # clean up CompareRatios and consolidate ... function for gene_file$info?
 # move QC to functions
-# load old style table files (mod matrix?)
+# 
 #     Ratio :smarter labels for single file verses 2 files, CDF smarter PI/EI in info, and better info other tools
-# valuebox for peak filter (mabey the others) has total gene count not distinct, have all filters update the gene list picker, don't remove list being filtered on
+# 
 # for preview plots have show with spinner before calculations
 # CDF with PI proper num denom selection range, add controls for the number of observations on the dot plot
 # fix save file help text, CDF save gather so sets are column names?, fix cluster select sample label  

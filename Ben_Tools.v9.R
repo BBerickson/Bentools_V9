@@ -55,7 +55,39 @@ LIST_DATA <<- list(
 server <- function(input, output, session) {
   # remove on non-local deployment
   session$onSessionEnded(stopApp)
-  
+  tt <- tibble(gene="chr1:10-100-;NM_Name|YFG",bin=1:3,score=c(.1,2,2.2))
+  dt2 <- datatable(
+    tt,
+    caption = "example .table file",
+    colnames = c("","",""),
+    rownames = FALSE,
+    filter = "none",
+    class = 'cell-border stripe compact',
+    options = list(
+      scrollX = TRUE,
+      scrollY = TRUE,
+      autoWidth = T,
+      width = 30,
+      sDom  = '<"top">lrt<"bottom">ip',
+      info = FALSE,
+      paging = FALSE,
+      lengthChange = FALSE,
+      ordering = FALSE,
+      columnDefs = list(
+        list(className = 'dt-center ', targets = "_all"),
+        list(
+          targets = 0,
+          render = JS(
+            "function(data, type, row, meta) {",
+            "return type === 'display' && data.length > 25 ?",
+            "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
+            "}"
+          )
+        )
+      )
+    )
+  )
+  output$loadedfilestotaltable <- DT::renderDataTable(dt2)
   # reactive values ----
   reactive_values <- reactiveValues(
     Apply_Math = NULL,
@@ -101,6 +133,7 @@ server <- function(input, output, session) {
     shinyjs::disable("startoff")
     shinyjs::disable("startoff2")
     shinyjs::show("hidespiners")
+    output$loadedfilestotaltable <- DT::renderDataTable(datatable())
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -127,6 +160,7 @@ server <- function(input, output, session) {
         next()
       }
       meta_data$color[i] <- RgbToHex(meta_data$color[i])
+      shinyjs::reset("filetable")
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Loading file",meta_data$nick[i]))
       LD <- LoadTableFile(meta_data[i, ], bin_colname)
@@ -1130,6 +1164,8 @@ server <- function(input, output, session) {
         c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
       if(LIST_DATA$STATE[1] == 0){
         LIST_DATA$STATE[1] <<- 1
+        LIST_DATA$STATE[2] <<- -10
+        shinyjs::hide("actionmyplotshow")
         updateSliderInput(session,"sliderplotBinRange",
                           min = reactive_values$setsliders[1],
                           max = reactive_values$setsliders[2],
@@ -1506,7 +1542,7 @@ server <- function(input, output, session) {
     }
     # QC tab ----
     if(input$leftSideTabs == "qcOptions"){
-      shinyjs::hide("plotQC")
+      shinyjs::hide("hidespinersQC")
       updatePickerInput(session, "QCsample",
                         choices = c(distinct(LIST_DATA$gene_info, set)$set),
                         selected = c(distinct(LIST_DATA$gene_info, set)$set)[1],
@@ -2052,6 +2088,7 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
+                   reactive_values$Plot_controler_sort_min <- ggplot()
                    LD <- FilterTop(
                      LIST_DATA,
                      input$sortGeneList,
@@ -2127,15 +2164,15 @@ server <- function(input, output, session) {
     ol <- input$sortGeneList
     if(!is.null(ol)){
       if (!ol %in% names(LIST_DATA$gene_file)) {
-        ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
+        ol <- "Complete"
       } 
     }
-    updateSelectInput(
-      session,
-      "sortGeneList",
-      choices = names(LIST_DATA$gene_file),
-      selected = ol
-    )
+    updatePickerInput(session, "sortGeneList",
+                      choices = names(LIST_DATA$gene_file),
+                      selected = ol,
+                      choicesOpt = list(
+                        content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                      ))
     if(LIST_DATA$STATE[1] !=0 ){
       LIST_DATA$STATE[1] <<- 0.75
     }
@@ -2174,6 +2211,7 @@ server <- function(input, output, session) {
                  detail = 'This may take a bit ...',
                  value = 0,
                  {
+    reactive_values$Plot_controler_sort_min <- ggplot()
     sortmin <- FilterPer(LIST_DATA, 
                          input$sortGeneList,
                          input$sortSamples,
@@ -2233,15 +2271,15 @@ server <- function(input, output, session) {
       ol <- input$sortGeneList
       if(!is.null(ol)){
         if (!ol %in% names(LIST_DATA$gene_file)) {
-          ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
+          ol <- "Complete"
         } 
       }
-      updateSelectInput(
-        session,
-        "sortGeneList",
-        choices = names(LIST_DATA$gene_file),
-        selected = ol
-      )
+      updatePickerInput(session, "sortGeneList",
+                        choices = names(LIST_DATA$gene_file),
+                        selected = ol,
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                        ))
       ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
       updateNumericInput(session, "numericsortmin",
                          value = distinct(LIST_DATA$gene_file[[ol]]$full, min)$min)
@@ -2314,6 +2352,7 @@ server <- function(input, output, session) {
                                       set %in% input$sortSamples, set, "0"))
       list_data_frame <- Active_list_data(sortmin)
       if (!is_empty(list_data_frame)) {
+        reactive_values$Plot_controler_sort_min <- ggplot()
         withProgress(message = 'Calculation in progress',
                      detail = 'This may take a while...',
                      value = 0,
@@ -2344,18 +2383,18 @@ server <- function(input, output, session) {
           color = "green"
         )
       })
-        ol <- input$sortGeneList
-        if(!is.null(ol)){
-          if (!ol %in% names(LIST_DATA$gene_file)) {
-            ol <- last(grep("^Filter", names(LIST_DATA$gene_file), value = TRUE))
-          }
-        }
-        updateSelectInput(
-          session,
-          "sortGeneList",
-          choices = names(LIST_DATA$gene_file),
-          selected = ol
-        )
+      ol <- input$sortGeneList
+      if(!is.null(ol)){
+        if (!ol %in% names(LIST_DATA$gene_file)) {
+          ol <- "Complete"
+        } 
+      }
+      updatePickerInput(session, "sortGeneList",
+                        choices = names(LIST_DATA$gene_file),
+                        selected = ol,
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                        ))
         if(LIST_DATA$STATE[1] != 0 ){
           LIST_DATA$STATE[1] <<- 0.75
         }
@@ -3358,11 +3397,21 @@ server <- function(input, output, session) {
         group_by(set,bin) %>% 
         summarise(value = sum(score == 0)/n_distinct(gene)*100, .groups = "drop")
       ylab = "% zero"
+    } else if(input$QCpickerplot == "quadrille"){
+      qu <- out_list %>%
+        group_by(gene) %>%
+        summarise(set = sum(score, na.rm = TRUE),.groups="drop") %>% 
+        dplyr::mutate(., set = ntile(set, 5))
+      sortmin <- out_list %>% dplyr::select(-set) %>% inner_join(.,qu,by="gene") %>% 
+        group_by(set,bin) %>% 
+        summarise(value = sum(score), .groups = "drop") %>% 
+        dplyr::mutate(set=paste("quadrille",set))
+      ylab = "value"
     } else {
       if(input$QCpickerplot == "low range percentile"){
         my_per <- c(0.01, 0.025, 0.05, 0.075, 0.1)
       } else {
-        my_per <- c(0.1, 0.25, 0.5, 0.75, 0.9)
+        my_per <- c(0.1, 0.25, 0.5, 0.75, 0.9, 1)
       }
         p_funs <- map(my_per, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
           set_names(my_per)
@@ -3384,7 +3433,7 @@ server <- function(input, output, session) {
       } else{
         gp1 <- ggplot()
       }
-      shinyjs::show("plotQC")
+      shinyjs::show("hidespinersQC")
       output$plotQC <- renderPlot({gp1})
       print(gp1)
   })
@@ -3454,8 +3503,8 @@ ui <- dashboardPage(
                     ),
                     helpText("load windowed bedGraph file(s)"),
                     br(),
-                    hidden(div(id = "hidespiners", shinycssloaders::withSpinner(DT::dataTableOutput('loadedfilestable'), type = 4),
-                    DT::dataTableOutput('loadedfilestotaltable'), type = 4))
+                    hidden(div(id = "hidespiners", shinycssloaders::withSpinner(DT::dataTableOutput('loadedfilestable'), type = 4))),
+                    DT::dataTableOutput('loadedfilestotaltable')
                   )
                 ),
                 tabPanel("SAVE",
@@ -3686,7 +3735,7 @@ ui <- dashboardPage(
           status = "primary",
           title = "QC Options",
           solidHeader = T,
-          shinycssloaders::withSpinner(plotOutput("plotQC"), type = 4)
+          hidden(div(id = "hidespinersQC", shinycssloaders::withSpinner(plotOutput("plotQC"), type = 4)))
           ),
         box(width = 12,
             status = "primary",
@@ -3701,8 +3750,9 @@ ui <- dashboardPage(
           pickerInput("QCpickerplot",
                       label = "select plot type",
                       width = "60%",
-                      choices = c("low range percentile", "braod range percentile","% 0's per bin"),
-                      selected = "low range percentile",
+                      choices = c("low range percentile", "braod range percentile",
+                                  "% 0's per bin","quadrille"),
+                      selected = "quadrille",
                       multiple = F,
                       options = list(title = "Select file")),
           actionButton("buttonFilterzero",label = "Plot")
