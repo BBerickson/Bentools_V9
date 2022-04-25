@@ -142,6 +142,7 @@ server <- function(input, output, session) {
     meta_data <- PrepMetaFile(input$filetable$datapath,
                               input$filetable$name)
     if (!is_empty(meta_data)) {
+      bin_colname <- tableTestbin(meta_data[1, ])
     for (i in seq_along(meta_data$filepath)) {
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Gathering info on",meta_data$nick[i]))
@@ -154,8 +155,8 @@ server <- function(input, output, session) {
         ))
         next()
       }
-      bin_colname <- tableTestbin(meta_data[i, ])
       if(is_empty(bin_colname)){
+        bin_colname <- tableTestbin(meta_data[i + 1, ])
         meta_data <- meta_data %>% filter(filepath != meta_data$filepath[i])
         next()
       }
@@ -3498,7 +3499,7 @@ ui <- dashboardPage(
                       accept = c('.table','.url.txt'),
                       multiple = FALSE
                     ),
-                    helpText("load windowed bedGraph file(s)"),
+                    helpText("load table file(s)"),
                     br(),
                     hidden(div(id = "hidespiners", shinycssloaders::withSpinner(DT::dataTableOutput('loadedfilestable'), type = 4))),
                     DT::dataTableOutput('loadedfilestotaltable')
