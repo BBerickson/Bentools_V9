@@ -3,7 +3,6 @@
 source("R_scripts/helpers.R", local = TRUE)
 
 # run load needed packages using my_packages(x) ----
-  # "factoextra" for dendogram plot fviz_dend()
 suppressPackageStartupMessages(my_packages(
   c(
     "tidyverse",
@@ -20,7 +19,7 @@ suppressPackageStartupMessages(my_packages(
     "zip",
     "ggpubr",
     "fastcluster",
-    "factoextra"
+    "dendextend"
   )
 ))
 
@@ -2089,6 +2088,7 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
+                   shinyjs::show("hidesortplots1")
                    reactive_values$Plot_controler_sort_min <- ggplot()
                    LD <- FilterTop(
                      LIST_DATA,
@@ -2211,6 +2211,7 @@ server <- function(input, output, session) {
                  detail = 'This may take a bit ...',
                  value = 0,
                  {
+                   shinyjs::show("hidesortplots1")
     reactive_values$Plot_controler_sort_min <- ggplot()
     sortmin <- FilterPer(LIST_DATA, 
                          input$sortGeneList,
@@ -2303,7 +2304,8 @@ server <- function(input, output, session) {
   # filter peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
     print("sort Peak")
-    shinyjs::hide("hidesortplots1")
+    shinyjs::show("hidesortplots1")
+    reactive_values$Plot_controler_sort_min <- ggplot()
     shinyjs::hide("hidesortplots2")
     if (any(between(input$slidersortbinrange,
                     input$slidersortbinrangefilter[1],
@@ -2417,8 +2419,13 @@ server <- function(input, output, session) {
   observeEvent(c(input$pickernumerator, input$adddata,
                  input$pickerdenominator), {
                    if (input$pickernumerator != "") {
+                     if(input$pickerdenominator != "-1"){
                      updateTextInput(session, "textnromname",value = paste(input$pickernumerator, input$adddata,
                                                                            input$pickerdenominator))
+                     } else {
+                       updateTextInput(session, "textnromname",value = paste0(input$pickernumerator, "*",
+                                                                             input$pickerdenominator))
+                       }
                      output$valueboxnormfile <- renderValueBox({
                        valueBox("0%",
                                 "Done",
@@ -3039,11 +3046,22 @@ server <- function(input, output, session) {
   observeEvent(input$actiondclustertool, ignoreInit = TRUE,{
     shinyjs::show('hideclusterplots2')
     shinyjs::show('plot2cluster')
+    reactive_values$Plot_controler_dcluster <- ggplot()
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   col <- gg_color_hue(as.numeric(input$selectclusternumber))
     gp2 <-
-      suppressWarnings(fviz_dend(LIST_DATA$clust$cm, k = as.numeric(input$selectclusternumber),
-                show_labels = F))
+      suppressWarnings(LIST_DATA$clust$cm %>% as.dendrogram() %>% 
+                         set("branches_k_color", value = col, k = as.numeric(input$selectclusternumber)) %>% 
+                         set("labels_colors", value = col, k = as.numeric(input$selectclusternumber)) %>% 
+                         set("branches_lwd", 1.2) %>% 
+                         as.ggdend() %>% 
+                         ggplot())
     print(gp2)
     reactive_values$Plot_controler_dcluster <- gp2
+                 })
   })
   
   # Cluster reset controller ----
@@ -4189,8 +4207,8 @@ ui <- dashboardPage(
               width = 6,
               pickerInput("clusterGeneList", label = "select list",
                                  choices = (LIST_DATA$gene_info)),
-         pickerInput("clusterSamples", label = "select sample(s)",
-                             choices = "select sample(s)",selected = "select sample(s)",
+         pickerInput("clusterSamples", label = "select sample",
+                             choices = "select sample",selected = "select sample",
                              multiple = F
                             )
                  

@@ -1,20 +1,9 @@
-# brake up functions into smaller functions so I can more easy add set progress recycle common fun for more consistency
-# 
-# 
-# 
-##### test for crashing of what I have set up ### tool usage and tab switching picker testing/working as intended?
-# 
-# 
-# clean up CompareRatios and consolidate ... function for gene_file$info?
-# move QC to functions
-# 
-#     Ratio :smarter labels for single file verses 2 files, CDF smarter PI/EI in info, and better info other tools
 # 
 # for preview plots have show with spinner before calculations
 # CDF with PI proper num denom selection range, add controls for the number of observations on the dot plot
 # fix save file help text, CDF save gather so sets are column names?, fix cluster select sample label  
-# add AUC tool
-# norm -1 add making negitive for antisense plots
+# 
+# clean up print()
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {

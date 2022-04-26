@@ -558,6 +558,7 @@ GGplotLineDot <-
       dplyr::mutate(set = plot_set)
     list_long_data_frame <- list_long_data_frame %>% 
       dplyr::mutate(set = plot_set)
+    list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
     
     legend_space <- lengths(strsplit(sort(plot_options$set), "\n")) / 1.1
     if (use_log2) {
@@ -1551,7 +1552,10 @@ FilterPeak <-
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter:",
                                                       my_type,
-                                                      "bins"),
+                                                      "bins",
+                                                      start_end_bin_filter[1],
+                                                      "to",
+                                                      start_end_bin_filter[2]),
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(out_gene$gene, na.rm = T)),
                                          plot_set = " ")))
@@ -1653,10 +1657,13 @@ MakeNormFile <-
       return(NULL)
     }
     } else {
-      print("not working yet")
-      retrun(NULL)
-    # nd <- list_data$table_file %>% dplyr::filter(set == nom) %>% 
-    #   replace_na(., list(score = 0))
+      if(nchar(nickname)<1){
+        nickname <- paste0(nom,"*",dnom)
+      }
+      legend_nickname <- nickname
+      new_gene_list <- list_data$table_file %>% dplyr::filter(set == nom) %>%
+      replace_na(., list(score = 0)) %>% 
+      dplyr::mutate(score=score*-1,set=legend_nickname)
     } 
     # adds meta data 
     list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
@@ -1904,8 +1911,17 @@ CompareRatios <-
         return()
       }
       ratiofile <- ratio1file
+      ratio2file <- paste0(ratio1file,
+      "[", start1_bin, ":", end1_bin,
+      "]/[", start2_bin, ":", end2_bin, "]")
     } else {
       ratiofile <- c(ratio1file, ratio2file)
+      ratio2file <- paste0(ratio2file,
+             "[", start1_bin, ":", end1_bin,
+             "]/[", start2_bin, ":", end2_bin, "]/",
+             ratio1file,
+             "[", start1_bin, ":", end1_bin,
+             "]/[", start2_bin, ":", end2_bin, "]")
     }
     lc <- 0
     lapply(ratiofile, function(j) {
@@ -1976,25 +1992,6 @@ CompareRatios <-
         paste(
           "Ratio_Up_file1",
           ratio2file,
-          "[",
-          start1_bin,
-          "to",
-          end1_bin,
-          "]/[",
-          start2_bin,
-          "to",
-          end2_bin,
-          "]/",
-          ratio1file,
-          "[",
-          start1_bin,
-          "to",
-          end1_bin,
-          "]/[",
-          start2_bin,
-          "to",
-          end2_bin,
-          "] ",
           "fold change cut off",
           my_num,
           divzerofix,
@@ -2037,25 +2034,6 @@ CompareRatios <-
         paste(
           "Ratio_Down_file1",
           ratio2file,
-          "[",
-          start1_bin,
-          "to",
-          end1_bin,
-          "]/[",
-          start2_bin,
-          "to",
-          end2_bin,
-          "]/",
-          ratio1file,
-          "[",
-          start1_bin,
-          "to",
-          end1_bin,
-          "]/[",
-          start2_bin,
-          "to",
-          end2_bin,
-          "] ",
           "fold change cut off",
           my_num,
           divzerofix,
@@ -2101,25 +2079,6 @@ CompareRatios <-
         paste(
           "Ratio_No_Diff",
           ratio2file,
-          "[",
-          start1_bin,
-          "to",
-          end1_bin,
-          "]/[",
-          start2_bin,
-          "to",
-          end2_bin,
-          "]/",
-          ratio1file,
-          "[",
-          start1_bin,
-          "to",
-          end1_bin,
-          "]/[",
-          start2_bin,
-          "to",
-          end2_bin,
-          "] ",
           "fold change cut off",
           my_num,
           divzerofix,
@@ -2309,3 +2268,8 @@ AUC <- function(y){
   0.5*(y[1]+y[n]+2*sum(y[-c(1,n)]))
 }
 
+# ggplot colors
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
