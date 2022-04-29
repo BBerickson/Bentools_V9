@@ -128,7 +128,7 @@ server <- function(input, output, session) {
   
   # loads data file(s) ----
   observeEvent(input$filetable, {
-    print("load file")
+     # print("load file")
     shinyjs::disable("startoff")
     shinyjs::disable("startoff2")
     shinyjs::show("hidespiners")
@@ -284,14 +284,14 @@ server <- function(input, output, session) {
         LIST_DATA$STATE[3] <<- kLinesandlabels[4]
       } else if (LIST_DATA$STATE[3] == '5') {
         reactive_values$setsliders <- c(1,num_bins,1,
-                                        num_bins/2,0,0)
+                                        num_bins/2,num_bins/2+1,num_bins)
       } else if (LIST_DATA$STATE[3] == '4') {
-        reactive_values$setsliders <- c(1,num_bins,1,num_bins,0,0)
+        reactive_values$setsliders <- c(1,num_bins,1,num_bins,1,num_bins)
         LIST_DATA$STATE[3] <<- kLinesandlabels[6]
       } else if (LIST_DATA$STATE[3] == '3') {
         reactive_values$setsliders <- c(1,num_bins,
                                         num_bins/2,
-                                        num_bins,0,0)
+                                        num_bins,num_bins/2+1,num_bins)
         LIST_DATA$STATE[3] <<- kLinesandlabels[7]
       } else {
         reactive_values$setsliders <- c(
@@ -417,7 +417,7 @@ server <- function(input, output, session) {
   
   # loads gene list file ----
   observeEvent(input$filegene1, {
-    print("load gene file")
+     # print("load gene file")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -501,7 +501,9 @@ server <- function(input, output, session) {
       new_comments2 <-
           LIST_DATA$gene_file[[input$selectsave]]$full
       if(input$selectsave == "CDF Log2 PI Cumulative plot"){
-        new_comments2 <- new_comments2 %>% select(-plot_set)
+        new_comments2 <- new_comments2 %>% 
+          select(-plot_set, -bin) %>% 
+          spread(set,value)
       }
       write_lines(new_comments, file)
       write_tsv(new_comments2,
@@ -514,7 +516,7 @@ server <- function(input, output, session) {
   
   # observe actionmyplot, Lines_Labels_List, myplot update apply_Math ----
   observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$myplot), ignoreInit = TRUE, {
-    print("plot button")
+     # print("plot button")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -584,7 +586,7 @@ server <- function(input, output, session) {
   
   # updates mymath plot ----
   observeEvent(input$actionMathUpDatePlot, ignoreInit = T, {
-    print("actionMathUpDatePlot")
+     # print("actionMathUpDatePlot")
     mymath <- c(input$myMath,
                 input$selectplotnrom,
                 input$selectplotBinNorm,
@@ -612,7 +614,7 @@ server <- function(input, output, session) {
   
   # reactive Apply_Math, sets Y axis min max ----
   observeEvent(reactive_values$Y_Axis_numbers_set, ignoreInit = T, {
-    print("updates reactive_values$Y_Axis_numbers")
+     # print("updates reactive_values$Y_Axis_numbers")
     my_step <-
       (max(reactive_values$Y_Axis_numbers) - min(reactive_values$Y_Axis_numbers)) /
       20
@@ -628,7 +630,7 @@ server <- function(input, output, session) {
   
   # reactive Plot_Options, triggers plot ----
   observeEvent(reactive_values$Plot_Options, ignoreInit = T, ignoreNULL = T, {
-    print("plot")
+     # print("plot")
     if(!is.null(LIST_DATA$ttest)){
       mm <- reactive_values$ttest_options[1:2]
       Plot_Options_ttest <- MakePlotOptionttest(LIST_DATA$ttest, as.numeric(mm),
@@ -663,7 +665,7 @@ server <- function(input, output, session) {
   # checks that number of names == position ----
   observeEvent(c(input$landlnames, input$landlposition), ignoreInit = TRUE, {
     if(LIST_DATA$STATE[2] > 0){
-      print("names == position")
+       # print("names == position")
       my_pos <-
         suppressWarnings(as.numeric(unlist(
           strsplit(input$landlposition, split = "\\s+")
@@ -685,7 +687,7 @@ server <- function(input, output, session) {
   
   # dropcolor opens color select dialog box ----
   observeEvent(c(input$dropcolor), ignoreInit = T, {
-    print("dropcolor")
+     # print("dropcolor")
     showModal(modalDialog(
       title = "Information message",
       " Update Nickname and color of samples",
@@ -745,7 +747,7 @@ server <- function(input, output, session) {
 
   # CDF color select dialog box ----
   observeEvent(c(input$actioncdfcolor), ignoreInit = T, {
-    print("actioncdfcolor")
+     # print("actioncdfcolor")
     showModal(modalDialog(
       title = "Information message",
       " Update color of samples",
@@ -802,7 +804,7 @@ server <- function(input, output, session) {
                  my_sel <- LIST_DATA$gene_info %>% 
                    dplyr::filter(gene_list == input$selectgenelistoptions & 
                                    set == input$selectdataoption)
-                 print("options update")
+                  # print("options update")
                  updateColourInput(session, "colourhex", value = paste(my_sel$mycol))
                  
                  updateTextInput(session,
@@ -812,13 +814,13 @@ server <- function(input, output, session) {
   
   # update color based on rgb text input ----
   observeEvent(input$actionmyrgb, {
-    print("color rgb")
+     # print("color rgb")
     updateColourInput(session, "colourhex", value = RgbToHex(input$textrgbtohex, convert = "hex"))
   })
   
   # save color selected and update plot ----
   observeEvent(input$colourhex, ignoreInit = TRUE, {
-    print("update text color")
+     # print("update text color")
     updateTextInput(session,
                     "textrgbtohex",
                     value = RgbToHex(x = input$colourhex, convert = "rgb"))
@@ -827,7 +829,7 @@ server <- function(input, output, session) {
         dplyr::filter(gene_list == input$selectgenelistoptions & 
                         set == input$selectdataoption)
       if (input$colourhex != my_sel$mycol) {
-        print("color new")
+         # print("color new")
         LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
           dplyr::mutate(mycol=if_else(gene_list == input$selectgenelistoptions & 
                                         set == input$selectdataoption,
@@ -854,7 +856,7 @@ server <- function(input, output, session) {
                       "textnickname",
                       value = paste(input$selectdataoption))
     } else if (input$textnickname != input$selectdataoption) {
-      print("new nickname")
+       # print("new nickname")
       if (any(input$textnickname == distinct(LIST_DATA$gene_info, set)$set)) {
         updateTextInput(session,
                         "textnickname",
@@ -890,7 +892,7 @@ server <- function(input, output, session) {
   
   # droplinesandlabels ----
   observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, {
-    print("droplinesandlabels")
+     # print("droplinesandlabels")
     showModal(modalDialog(
       title = "Information message",
       " Set Lines and Labels for plot ",
@@ -1147,7 +1149,7 @@ server <- function(input, output, session) {
   
   # observe switching tabs ----
   observeEvent(input$leftSideTabs, ignoreInit = TRUE, {
-    print("switch tab")
+     # print("switch tab")
     # load files tab ----
     if (input$leftSideTabs == "loaddata"){
       if(length(names(LIST_DATA$gene_file))>1){
@@ -1456,7 +1458,9 @@ server <- function(input, output, session) {
         list(div(
           style = "margin-bottom: -10px;",
           pickerInput(
-            inputId = gsub(" ", "-cdfspace2-", gsub("\n", "-cdfspace1-", i)),
+            inputId = paste0("-cdfspace3-", 
+                           gsub(" ", "-cdfspace2-", 
+                                gsub("\n", "-cdfspace1-", i))),
             label = i,
             width = "99%",
             choices = distinct(LIST_DATA$gene_info, set)$set,
@@ -1555,7 +1559,7 @@ server <- function(input, output, session) {
   
   # action button update lines and labels ----
   observeEvent(input$actionlineslabels, ignoreInit = TRUE, {
-    print("action lines and labels")
+     # print("action lines and labels")
     LIST_DATA$STATE[3] <<- input$selectlineslabels
     my_pos <-
       suppressWarnings(as.numeric(unlist(
@@ -1607,7 +1611,7 @@ server <- function(input, output, session) {
     if (input$selectlineslabels == "") {
       return()
     }
-    print("quick Lines & Labels")
+     # print("quick Lines & Labels")
     myset <- LinesLabelsPreSet(input$selectlineslabels)
     updateNumericInput(session, "numericbody1", value = myset[1])
     updateNumericInput(session, "numericbody2", value = myset[2])
@@ -1630,7 +1634,7 @@ server <- function(input, output, session) {
     ignoreInit = TRUE,
     {
       if(LIST_DATA$STATE[2] > 0){
-        print("keep bin positions in bounds > 0")
+         # print("keep bin positions in bounds > 0")
         mynum <- c(2, 2.5, 13, 13, 10)
         myset <- c(
           input$selectvlinesize,
@@ -1668,7 +1672,7 @@ server <- function(input, output, session) {
     ignoreInit = TRUE,
     {
       if(LIST_DATA$STATE[2] > 0){
-        print("observe line and labels")
+         # print("observe line and labels")
         myset <- c(
           input$numericbody1,
           input$numericbody2,
@@ -1841,7 +1845,7 @@ server <- function(input, output, session) {
   observeEvent(input$selectttestitem, ignoreInit = T,{
     if(!is.null(LIST_DATA$ttest)){
       if(input$selectttestitem != reactive_values$ttest_options[4]){
-        print("t.test gets line colors")
+         # print("t.test gets line colors")
         mycol <- LIST_DATA$ttest %>% dplyr::filter(set == input$selectttestitem) %>% distinct(mycol)
         updateColourInput(session, "selectcolorttest", value = paste(mycol))
       }
@@ -1851,7 +1855,7 @@ server <- function(input, output, session) {
   # t.test updates line colors ----
   observeEvent(input$selectcolorttest,ignoreInit = T,{
     if(!is.null(LIST_DATA$ttest)){
-      print("t.test updates line colors")
+       # print("t.test updates line colors")
       LIST_DATA$ttest <<- LIST_DATA$ttest %>% dplyr::mutate(.,mycol = ifelse(set == input$selectttestitem, input$selectcolorttest, mycol))
       updatePickerInput(session, "selectttestitem", reactive_values$ttest_options[4])
     }
@@ -1866,7 +1870,7 @@ server <- function(input, output, session) {
          input$selectttestitem, input$hlinettest)
     
     if (LIST_DATA$STATE[2] != 2){
-      print("t.test button")
+       # print("t.test button")
       list_data_frame <- Active_list_data(LIST_DATA,input$mygroup)
       if (!is_empty(list_data_frame)) {
         if (sum(ttest_values == reactive_values$ttest_values) != 7){
@@ -1966,7 +1970,7 @@ server <- function(input, output, session) {
                {
                  # needed for controlling flow of first time auto plot
                  if (LIST_DATA$STATE[1] > .9) {
-                   print("checkbox on/off")
+                    # print("checkbox on/off")
                    ttt <- reactive_values$picker
                    checkboxonoff <- list()
                    for(i in names(ttt)){
@@ -2004,7 +2008,7 @@ server <- function(input, output, session) {
     ignoreNULL = FALSE,
     ignoreInit = TRUE,
     {
-      print("Dynamic pickers update")
+       # print("Dynamic pickers update")
       
       pickerlist <- list()
       for (i in names(LIST_DATA$gene_file)) {
@@ -2079,7 +2083,7 @@ server <- function(input, output, session) {
   
   # filter sum tool action ----
   observeEvent(input$actionsorttool, {
-    print("sort tool")
+     # print("sort tool")
     if (input$slidersortpercent < 50 &
         input$selectsorttop == "Middle%") {
       updateSliderInput(session, "slidersortpercent", value = 50)
@@ -2206,7 +2210,7 @@ server <- function(input, output, session) {
   
   # filter min max between % tool action ----
   observeEvent(input$actionsortper, ignoreInit = TRUE, {
-    print("sort % tool")
+     # print("sort % tool")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a bit ...',
                  value = 0,
@@ -2303,7 +2307,7 @@ server <- function(input, output, session) {
   
   # filter peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
-    print("sort Peak")
+     # print("sort Peak")
     shinyjs::show("hidesortplots1")
     reactive_values$Plot_controler_sort_min <- ggplot()
     shinyjs::hide("hidesortplots2")
@@ -2467,7 +2471,7 @@ server <- function(input, output, session) {
                                           ))
       updatePickerInput(session,
                         "pickerdenominator", selected = "",
-                        choices = distinct(LIST_DATA$gene_info, set)$set,
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set,"-1"),
                         choicesOpt = list(style = paste("color", 
                                                         dplyr::select(
                                                           dplyr::filter(LIST_DATA$gene_info,
@@ -2475,7 +2479,7 @@ server <- function(input, output, session) {
                                                                           LIST_DATA$gene_file)[1]),
                                                           mycol)$mycol, 
                                                         sep = ":"),
-                                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"-1"))
                                           ))
       updatePickerInput(
         session,
@@ -2602,7 +2606,7 @@ server <- function(input, output, session) {
   
   # Gene action ----
   observeEvent(input$actiongenelists, {
-    print("gene lists action")
+     # print("gene lists action")
     shinyjs::hide('actiongenelistsdatatable')
     shinyjs::hide('genelists1table')
     shinyjs::hide('genelists2table')
@@ -2711,7 +2715,7 @@ server <- function(input, output, session) {
   
   # Gene lists DT show gene list ----
   observeEvent(input$actiongenelistsdatatable, ignoreInit = TRUE, {
-    print("generiate gene lists table")
+     # print("generiate gene lists table")
     shinyjs::hide('actiongenelistsdatatable')
     if (any(grep("Gene_List_innerjoin\nn =", names(LIST_DATA$gene_file)) >
             0)) {
@@ -2900,7 +2904,7 @@ server <- function(input, output, session) {
   
   # Cluster tool action ----
   observeEvent(input$actionclustertool, ignoreInit = TRUE, {
-    print("cluster tool action")
+     # print("cluster tool action")
     shinyjs::hide('plot1cluster')
     shinyjs::hide('plot2cluster')
     if (n_distinct(LIST_DATA$gene_file[[input$clusterGeneList]]$full, na.rm = T) < as.numeric(input$selectclusternumber) |
@@ -2941,7 +2945,7 @@ server <- function(input, output, session) {
   observeEvent(c(input$selectclusternumber, reactive_values$clustergroups),
                ignoreInit = TRUE, ignoreNULL = TRUE,
                {
-                 print("cluster tool number")
+                  # print("cluster tool number")
                  if (is.null(reactive_values$clustergroups)) {
                    return()
                  }
@@ -3076,7 +3080,7 @@ server <- function(input, output, session) {
   
   # Ratio tool action ----
   observeEvent(input$actionratiotool, ignoreInit = TRUE, {
-    print("ratio tool action")
+     # print("ratio tool action")
     shinyjs::hide('ratio1table')
     shinyjs::hide('ratio2table')
     shinyjs::hide('ratio3table')
@@ -3230,7 +3234,7 @@ server <- function(input, output, session) {
   
   # CDF tool action ----
   observeEvent(input$actioncdftool, ignoreInit = TRUE, {
-    print("CDF tool action")
+     # print("CDF tool action")
     shinyjs::hide('plotcdf')
     shinyjs::hide('plotcdfscatter')
     if (any(between(
@@ -3263,12 +3267,16 @@ server <- function(input, output, session) {
                         ))
     }
     ttt <-
-      reactiveValuesToList(input)[gsub(" ", "-cdfspace2-", gsub("\n", "-cdfspace1-", names(LIST_DATA$gene_file)))]
+      reactiveValuesToList(input)[paste0("-cdfspace3-", 
+                                       gsub(" ", "-cdfspace2-", 
+                                            gsub("\n", "-cdfspace1-", names(LIST_DATA$gene_file))))]
     checkboxonoff <- list()
     for (i in names(ttt)) {
       for (tt in ttt[i]) {
         selectgenelistonoff <-
-          gsub("-cdfspace2-", " ", gsub("-cdfspace1-", "\n", i))
+          gsub("-cdfspace3-", "",
+               gsub("-cdfspace2-", " ", 
+                    gsub("-cdfspace1-", "\n", i)))
         checkboxonoff[[selectgenelistonoff]] <-
           c(checkboxonoff[[selectgenelistonoff]], tt)
       }
@@ -3317,7 +3325,7 @@ server <- function(input, output, session) {
   
   # CDF x plot range ----
   observeEvent(c(input$sliderrangecdf, reactive_values$df_options), ignoreInit = TRUE, {
-    print("cdf plot observe range")
+     # print("cdf plot observe range")
     newname <-
       grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
     if(is_empty(newname)){
@@ -3357,7 +3365,7 @@ server <- function(input, output, session) {
       mycdf
     })
     output$plotcdfscatter <- renderPlot({
-      ggscatter(df %>% arrange(gene,value), y = "value",x="gene",color = "plot_set",
+      ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_set",
                 alpha=.8, palette = df_options$mycol) + 
         rremove("x.text") + rremove("legend")
     })
@@ -3405,7 +3413,7 @@ server <- function(input, output, session) {
   
   # QC action ----
   observeEvent(input$buttonFilterzero, ignoreInit = TRUE, {
-    print("QC % tool") 
+     # print("QC % tool") 
     out_list <- LIST_DATA$table_file %>% 
       dplyr::filter(set == input$QCsample)
     if(input$QCpickerplot == "% 0's per bin"){
@@ -4297,7 +4305,7 @@ ui <- dashboardPage(
                   status = "navy",
                   solidHeader = T,
                   collapsible = T,
-                  collapsed = F,
+                  collapsed = T,
                   uiOutput("DynamicCDFPicker_sort")
                 )
               )),
@@ -4310,7 +4318,7 @@ ui <- dashboardPage(
                   status = "navy",
                   solidHeader = T,
                   collapsible = T,
-                  collapsed = F,
+                  collapsed = T,
                   uiOutput("DynamicCDFPicker_comparisons")
                 )
               )),
@@ -4323,7 +4331,7 @@ ui <- dashboardPage(
                   status = "navy",
                   solidHeader = T,
                   collapsible = T,
-                  collapsed = F,
+                  collapsed = T,
                   uiOutput("DynamicCDFPicker_ratio")
                 )
               )),
@@ -4336,7 +4344,7 @@ ui <- dashboardPage(
                   status = "navy",
                   solidHeader = T,
                   collapsible = T,
-                  collapsed = F,
+                  collapsed = T,
                   uiOutput("DynamicCDFPicker_clusters")
                 )
               ))
@@ -4409,7 +4417,7 @@ ui <- dashboardPage(
       )
     )
   ),
-  controlbar = dashboardControlbar(),
+  controlbar = dashboardControlbar(disable = TRUE),
   title = "DashboardPage"
 )
 

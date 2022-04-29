@@ -1,9 +1,4 @@
-# 
-# for preview plots have show with spinner before calculations
-# CDF with PI proper num denom selection range, add controls for the number of observations on the dot plot
-# fix save file help text, CDF save gather so sets are column names?, fix cluster select sample label  
-# 
-# clean up print()
+# CDF gene list n= is wrong, and dot plot colors are wrong with mixing lists
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {

@@ -52,7 +52,7 @@ RgbToHex <- function(x,
 
 # finds first partial match to gene list input 
 MatchGenes <- function(common_list, gene_list){
-  print("gene match fun")
+  # print("gene match fun")
   if(str_detect(gene_list$gene[1],"|")){
     tablefile <-
       map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
@@ -77,7 +77,7 @@ MatchGenes <- function(common_list, gene_list){
 PrepMetaFile <-
   function(file_path,
            file_name) {
-    print("PrepMetaFile")
+    # print("PrepMetaFile")
     # tests if loading a file with a list of address to remote files, requires .url.txt in file name
     if (str_detect(file_name, ".url.txt")) {
       num_col <-
@@ -161,7 +161,7 @@ PrepMetaFile <-
 # test file is there and what type
 tableTestbin <- function(meta_data){
   # get info on file to help know what type it is
-  print("tableTestbin")
+  # print("tableTestbin")
   num_bins <-
     try(count_fields(meta_data$filepath,
                      n_max = 1,
@@ -201,7 +201,7 @@ tableTestbin <- function(meta_data){
 LoadTableFile <-
   function(meta_data,
            bin_colname) {
-    print("LoadTableFile")
+    # print("LoadTableFile")
     # wide file
     if (bin_colname$num_bin > 6) {
       tablefile <- suppressMessages(
@@ -355,7 +355,7 @@ Active_list_data <-
     gene_file <- list_data$gene_file
     gene_info <- list_data$gene_info
     list_data_out <- NULL
-    print("active data function")
+    # print("active data function")
     for ( i in names(gene_file) ){
       # checks to see if at least one file in list is active
       if (gene_info %>% dplyr::filter(gene_list == i & onoff != 0) %>% nrow() == 0) {
@@ -408,7 +408,7 @@ ApplyMath <-
            relative_frequency,
            normbin,
            group="none") {
-    print("applymath fun")
+    # print("applymath fun")
     # normalize per gene relative frequency
     if (relative_frequency == "rel gene frequency") {
       list_data <- list_data %>% group_by(plot_set, gene) %>%
@@ -517,7 +517,7 @@ YAxisLabel <-
 
 # gather relevant plot options from gene_info, outputs for ggplot
 MakePlotOptionFrame <- function(gene_info) {
-  print("plot options fun")
+  # print("plot options fun")
   # checks to see if at least one file in list is active
   if (gene_info %>% dplyr::filter(onoff != 0) %>% nrow() == 0) {
     return(NULL)
@@ -917,7 +917,7 @@ LinesLabelsListPlot <-
            legendsize,
            binsize,
            binspace) {
-    print("lines and labels plot fun")
+    # print("lines and labels plot fun")
     if (length(use_plot_breaks_labels) > 0) {
       mycolors <- rep("black", length(use_plot_breaks))
       use_virtical_line <- c(NA, NA, NA, NA)
@@ -1085,7 +1085,7 @@ ApplyTtest <-
 # makes sure t test wont crash on an error
 try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
                        alternative="two.sided", exact=FALSE, paired=FALSE){
-  print("try t.test")
+  # print("try t.test")
   exact <- if_else(exact=="TRUE",TRUE,FALSE)
   paired <- if_else(paired=="TRUE",TRUE,FALSE)
   combn(unique(db$set),2) -> my_comparisons
@@ -1144,7 +1144,7 @@ MakePlotOptionttest <- function(list_data, Y_Axis_TT,my_ttest_log,hlineTT,pajust
   if(is_empty(list_data)){
     return(NULL)
   }
-  print("plot options ttest fun")
+  # print("plot options ttest fun")
   out_options <- list_data %>% select(-bin, -p.value) %>% distinct(set,myline,mycol)
   list_data_frame <- NULL
   
@@ -1785,7 +1785,7 @@ FindClusters <- function(list_data,
                          clusterfile,
                          start_bin,
                          end_bin) {
-  print("find clusters")
+  # print("find clusters")
   if (clusterfile == "") {
     showModal(modalDialog(
       title = "Information message",
@@ -1812,7 +1812,7 @@ ClusterNumList <- function(list_data,
                            start_bin,
                            end_bin,
                            my_num) {
-  print("cutree")
+  # print("cutree")
   if (is_empty(list_data$clust) | clusterfile == "") {
     showModal(modalDialog(
       title = "Information message",
@@ -2123,7 +2123,7 @@ CumulativeDistribution <-
            end1_bin,
            start2_bin,
            end2_bin) {
-    print("cdf function")
+    # print("cdf function")
     if (is.null(onoffs)) {
       showModal(modalDialog(
         title = "Information message",
@@ -2229,7 +2229,7 @@ GGplotC <-
            plot_options,
            use_header,
            plot_range) {
-    print("ggplot CDF")
+    # print("ggplot CDF")
     use_col <- plot_options$mycol
     names(use_col) <- plot_options$set
     legend_space <- max(1, (lengths(strsplit(
