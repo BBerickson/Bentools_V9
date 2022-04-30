@@ -1,7 +1,9 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
 source("R_scripts/helpers.R", local = TRUE)
+suppressPackageStartupMessages(my_packages("renv"))
 
+renv::restore()
 # run load needed packages using my_packages(x) ----
 suppressPackageStartupMessages(my_packages(
   c(
@@ -747,7 +749,9 @@ server <- function(input, output, session) {
 
   # CDF color select dialog box ----
   observeEvent(c(input$actioncdfcolor), ignoreInit = T, {
-     # print("actioncdfcolor")
+    gene_info <- LIST_DATA$gene_info %>% 
+      dplyr::filter(str_detect(gene_list,"^CDF"))
+     print("actioncdfcolor")
     showModal(modalDialog(
       title = "Information message",
       " Update color of samples",
@@ -769,11 +773,10 @@ server <- function(input, output, session) {
                 solidHeader = T,
                 status = "info",
                 background = "light-blue",
-                colourInput("colourhex", "Select color HEX",value = distinct(LIST_DATA$gene_info %>% 
-                                                                               dplyr::filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1]),
+                colourInput("colourhex", "Select color HEX",value = distinct(gene_info,mycol)$mycol[1]),
                 tags$hr(),
-                textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(LIST_DATA$gene_info %>% 
-                                                                                 dplyr::filter(str_detect(gene_list,"^CDF")),mycol)$mycol[1], convert = "rgb")),
+                textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(gene_info,mycol)$mycol[1],
+                                                                  convert = "rgb")),
                 tags$hr(),
                 actionButton("actionmyrgb", "Update color",width = 100)
               )
@@ -784,12 +787,12 @@ server <- function(input, output, session) {
             width = 8,
             status = "navy",
             solidHeader = T,
-            pickerInput("selectgenelistoptions", "", width = 300, choices = "CDF Log2 PI Cumulative plot",
-                        selected = "CDF Log2 PI Cumulative plot"),
-            pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info,set)$set,
-                        selected = distinct(LIST_DATA$gene_info,set)$set[1],
+            pickerInput("selectgenelistoptions", "", width = 300, choices = distinct(gene_info,gene_list)$gene_list,
+                        selected = distinct(gene_info,gene_list)$gene_list),
+            pickerInput("selectdataoption", "", choices = distinct(gene_info,plot_set)$plot_set,
+                        selected = distinct(gene_info,plot_set)$plot_set[1],
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info,set)$set)
+                          content = gsub("\\n", "\\1<br>", distinct(gene_info,plot_set)$plot_set)
                         ))
         ),
         modalButton("Close")
@@ -801,10 +804,11 @@ server <- function(input, output, session) {
   observeEvent(c(input$selectdataoption, input$selectgenelistoptions),
                ignoreInit = TRUE, ignoreNULL = TRUE,
                {
+                 # print("options update")
                  my_sel <- LIST_DATA$gene_info %>% 
                    dplyr::filter(gene_list == input$selectgenelistoptions & 
-                                   set == input$selectdataoption)
-                  # print("options update")
+                                   set == input$selectdataoption | plot_set == input$selectdataoption)
+                 
                  updateColourInput(session, "colourhex", value = paste(my_sel$mycol))
                  
                  updateTextInput(session,
@@ -827,12 +831,12 @@ server <- function(input, output, session) {
     if (!is.null(names(LIST_DATA$gene_file))) {
       my_sel <- LIST_DATA$gene_info %>% 
         dplyr::filter(gene_list == input$selectgenelistoptions & 
-                        set == input$selectdataoption)
+                        set == input$selectdataoption | plot_set == input$selectdataoption)
       if (input$colourhex != my_sel$mycol) {
          # print("color new")
         LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
           dplyr::mutate(mycol=if_else(gene_list == input$selectgenelistoptions & 
-                                        set == input$selectdataoption,
+                                        set == input$selectdataoption | plot_set == input$selectdataoption,
                                       input$colourhex, mycol))
         reactive_values$Picker_controler <- 
           c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, mycol)$mycol)

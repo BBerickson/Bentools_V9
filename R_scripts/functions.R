@@ -2139,17 +2139,15 @@ CumulativeDistribution <-
     outlist <- NULL
     for (list_name in names(onoffs)) {
       # Complete within gene list and sum regions
-      tf <- dplyr::filter(list_data$table_file, set %in% onoffs[[list_name]])
-      gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
-      gene_common <- gene_common %>% 
+      tf <- dplyr::filter(list_data$table_file, set %in% onoffs[[list_name]]) %>% 
+        semi_join(., 
+                  list_data$gene_file[[list_name]]$full, by = 'gene') 
+      tf <- tf %>% dplyr::filter(bin == 1) %>% 
         group_by(gene) %>% 
         filter(n_distinct(set)==n_distinct(tf$set)) %>% 
-        distinct(gene) %>% ungroup()
-      tf <- tf %>% 
-        semi_join(., gene_common, by = "gene")
-      outlist[[list_name]] <-
-        semi_join(tf, 
-                  list_data$gene_file[[list_name]]$full, by = 'gene') %>% 
+        distinct(gene) %>% ungroup() %>% 
+        semi_join(tf, ., by = 'gene')
+      outlist[[list_name]] <- tf %>% 
         group_by(gene,set) %>%
         summarise(sum1 = mean(score[start1_bin:end1_bin],	na.rm = T),
                   sum2 = mean(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
@@ -2204,6 +2202,7 @@ CumulativeDistribution <-
     } else {
       nick_name1 <- paste("CDF n = 0")
     }
+    
     for (list_name in names(onoffs)) {
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
@@ -2216,7 +2215,7 @@ CumulativeDistribution <-
                                              list_name
                                            ), 
                                            onoff = "0",
-                                           count = paste("n =", outlist %>% 
+                                           count = paste("n =", outlist %>% dplyr::filter(grepl(list_name,plot_set)) %>% 
                                                            summarise(n=n_distinct(bin))),
                                            plot_set = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
                                            myheader = use_header)))

@@ -1,4 +1,4 @@
-# CDF gene list n= is wrong, and dot plot colors are wrong with mixing lists
+
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {
