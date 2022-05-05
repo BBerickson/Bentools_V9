@@ -555,7 +555,7 @@ GGplotLineDot <-
     plot_options <- list_long_data_frame %>% 
       distinct(set,plot_set) %>% right_join(plot_options,.,by="set") %>% 
       dplyr::rename(plot_set=plot_set.y) %>% dplyr::select(-plot_set.x) %>% 
-      dplyr::mutate(set = plot_set)
+      dplyr::mutate(set = plot_set) %>% distinct(.,set,.keep_all = T)
     list_long_data_frame <- list_long_data_frame %>% 
       dplyr::mutate(set = plot_set)
     list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
@@ -569,7 +569,6 @@ GGplotLineDot <-
             x = as.numeric(bin),
             y = log2(value),
             color = set,
-            shape = set,
             size = set,
             linetype = set
           )
@@ -582,7 +581,6 @@ GGplotLineDot <-
             x = as.numeric(bin),
             y = value,
             color = set,
-            shape = set,
             linetype = set
           )
         )
@@ -591,10 +589,10 @@ GGplotLineDot <-
       gp <- gp +
         geom_smooth(se = FALSE,
                     size = line_list$mysize[2],
-                    span = .2, alpha=0.8) 
+                    span = .2, alpha=line_list$mysize[6]) 
     } else{
       gp <- gp +
-        geom_line(size = line_list$mysize[2],alpha=0.8)
+        geom_line(size = line_list$mysize[2],alpha=line_list$mysize[6])
     }
     gp <- gp + 
       geom_ribbon(aes(ymin=min,ymax=max,fill=set),linetype=0,alpha = 0.5) +
@@ -638,9 +636,8 @@ GGplotLineDot <-
       names(use_line_tt) <- plot_ttest$options_main_tt$set
       gp2 <- ggplot(LIST_DATA$ttest, aes(y=p.value,x=bin,
                                          color=set,
-                                         shape = set,
                                          linetype = set)) + 
-        geom_line(size = line_list$mysize[2],alpha=0.8) +
+        geom_line(size = line_list$mysize[2],alpha=line_list$mysize[6]) +
         scale_color_manual(values = use_col_tt) +
         scale_linetype_manual(values = use_line_tt)+
         geom_hline(yintercept = plot_ttest$hlineTT,color="blue") + 
@@ -916,7 +913,8 @@ LinesLabelsListPlot <-
            fontsizey,
            legendsize,
            binsize,
-           binspace) {
+           binspace,
+           myalpha) {
     # print("lines and labels plot fun")
     if (length(use_plot_breaks_labels) > 0) {
       mycolors <- rep("black", length(use_plot_breaks))
@@ -975,7 +973,7 @@ LinesLabelsListPlot <-
       mycolors = mycolors,
       mybrakes = use_plot_breaks,
       mylabels = use_plot_breaks_labels,
-      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize),
+      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, myalpha),
       myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
     )
   }

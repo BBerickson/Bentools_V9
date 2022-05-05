@@ -1,9 +1,7 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
 source("R_scripts/helpers.R", local = TRUE)
-suppressPackageStartupMessages(my_packages("renv"))
 
-renv::restore()
 # run load needed packages using my_packages(x) ----
 suppressPackageStartupMessages(my_packages(
   c(
@@ -97,7 +95,7 @@ server <- function(input, output, session) {
     Lines_Labels_List = list(mybrakes="",mylabels="",
                              myline = tibble(use_virtical_line_color=c("green","red","black","black"),
                                              use_virtical_line_type=c("dotted","dotted","solid","solid")),
-                             mysize = c(2.0, 2.5, 13.0, 13.0, 10.0),
+                             mysize = c(2.0, 2.5, 13.0, 13.0, 10.0, 0.8),
                              myset = c(20, 40, 15, 45, 100, 5)),
     Picker_controler = NULL,
     mymath = c("mean", "none", "0", "FALSE", "FALSE", "1", "80", "none"),
@@ -1139,6 +1137,14 @@ server <- function(input, output, session) {
                   max = 20,
                   step = 1
                 ),
+                numericInput(
+                  inputId = 'selectalpha',
+                  "Set line alpha",
+                  value = reactive_values$Lines_Labels_List$mysize[6],
+                  min = .01,
+                  max = 1,
+                  step = .1
+                ),
                 icon = icon("sliders-h"),
                 status = "warning",
                 tooltip = tooltipOptions(title = "Line Options")
@@ -1605,7 +1611,8 @@ server <- function(input, output, session) {
         input$selectfontsizey,
         input$selectlegendsize,
         input$numericbinsize,
-        input$numericlabelspaceing
+        input$numericlabelspaceing,
+        input$selectalpha
       )
     removeModal()
   })
@@ -1633,19 +1640,21 @@ server <- function(input, output, session) {
       input$selectlinesize,
       input$selectfontsizex,
       input$selectfontsizey,
-      input$selectlegendsize
+      input$selectlegendsize,
+      input$selectalpha
     ),
     ignoreInit = TRUE,
     {
       if(LIST_DATA$STATE[2] > 0){
          # print("keep bin positions in bounds > 0")
-        mynum <- c(2, 2.5, 13, 13, 10)
+        mynum <- c(2, 2.5, 13, 13, 10, 0.8)
         myset <- c(
           input$selectvlinesize,
           input$selectlinesize,
           input$selectfontsizex,
           input$selectfontsizey,
-          input$selectlegendsize
+          input$selectlegendsize,
+          input$selectalpha
         )
         # keep bin positions in bounds > 0
         for (i in seq_along(myset)) {
@@ -1656,6 +1665,7 @@ server <- function(input, output, session) {
             updateNumericInput(session, "selectfontsizex", value = myset[3])
             updateNumericInput(session, "selectfontsizey", value = myset[4])
             updateNumericInput(session, "selectlegendsize", value = myset[5])
+            updateNumericInput(session, "selectalpha", value = myset[6])
           }
         }
       }
