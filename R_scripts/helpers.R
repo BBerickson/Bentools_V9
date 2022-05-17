@@ -1,4 +1,6 @@
-# why does filter plot no always update? same number of genes?
+# why does filter plot not always update? same number of genes?
+# add info to top line of table
+# dendogram sub sampling/plotting
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {

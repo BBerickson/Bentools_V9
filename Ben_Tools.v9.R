@@ -1401,7 +1401,7 @@ server <- function(input, output, session) {
     # cluster switch tab ----
     if (input$leftSideTabs == "clustertool"){
       if(!is.null(input$clusterSamples)){ 
-        if(input$clusterSamples[1] == "select sample(s)"){
+        if(input$clusterSamples[1] == "select sample"){
           shinyjs::disable("onoffdendrogram")
           shinyjs::hide("hideclusterplots1")
           shinyjs::hide("hideclustertable")
