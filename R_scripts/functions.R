@@ -166,6 +166,7 @@ tableTestbin <- function(meta_data){
     try(count_fields(meta_data$filepath,
                      n_max = 1,
                      tokenizer = tokenizer_tsv()),silent = T)
+  binning <- LinesLabelsPreSet(meta_data$type)
   # test if file can be loaded in
   if ("try-error" %in% class(num_bins)) {
     showModal(modalDialog(
@@ -175,6 +176,16 @@ tableTestbin <- function(meta_data){
       easyClose = TRUE
     ))
     return()
+  }
+  # check if table file has meta data
+  if (num_bins == 1 && str_detect(read_tsv(meta_data$filepath,n_max = 1,col_names = F,show_col_types = F),"# meta=")){
+    binning <- str_remove(read_tsv(meta_data$filepath,n_max = 1,col_names = F,show_col_types = F),"# meta=") %>% 
+      str_split_fixed(.,",",n=6) %>% as.numeric()
+    num_bins <-
+      try(count_fields(meta_data$filepath,
+                       n_max = 1,
+                       skip = 1,
+                       tokenizer = tokenizer_tsv()),silent = T)
   }
   # check if file is in wide format or deeptools matrix file
   if (num_bins == 1 | str_detect(meta_data$filepath, "matrix.gz$")) {
@@ -195,7 +206,7 @@ tableTestbin <- function(meta_data){
   } else {
     col_names <- NULL
   }
-  list(num_bins = num_bins, col_names = col_names)
+  list(num_bins = num_bins, col_names = col_names, binning = binning)
 }
 
 LoadTableFile <-
