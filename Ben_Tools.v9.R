@@ -168,7 +168,13 @@ server <- function(input, output, session) {
                   detail = paste("Testing compatiblity",meta_data$nick[i]))
         if (LIST_DATA$x_plot_range[2] == 0) {
           LIST_DATA$x_plot_range <<- range(LD$bin)
-          LIST_DATA$STATE[3] <<- meta_data$type[i]
+          # set labels every # bins
+          if(LIST_DATA$x_plot_range[2] < 50){
+            everybin <- 5
+          } else {
+            everybin <- round(LIST_DATA$x_plot_range[2]/10,-1)
+          }
+          LIST_DATA$binning <<- c(bin_colname$binning,everybin)
         } else if (max(LD$bin) != LIST_DATA$x_plot_range[2]) {
           showModal(
             modalDialog(
@@ -269,39 +275,7 @@ server <- function(input, output, session) {
       shinyjs::show("startoff2")
       # sets lines and labels
       # tries to guess lines and labels type
-      num_bins <- LIST_DATA$x_plot_range[2]
-      if (num_bins == 80 & LIST_DATA$STATE[3] == '543') {
-        reactive_values$setsliders <- c(1,80,14,18,19,45)
-        LIST_DATA$STATE[3] <<- kLinesandlabels[1]
-      } else if (num_bins == 80 & LIST_DATA$STATE[3] == '5') {
-        reactive_values$setsliders <- c(1,80,20,60,0,0)
-        LIST_DATA$STATE[3] <<- kLinesandlabels[2]
-      } else if (num_bins == 2 & LIST_DATA$STATE[3] == 'PI') {
-        reactive_values$setsliders <- c(1,2,1,1,2,2)
-        LIST_DATA$STATE[3] <<- kLinesandlabels[3]
-      } else if (num_bins == 205 & LIST_DATA$STATE[3] == '5') {
-        reactive_values$setsliders <- c(1,205,1,15,0,0)
-        LIST_DATA$STATE[3] <<- kLinesandlabels[4]
-      } else if (LIST_DATA$STATE[3] == '5') {
-        reactive_values$setsliders <- c(1,num_bins,1,
-                                        num_bins/2,num_bins/2+1,num_bins)
-      } else if (LIST_DATA$STATE[3] == '4') {
-        reactive_values$setsliders <- c(1,num_bins,1,num_bins,1,num_bins)
-        LIST_DATA$STATE[3] <<- kLinesandlabels[6]
-      } else if (LIST_DATA$STATE[3] == '3') {
-        reactive_values$setsliders <- c(1,num_bins,
-                                        num_bins/2,
-                                        num_bins,num_bins/2+1,num_bins)
-        LIST_DATA$STATE[3] <<- kLinesandlabels[7]
-      } else {
-        reactive_values$setsliders <- c(
-        1, num_bins, 
-        floor(num_bins / 5.5),
-        floor(num_bins / 4.4),
-        floor(num_bins / 4.4) + 1,
-        floor(num_bins / 1.77))
-        LIST_DATA$STATE[3] <<- kLinesandlabels[8]
-      }
+      reactive_values$setsliders <-SlidersPreSets(LIST_DATA$x_plot_range[2],LIST_DATA$binning[1])
     } 
     # enables tabs after loading file
     shinyjs::enable("startoff")
@@ -906,23 +880,12 @@ server <- function(input, output, session) {
           solidHeader = F,
           collapsible = FALSE,
           collapsed = FALSE,
-          div(
-            style = "padding-left:25px; display:inline-block; text-align:left !important;",
-            selectInput(
-              selectize = T,
-              "selectlineslabels",
-              width = "200px",
-              label = "quick set lines and labels",
-              choices = kLinesandlabels,
-              selected = LIST_DATA$STATE[3]
-            )
-          ),
           column(12,
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numerictss",
-                     "TSS bin",
+                     "Upstream bp",
                      value = reactive_values$Lines_Labels_List$myset[3],
                      min = 0,
                      max = 100
@@ -936,7 +899,7 @@ server <- function(input, output, session) {
                    style = "padding:2px; display:inline-block;",
                    numericInput(
                      "numericbody1",
-                     "5|4 bin",
+                     "unscaled5prime",
                      value = reactive_values$Lines_Labels_List$myset[1],
                      min = 0,
                      max = 100
@@ -946,7 +909,7 @@ server <- function(input, output, session) {
                    style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numericbody2",
-                     "4|3 bin",
+                     "unscaled3prime",
                      value = reactive_values$Lines_Labels_List$myset[2],
                      min = 0,
                      max = 100
@@ -956,7 +919,7 @@ server <- function(input, output, session) {
                    style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numerictes",
-                     "pA bin",
+                     "Downstream bp",
                      value = reactive_values$Lines_Labels_List$myset[4],
                      min = 0,
                      max = 100
@@ -970,7 +933,7 @@ server <- function(input, output, session) {
                    style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numericbinsize",
-                     "bp/bin",
+                     "bin size",
                      value = reactive_values$Lines_Labels_List$myset[5],
                      min = 20,
                      max = 1000,
@@ -981,7 +944,7 @@ server <- function(input, output, session) {
                    style = "padding:2px 8px 2px 2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numericlabelspaceing",
-                     "every bin",
+                     "label spacing",
                      value = reactive_values$Lines_Labels_List$myset[6],
                      min = 0,
                      max = 100
@@ -1570,7 +1533,6 @@ server <- function(input, output, session) {
   # action button update lines and labels ----
   observeEvent(input$actionlineslabels, ignoreInit = TRUE, {
      # print("action lines and labels")
-    LIST_DATA$STATE[3] <<- input$selectlineslabels
     my_pos <-
       suppressWarnings(as.numeric(unlist(
         strsplit(input$landlposition, split = "\\s+")
@@ -1615,22 +1577,6 @@ server <- function(input, output, session) {
         input$selectalpha
       )
     removeModal()
-  })
-  
-  # quick lines and labels preset change ----
-  observeEvent(input$selectlineslabels, ignoreInit = TRUE, {
-    if (input$selectlineslabels == "") {
-      return()
-    }
-     # print("quick Lines & Labels")
-    myset <- LinesLabelsPreSet(input$selectlineslabels)
-    updateNumericInput(session, "numericbody1", value = myset[1])
-    updateNumericInput(session, "numericbody2", value = myset[2])
-    updateNumericInput(session, "numerictss", value = myset[3])
-    updateNumericInput(session, "numerictes", value = myset[4])
-    updateNumericInput(session, "numericbinsize", value = myset[5])
-    updateNumericInput(session, "numericlabelspaceing", value = myset[7])
-    
   })
   
   # keep sizes real numbers lines and labels ----
@@ -1685,37 +1631,63 @@ server <- function(input, output, session) {
     ),
     ignoreInit = TRUE,
     {
-      if(LIST_DATA$STATE[2] > 0){
          # print("observe line and labels")
-        myset <- c(
-          input$numericbody1,
-          input$numericbody2,
-          input$numerictss,
-          input$numerictes,
-          input$numericbinsize,
-          input$numericlabelspaceing
-        )
-        # keep bin positions in bounds > 0
-        for (i in seq_along(myset)) {
-          if (is.na(myset[i]) | myset[i] < 0) {
-            myset[i] <- 0
-            updateNumericInput(session, "numericbody1", value = myset[1])
-            updateNumericInput(session, "numericbody2", value = myset[2])
-            updateNumericInput(session, "numerictss", value = myset[3])
-            updateNumericInput(session, "numerictes", value = myset[4])
-            updateNumericInput(session, "numericbinsize", value = myset[5])
-            updateNumericInput(session, "numericlabelspaceing", value = myset[6])
-          }
+        # myset <- c(LIST_DATA$binning[1],
+        #            input$numericbinsize,
+        #            input$numerictss,
+        #            input$numerictes,
+        #            LIST_DATA$binning[5],
+        #            input$numericbody1,
+        #            input$numericbody2,
+        #            input$numericlabelspaceing
+        # )
+        # LIST_DATA$binning <<- myset
+        # # keep bin positions in bounds > 0
+        # for (i in seq_along(myset)) {
+        #   if (is.na(myset[i]) | myset[i] < 0) {
+        #     myset[i] <- 0
+        #   }
+        # }
+        # updateNumericInput(session, "numericbinsize", value = myset[2])
+        # updateNumericInput(session, "numerictss", value = myset[3])
+        # updateNumericInput(session, "numerictes", value = myset[4])
+        # updateNumericInput(session, "numericbody1", value = myset[6])
+        # updateNumericInput(session, "numericbody2", value = myset[7])
+        # updateNumericInput(session, "numericlabelspaceing", value = myset[8])
+        # 
+        # Lines_Labels_List <- LinesLabelsSet(myset,
+        #                      LIST_DATA$x_plot_range[2],
+        #                      input$numerictssname,
+        #                      input$numerictesname)
+      myset <- c(
+        input$numericbody1,
+        input$numericbody2,
+        input$numerictss,
+        input$numerictes,
+        input$numericbinsize,
+        input$numericlabelspaceing
+      )
+      # keep bin positions in bounds > 0
+      for (i in seq_along(myset)) {
+        if (is.na(myset[i]) | myset[i] < 0) {
+          myset[i] <- 0
+          updateNumericInput(session, "numericbody1", value = myset[1])
+          updateNumericInput(session, "numericbody2", value = myset[2])
+          updateNumericInput(session, "numerictss", value = myset[3])
+          updateNumericInput(session, "numerictes", value = myset[4])
+          updateNumericInput(session, "numericbinsize", value = myset[5])
+          updateNumericInput(session, "numericlabelspaceing", value = myset[6])
         }
-        Lines_Labels_List <- LinesLabelsListset(myset[1],
-                                                myset[2],
-                                                myset[3],
-                                                myset[4],
-                                                myset[5],
-                                                LIST_DATA$x_plot_range[2],
-                                                myset[6],
-                                                input$numerictssname,
-                                                input$numerictesname)
+      }
+      Lines_Labels_List <- LinesLabelsListset(myset[1],
+                                              myset[2],
+                                              myset[3],
+                                              myset[4],
+                                              myset[5],
+                                              LIST_DATA$x_plot_range[2],
+                                              myset[6],
+                                              input$numerictssname,
+                                              input$numerictesname)
         
         # set label and position numbers
         updateTextInput(session,
@@ -1724,7 +1696,7 @@ server <- function(input, output, session) {
         updateTextInput(session,
                         "landlposition",
                         value = paste(Lines_Labels_List$mybrakes , collapse = " "))
-      } else {
+      if(LIST_DATA$STATE[2] > 0) {
         LIST_DATA$STATE[2] <<- 1
       }
     })

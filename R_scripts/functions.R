@@ -73,6 +73,50 @@ MatchGenes <- function(common_list, gene_list){
   return(tablefile)
 }
 
+# lines and labels preset helper for older table files
+LinesLabelsPreSetGuess <- function(mytype) {
+  # type,binsize,upstream,downstream,body,unscaled5prime,unscaled3prime
+  if (mytype == "543") {
+    tt <- c(543, 100, 1500, 3500, 2000, 500, 500)
+  } else if (mytype == "5") {
+    tt <- c(5, 25, 1000, 1000, 0,0,0)
+  } else if (mytype == "5L") {
+    tt <- c(5, 100, 100, 30000, 0,0,0)
+  } else if (mytype == "3") {
+    tt <- c(3, 100, 1000, 9000, 0,0,0)
+  } else if (mytype == "PI") {
+    tt <- c(543, 400, 400, 0, 400, 50, 30)
+  } else {
+    tt <- c(0, 1, 1, 1, 0, 0, 0)
+  }
+  tt
+}
+
+# takes info from file type and number of bins to pre set tools sliders
+SlidersPreSets <- function(num_bins, type){
+  # min, max, 5Min, 5Max, 3Min, 3Max
+  if (num_bins == 80 & type == '543') {
+    setsliders <- c(1,80,14,18,19,45)
+  } else if (num_bins == 80 & type == '5') {
+    setsliders <- c(1,80,20,60,0,0)
+  } else if (num_bins == 2 & type == 'PI') {
+    setsliders <- c(1,2,1,1,2,2)
+  } else if (num_bins == 205 & type == '5L') {
+    setsliders <- c(1,205,1,15,0,0)
+  } else if (type == '3') {
+    setsliders <- c(1,num_bins,num_bins/2,
+                    num_bins,num_bins/2+1,num_bins)
+  } else {
+    setsliders <- c(
+      1, num_bins, 
+      floor(num_bins / 5.5),
+      floor(num_bins / 4.4),
+      floor(num_bins / 4.4) + 1,
+      floor(num_bins / 1.77))
+  }
+  setsliders
+}
+  
 # sort out info on file/url
 PrepMetaFile <-
   function(file_path,
@@ -166,7 +210,7 @@ tableTestbin <- function(meta_data){
     try(count_fields(meta_data$filepath,
                      n_max = 1,
                      tokenizer = tokenizer_tsv()),silent = T)
-  binning <- LinesLabelsPreSet(meta_data$type)
+  binning <- LinesLabelsPreSetGuess(meta_data$type)
   # test if file can be loaded in
   if ("try-error" %in% class(num_bins)) {
     showModal(modalDialog(
@@ -178,13 +222,13 @@ tableTestbin <- function(meta_data){
     return()
   }
   # check if table file has meta data
-  if (num_bins == 1 && str_detect(read_tsv(meta_data$filepath,n_max = 1,col_names = F,show_col_types = F),"# meta=")){
-    binning <- str_remove(read_tsv(meta_data$filepath,n_max = 1,col_names = F,show_col_types = F),"# meta=") %>% 
-      str_split_fixed(.,",",n=6) %>% as.numeric()
+  if (num_bins == 1 && str_detect(read_tsv(meta_data$filepath,n_max = 1,col_names = T,show_col_types = F),"# meta=")){
+    binning <- str_remove(read_tsv(meta_data$filepath,n_max = 1,col_names = T,show_col_types = F),"# meta=") %>% 
+      str_split_fixed(.,",",n=7) %>% as.numeric()
     num_bins <-
       try(count_fields(meta_data$filepath,
                        n_max = 1,
-                       skip = 1,
+                       skip = 2,
                        tokenizer = tokenizer_tsv()),silent = T)
   }
   # check if file is in wide format or deeptools matrix file
@@ -721,6 +765,184 @@ GGplotLineDot <-
       return(suppressMessages(gp))
     }
   }
+
+# Sets lines and labels
+LinesLabelsSet <- function(myinfo,
+    totbins = 80,
+    tssname = "TSS",
+    tesname = "pA") {
+  # myinfo <- c(543,100,1500,3500,2000,500,500,10)
+  everybp <- myinfo[8] * myinfo[2]
+  # TES or 3' setup
+  if(myinfo[1] == "3" | tssname == ""){
+    tssname <- tesname
+  }
+  # I create this in steps bin 1 to next land mark (TSS TES) then go from there to next land mark until end of bins
+  if (everybp > 0) {
+    my_5prim <- NULL
+    my_3prim <- NULL
+    tssbin <- myinfo[3]/myinfo[2]
+    if(tssbin > 1){
+      mod <- 0.5
+    } else {
+      mod <- 1
+    }
+    if(myinfo[5] > 0){
+      tesbin <- (myinfo[3] + myinfo[5] + myinfo[6] + myinfo[7])/myinfo[2]
+    } else {
+      tesbin <- 0
+    }
+  
+    TSSname <- seq(-myinfo[3], 0, by = everybp)
+    TSSloc <- seq(1,  by = myinfo[8], length.out = length(TSSname))
+    # make sure TSS is included
+    if (any(TSSname == 0)) {
+      TSSloc[TSSname == 0] <- tssbin + mod
+      TSSname[TSSname == 0] <- tssname
+    } else if(any(TSSloc == tssbin)){
+      TSSname[TSSloc == tssbin] <- tssname
+      TSSloc[TSSloc == tssbin] <- tssbin + mod
+    } else {
+      TSSloc <- sort(c(TSSloc, tssbin + mod))
+      TSSname <- append(TSSname, tssname)
+    }
+  my_5prim <-
+      tibble(lloc = TSSloc, lname = as.character(TSSname))
+  # Next section 
+  nextStart <- tssbin + myinfo[8]
+  if (myinfo[6] > 0 & myinfo[7] > 0) {
+    # normal 543 
+    nextEnd <- tssbin + myinfo[6]/myinfo[2]
+  } else if (tssbin == 0 & everybp == 1) {
+    nextEnd <- totbins - 1
+  } else if (tesbin == 0 | tssbin == 0) {
+    nextEnd <- totbins
+  } else {
+    nextEnd <- 0
+  }
+  if (nextStart <= nextEnd) {
+      TSSname1 <- seq(everybp, (nextEnd - tssbin) * myinfo[2], by = everybp)
+      TSSloc1 <-seq(nextStart, by = myinfo[8], length.out = length(TSSname1))
+      if(tssbin == 0 & everybp == 1){
+        TSSname1 <- TSSname1 + 1
+        TSSloc1 <- TSSloc1 + 1
+      }
+      # make sure body brake is included
+      if (!any(TSSloc1 == nextEnd)) {
+        TSSname1 <- append(TSSname1, (nextEnd - tssbin) * myinfo[2])
+        TSSloc1 <- c(TSSloc1, nextEnd)
+      }
+      my_5prim2 <-
+        tibble(lloc = TSSloc1, lname = as.character(TSSname1))
+      my_5prim <-
+        full_join(my_5prim, my_5prim2, by = c("lloc", "lname"))
+    } else if (nextEnd > 0) {
+      my_5prim2 <-
+        tibble(lloc = nextEnd, lname = as.character((nextEnd - tssbin) * myinfo[2]))
+      my_5prim <-
+        full_join(my_5prim, my_5prim2, by = c("lloc", "lname"))
+    }
+    if (tesbin > 0) {
+      # next to TES'
+      if (myinfo[6] > 0 & myinfo[7] > 0) {
+        nextStart <- (myinfo[3] + myinfo[5] + myinfo[6])/myinfo[2]
+      } else if (tssbin == 0) {
+        nextStart <- 1
+      } else {
+        nextStart <- totbins
+      }
+      if (nextStart <= tesbin) {
+        TESname <-  abs(seq((nextStart - tesbin) * myinfo[2], 0, by = everybp))
+        if(nextStart == 1){
+          TESname <- TESname + myinfo[2]
+        }
+        TESloc <- seq(nextStart, by = myinfo[8], length.out = length(TESname))
+        # make sure TES is included
+        if (any(TESname == 0)) {
+          TESloc[TESname == 0] <- tesbin + .5
+          TESname[TESname == 0] <- tesname
+        } else if(any(TESloc == tesbin)){
+          TESname[TESloc == tesbin] <- tesname
+          TESloc[TESloc == tesbin] <- tesbin + .5
+        }else {
+          TESloc <- sort(c(TESloc, tesbin + .5))
+          TESname <- append(TESname, tesname)
+        }
+        my_3prim <-
+          tibble(lloc = TESloc, lname = as.character(TESname))
+      } else {
+        my_3prim <- tibble(lloc = tesbin + .5, lname = tesname)
+      }
+      # TES to end
+      nextStart <- tesbin + myinfo[8]
+      if (nextStart < totbins) {
+        TESname1 <- seq(everybp, (totbins - tesbin) * myinfo[2], by = everybp)
+        TESloc1 <-
+          seq(nextStart,
+              by = myinfo[8],
+              length.out = length(TESname1))
+        if (!any(TESloc1 == totbins)) {
+          TESname1 <- append(TESname1, (totbins - tesbin) * myinfo[2])
+          TESloc1 <- c(TESloc1, totbins)
+        }
+        my_3prim2 <-
+          tibble(lloc = TESloc1, lname = as.character(TESname1))
+        my_3prim <-
+          full_join(my_3prim, my_3prim2, by = c("lloc", "lname"))
+      }
+    }
+    if (!is.null(my_5prim) & !is.null(my_3prim)) {
+      my_53prim <-
+        arrange(full_join(my_5prim, my_3prim, by = c("lloc", "lname")), lloc)
+      use_plot_breaks <- my_53prim$lloc
+      use_plot_breaks_labels <- my_53prim$lname
+      use_plot_breaks_labels <-
+        use_plot_breaks_labels[seq_along(use_plot_breaks)]
+    } else if (!is.null(my_5prim)) {
+      use_plot_breaks <- my_5prim$lloc
+      use_plot_breaks_labels <- my_5prim$lname
+      use_plot_breaks_labels <-
+        use_plot_breaks_labels[seq_along(use_plot_breaks)]
+    } else if (!is.null(my_3prim)) {
+      use_plot_breaks <- my_3prim$lloc
+      use_plot_breaks_labels <- my_3prim$lname
+      use_plot_breaks_labels <-
+        use_plot_breaks_labels[seq_along(use_plot_breaks)]
+    } else {
+      # just print bin numbers
+      use_plot_breaks <-
+        seq(1,
+            by = myinfo[8],
+            length.out = (totbins / myinfo[8]) + 1)
+      use_plot_breaks_labels <-
+        seq(1,
+            by = myinfo[8],
+            length.out = (totbins / myinfo[8]) + 1)
+    }
+    # no bp bin labels
+  } else {
+    if (myinfo[8] > 0) {
+      use_plot_breaks <-
+        seq(1,
+            by = myinfo[8],
+            length.out = (totbins / myinfo[8]) + 1)
+      use_plot_breaks_labels <-
+        seq(1,
+            by = myinfo[8],
+            length.out = (totbins / myinfo[8]) + 1)
+    } else {
+      use_plot_breaks <- .5
+      use_plot_breaks_labels <- "none"
+    }
+  }
+  # virtical line set up
+  use_plot_breaks <- na_if(use_plot_breaks, 0.5)
+  use_plot_breaks_labels <-
+    use_plot_breaks_labels[!is.na(use_plot_breaks)]
+  use_plot_breaks <- use_plot_breaks[!is.na(use_plot_breaks)]
+  list(mybrakes = use_plot_breaks,
+       mylabels = use_plot_breaks_labels)
+}
 
 # Sets lines and labels
 LinesLabelsListset <- function(body1bin = 20,

@@ -21,14 +21,10 @@ kBrewerList <-
 
 # lines and labels types ----
 kLinesandlabels <- c(
-  "543 bins 20,20,40",
-  "5' 1k 1k 80bins",
-  "3' 1k 9k 100bins",
-  "5' .25k 10k 205bins",
+  "543",
   "5",
-  "4",
   "3",
-  "generic 543",
+  "5L",
   "PI"
 )
 
