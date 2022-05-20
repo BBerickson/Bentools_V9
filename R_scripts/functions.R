@@ -1211,6 +1211,89 @@ LinesLabelsListPlot <-
     )
   }
 
+# makes plot ascetics  
+LinesLabelsPlot <-
+  function(body1color,
+           body1line,
+           body2color,
+           body2line,
+           tsscolor,
+           tssline,
+           tescolor,
+           tesline,
+           use_plot_breaks_labels,
+           use_plot_breaks,
+           vlinesize,
+           linesize,
+           fontsizex,
+           fontsizey,
+           legendsize,
+           binsize,
+           binspace,
+           myalpha) {
+    # print("lines and labels plot fun")
+    if (length(use_plot_breaks_labels) > 0) {
+      mycolors <- rep("black", length(use_plot_breaks))
+      use_virtical_line <- c(NA, NA, NA, NA)
+      if (tssbin > 0) {
+        if(tssbin > 1){
+          mod <- 0.5
+        } else {
+          mod <- 0
+        }
+        mycolors[which(use_plot_breaks == tssbin  + mod)] <- tsscolor
+        use_virtical_line[1] <- tssbin  + mod
+        if (tssbin < body1bin &
+            body1bin < body2bin &
+            body2bin < tesbin & tesbin <= last(use_plot_breaks)) {
+          use_virtical_line[3:4] <- c(body1bin, body2bin)
+        }
+      }
+      if (tesbin > 0) {
+        if(tesbin > 1){
+          mod <- 0.5
+        } else {
+          mod <- 0
+        }
+        mycolors[which(use_plot_breaks == tesbin  + mod)] <- tescolor
+        use_virtical_line[2] <- tesbin + mod
+      }
+    } else {
+      use_plot_breaks <- mod
+      use_plot_breaks_labels <- "none"
+      use_virtical_line <- c(NA, NA, NA, NA)
+    }
+    # vertical line set up
+    use_virtical_line_color <-
+      c(tsscolor, tescolor, body1color, body2color)
+    use_virtical_line_type <-
+      c(tssline, tesline, body1line, body2line)
+    use_plot_breaks <- na_if(use_plot_breaks, 0.5)
+    use_virtical_line <- na_if(use_virtical_line, 0.5)
+    use_plot_breaks_labels <-
+      use_plot_breaks_labels[!is.na(use_plot_breaks)]
+    use_plot_breaks <- use_plot_breaks[!is.na(use_plot_breaks)]
+    use_virtical_line_type <-
+      use_virtical_line_type[!is.na(use_virtical_line)]
+    use_virtical_line_color <-
+      use_virtical_line_color[!is.na(use_virtical_line)]
+    use_virtical_line <-
+      use_virtical_line[!is.na(use_virtical_line)]
+    list(
+      myline = virtical_line_data_frame <- data.frame(
+        use_virtical_line,
+        use_virtical_line_type,
+        use_virtical_line_color,
+        stringsAsFactors = FALSE
+      ),
+      mycolors = mycolors,
+      mybrakes = use_plot_breaks,
+      mylabels = use_plot_breaks_labels,
+      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, myalpha),
+      myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
+    )
+  }
+
 # lines and labels preset helper
 LinesLabelsPreSet <- function(mytype) {
   # 5|4, 4|3, tss, pA, bp/bin, max bins, every bin

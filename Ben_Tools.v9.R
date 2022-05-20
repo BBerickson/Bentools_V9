@@ -1550,7 +1550,11 @@ server <- function(input, output, session) {
     if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
       updateTextInput(session, "numerictesname", value = "pA")
     }
-    
+    # my_pos <<- my_pos
+    # tssname <<- input$numerictssname
+    # my_label <<- my_label
+    # tesname <<- input$numerictesname
+    #### here
     reactive_values$Lines_Labels_List <-
       LinesLabelsListPlot(
         input$numericbody1,
