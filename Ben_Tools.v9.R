@@ -169,12 +169,12 @@ server <- function(input, output, session) {
         if (LIST_DATA$x_plot_range[2] == 0) {
           LIST_DATA$x_plot_range <<- range(LD$bin)
           # set labels every # bins
-          if(LIST_DATA$x_plot_range[2] < 50){
-            everybin <- 5
+          if(LIST_DATA$x_plot_range[2] < 100){
+            everybp <- 5*bin_colname$binning[2]
           } else {
-            everybin <- round(LIST_DATA$x_plot_range[2]/10,-1)
+            everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
           }
-          LIST_DATA$binning <<- c(bin_colname$binning,everybin)
+          LIST_DATA$binning <<- c(bin_colname$binning,everybp)
         } else if (max(LD$bin) != LIST_DATA$x_plot_range[2]) {
           showModal(
             modalDialog(
@@ -886,7 +886,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numerictss",
                      "Upstream bp",
-                     value = reactive_values$Lines_Labels_List$myset[3],
+                     value = LIST_DATA$binning[3],
                      min = 0,
                      max = 100
                    )
@@ -899,8 +899,8 @@ server <- function(input, output, session) {
                    style = "padding:2px; display:inline-block;",
                    numericInput(
                      "numericbody1",
-                     "unscaled5prime",
-                     value = reactive_values$Lines_Labels_List$myset[1],
+                     "unscaled 5prime",
+                     value = LIST_DATA$binning[6],
                      min = 0,
                      max = 100
                    )
@@ -909,8 +909,8 @@ server <- function(input, output, session) {
                    style = "padding:2px; display:inline-block; text-align:center;",
                    numericInput(
                      "numericbody2",
-                     "unscaled3prime",
-                     value = reactive_values$Lines_Labels_List$myset[2],
+                     "unscaled 3prime",
+                     value = LIST_DATA$binning[7],
                      min = 0,
                      max = 100
                    )
@@ -920,7 +920,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numerictes",
                      "Downstream bp",
-                     value = reactive_values$Lines_Labels_List$myset[4],
+                     value = LIST_DATA$binning[4],
                      min = 0,
                      max = 100
                    )
@@ -934,7 +934,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numericbinsize",
                      "bin size",
-                     value = reactive_values$Lines_Labels_List$myset[5],
+                     value = LIST_DATA$binning[2],
                      min = 20,
                      max = 1000,
                      step = 5
@@ -945,7 +945,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numericlabelspaceing",
                      "label spacing",
-                     value = reactive_values$Lines_Labels_List$myset[6],
+                     value = LIST_DATA$binning[8],
                      min = 0,
                      max = 100
                    )
@@ -1550,23 +1550,16 @@ server <- function(input, output, session) {
     if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
       updateTextInput(session, "numerictesname", value = "pA")
     }
-    # my_pos <<- my_pos
-    # tssname <<- input$numerictssname
-    # my_label <<- my_label
-    # tesname <<- input$numerictesname
-    #### here
+    
     reactive_values$Lines_Labels_List <-
-      LinesLabelsListPlot(
-        input$numericbody1,
+      LinesLabelsPlot(
+        LIST_DATA$binning,
         input$selectbody1color,
         input$selectbody1line,
-        input$numericbody2,
         input$selectbody2color,
         input$selectbody2line,
-        input$numerictss,
         input$selecttsscolor,
         input$selecttssline,
-        input$numerictes,
         input$selecttescolor,
         input$selecttesline,
         my_label,
@@ -1576,8 +1569,6 @@ server <- function(input, output, session) {
         input$selectfontsizex,
         input$selectfontsizey,
         input$selectlegendsize,
-        input$numericbinsize,
-        input$numericlabelspaceing,
         input$selectalpha
       )
     removeModal()
@@ -1635,63 +1626,34 @@ server <- function(input, output, session) {
     ),
     ignoreInit = TRUE,
     {
-         # print("observe line and labels")
-        # myset <- c(LIST_DATA$binning[1],
-        #            input$numericbinsize,
-        #            input$numerictss,
-        #            input$numerictes,
-        #            LIST_DATA$binning[5],
-        #            input$numericbody1,
-        #            input$numericbody2,
-        #            input$numericlabelspaceing
-        # )
-        # LIST_DATA$binning <<- myset
-        # # keep bin positions in bounds > 0
-        # for (i in seq_along(myset)) {
-        #   if (is.na(myset[i]) | myset[i] < 0) {
-        #     myset[i] <- 0
-        #   }
-        # }
-        # updateNumericInput(session, "numericbinsize", value = myset[2])
-        # updateNumericInput(session, "numerictss", value = myset[3])
-        # updateNumericInput(session, "numerictes", value = myset[4])
-        # updateNumericInput(session, "numericbody1", value = myset[6])
-        # updateNumericInput(session, "numericbody2", value = myset[7])
-        # updateNumericInput(session, "numericlabelspaceing", value = myset[8])
-        # 
-        # Lines_Labels_List <- LinesLabelsSet(myset,
-        #                      LIST_DATA$x_plot_range[2],
-        #                      input$numerictssname,
-        #                      input$numerictesname)
-      myset <- c(
-        input$numericbody1,
-        input$numericbody2,
-        input$numerictss,
-        input$numerictes,
-        input$numericbinsize,
-        input$numericlabelspaceing
-      )
-      # keep bin positions in bounds > 0
-      for (i in seq_along(myset)) {
-        if (is.na(myset[i]) | myset[i] < 0) {
-          myset[i] <- 0
-          updateNumericInput(session, "numericbody1", value = myset[1])
-          updateNumericInput(session, "numericbody2", value = myset[2])
-          updateNumericInput(session, "numerictss", value = myset[3])
-          updateNumericInput(session, "numerictes", value = myset[4])
-          updateNumericInput(session, "numericbinsize", value = myset[5])
-          updateNumericInput(session, "numericlabelspaceing", value = myset[6])
+        print("observe line and labels")
+        myset <- c(LIST_DATA$binning[1],
+                   input$numericbinsize,
+                   input$numerictss,
+                   input$numerictes,
+                   LIST_DATA$binning[5],
+                   input$numericbody1,
+                   input$numericbody2,
+                   input$numericlabelspaceing
+        )
+        LIST_DATA$binning <<- myset
+        # keep bin positions in bounds > 0
+        for (i in seq_along(myset)) {
+          if (is.na(myset[i]) | myset[i] < 0) {
+            myset[i] <- 0
+          }
         }
-      }
-      Lines_Labels_List <- LinesLabelsListset(myset[1],
-                                              myset[2],
-                                              myset[3],
-                                              myset[4],
-                                              myset[5],
-                                              LIST_DATA$x_plot_range[2],
-                                              myset[6],
-                                              input$numerictssname,
-                                              input$numerictesname)
+        updateNumericInput(session, "numericbinsize", value = myset[2])
+        updateNumericInput(session, "numerictss", value = myset[3])
+        updateNumericInput(session, "numerictes", value = myset[4])
+        updateNumericInput(session, "numericbody1", value = myset[6])
+        updateNumericInput(session, "numericbody2", value = myset[7])
+        updateNumericInput(session, "numericlabelspaceing", value = myset[8])
+
+        Lines_Labels_List <- LinesLabelsSet(myset,
+                             LIST_DATA$x_plot_range[2],
+                             input$numerictssname,
+                             input$numerictesname)
         
         # set label and position numbers
         updateTextInput(session,
