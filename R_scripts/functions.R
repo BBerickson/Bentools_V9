@@ -99,7 +99,7 @@ SlidersPreSets <- function(num_bins, type){
     setsliders <- c(1,80,14,18,19,45)
   } else if (num_bins == 80 & type == '5') {
     setsliders <- c(1,80,20,60,0,0)
-  } else if (num_bins == 2 & type == 'PI') {
+  } else if (num_bins == 2 | type == 'PI') {
     setsliders <- c(1,2,1,1,2,2)
   } else if (num_bins == 205 & type == '5L') {
     setsliders <- c(1,205,1,15,0,0)
@@ -225,11 +225,6 @@ tableTestbin <- function(meta_data){
   if (str_detect(read_lines(meta_data$filepath,n_max = 1),"# meta=")){
     binning <- str_remove(trimws(read_lines(meta_data$filepath,n_max = 1)),"# meta=") %>% 
       str_split_fixed(.,",",n=7) %>% as.numeric()
-    # num_bins <-
-    #   try(count_fields(meta_data$filepath,
-    #                    n_max = 1,
-    #                    skip = 2,
-    #                    tokenizer = tokenizer_tsv()),silent = T)
   }
   # check if file is in wide format or deeptools matrix file
   if (num_bins == 1 | str_detect(meta_data$filepath, "matrix.gz$")) {
@@ -782,7 +777,7 @@ LinesLableLandmarks <- function(myinfo){
   } else {
     tesbin <- 0
   }
-  c(tssbin, tesbin, body1bin, body2bin, myinfo[8]/myinfo[2])
+  floor(c(tssbin, tesbin, body1bin, body2bin, myinfo[8]/myinfo[2]))
 }
 
 # Sets lines and labels
@@ -806,7 +801,10 @@ LinesLabelsSet <- function(myinfo,
       before <- abs(before)
     }
     # make sure landmark is included properly 
-    myloc <- max(which(before == 0 | beforebins == landmarks[1]))
+    myloc <- which(before == 0 | beforebins == landmarks[1])
+    if(!is_empty(myloc)){
+      myloc <- max(myloc)
+    }
     if (any(before == 0) | any(beforebins == landmarks[1])) {
       beforebins[myloc] <- landmarks[1] + mod
       before[myloc] <- tssname
@@ -814,7 +812,6 @@ LinesLabelsSet <- function(myinfo,
       beforebins <- sort(c(beforebins, landmarks[1] + mod))
       before <- append(before, tssname)
     }
-    my_out <- tibble(lloc = beforebins, lname = as.character(before))
     
     # any other landmarks
     if(myinfo[5] > 0){
@@ -871,14 +868,14 @@ LinesLabelsSet <- function(myinfo,
       # just 5' or 3'
     } else {
       landmark  <- trunc(last(beforebins)) + landmarks[5] 
-      TESname <- seq(myinfo[8], (totbins - landmark) * myinfo[2], by = myinfo[8])
+      TESname <- seq(myinfo[8], myinfo[4], by = myinfo[8])
       TESloc <-
         seq(landmark,
             by = landmarks[5],
             length.out = length(TESname))
       # make sure last location is included
       if (!any(TESloc == totbins)) {
-        TESname <- append(TESname, (totbins - landmark) * myinfo[2])
+        TESname <- append(TESname, myinfo[4])
         TESloc <- c(TESloc, totbins)
       }
       before <- c(before,TESname)
@@ -890,9 +887,7 @@ LinesLabelsSet <- function(myinfo,
   } else {
     # just print bin numbers
     use_plot_breaks <-
-      seq(1,
-          by = landmarks[5],
-          length.out = (totbins / landmarks[5]) + 1)
+      seq(1,totbins,by=ceiling(totbins/10))
     use_plot_breaks_labels <- use_plot_breaks
   }
   list(mybrakes = use_plot_breaks,
@@ -989,58 +984,6 @@ LinesLabelsPlot <-
       myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
     )
   }
-
-# lines and labels preset helper
-LinesLabelsPreSet <- function(mytype) {
-  # 5|4, 4|3, tss, pA, bp/bin, max bins, every bin
-  if (mytype == kLinesandlabels[1]) {
-    tt <- c(20, 40, 15, 45, 100, LIST_DATA$x_plot_range[2], 10)
-  } else if (mytype == kLinesandlabels[2]) {
-    tt <- c(0, 0, 40, 0, 25, LIST_DATA$x_plot_range[2], 20)
-  } else if (mytype == kLinesandlabels[3]) {
-    tt <- c(0, 0, 0, 10, 100, LIST_DATA$x_plot_range[2], 10)
-  } else if (mytype == kLinesandlabels[4]) {
-    tt <- c(0, 0, 5, 0, 50, LIST_DATA$x_plot_range[2], 10)
-  } else if (mytype == kLinesandlabels[5]) {
-    tt <- c(0,
-            0,
-            floor(LIST_DATA$x_plot_range[2] * .25),
-            0,
-            100,
-            LIST_DATA$x_plot_range[2],
-            10)
-  } else if (mytype == kLinesandlabels[6]) {
-    tt <- c(
-      0,
-      0,
-      floor(LIST_DATA$x_plot_range[2] * .25),
-      ceiling(LIST_DATA$x_plot_range[2] * .75),
-      100,
-      LIST_DATA$x_plot_range[2],
-      10
-    )
-  } else if (mytype == kLinesandlabels[7]) {
-    tt <- c(0,
-            0,
-            0,
-            ceiling(LIST_DATA$x_plot_range[2] * .75),
-            100,
-            LIST_DATA$x_plot_range[2],
-            10)
-  } else {
-    tt <-
-      c(
-        ceiling(LIST_DATA$x_plot_range[2] * .33),
-        floor(LIST_DATA$x_plot_range[2] * .66),
-        floor(LIST_DATA$x_plot_range[2] * .25),
-        ceiling(LIST_DATA$x_plot_range[2] * .75),
-        100,
-        LIST_DATA$x_plot_range[2],
-        ceiling(LIST_DATA$x_plot_range[2] * .1)
-      )
-  }
-  tt
-}
 
 # records check box on/off
 CheckBoxOnOff <- function(check_box, list_data) {

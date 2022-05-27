@@ -1,3 +1,6 @@
+# fix common LinesLabelsPreSetGuess, and test,
+# observe print("observe line and labels") ... put in logical limits of what numbers can be, add steps to num boxes? 
+
 # why does filter plot not always update? same number of genes?
 # add info to top line of table
 # dendogram sub sampling/plotting

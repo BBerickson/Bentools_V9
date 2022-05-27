@@ -170,7 +170,11 @@ server <- function(input, output, session) {
           LIST_DATA$x_plot_range <<- range(LD$bin)
           # set labels every # bins
           if(LIST_DATA$x_plot_range[2] < 100){
-            everybp <- 5*bin_colname$binning[2]
+            if(LIST_DATA$x_plot_range[2] < 3){
+              everybp <- 0
+            }else{
+              everybp <- 5*bin_colname$binning[2]
+            }
           } else {
             everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
           }
