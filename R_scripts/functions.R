@@ -836,7 +836,10 @@ LinesLabelsSet <- function(myinfo,
         }
         unscaled3primebin <- seq(landmarks[4], by = landmarks[5], length.out = length(unscaled3prime))
         # make sure TES is included
-        myloc <- max(which(unscaled3prime == 0 | unscaled3primebin == landmarks[2]))
+        myloc <- which(unscaled3prime == 0 | unscaled3primebin == landmarks[2])
+        if(!is_empty(myloc)){
+          myloc <- max(myloc)
+        }
         if (any(unscaled3prime == 0) | any(unscaled3primebin == landmarks[2])) {
           unscaled3primebin[myloc] <- landmarks[2] + .5
           unscaled3prime[myloc] <- tesname
@@ -847,14 +850,14 @@ LinesLabelsSet <- function(myinfo,
         before <- c(before,unscaled5prime,unscaled3prime)
         beforebins <- c(beforebins,unscaled5primebin,unscaled3primebin)
       } 
-      TESname <- seq(myinfo[8], (totbins - landmarks[2]) * myinfo[2], by = myinfo[8])
+      TESname <- seq(myinfo[8], abs(totbins - landmarks[2]) * myinfo[2], by = myinfo[8])
       TESloc <-
         seq(landmarks[2] + landmarks[5],
             by = landmarks[5],
             length.out = length(TESname))
       # make sure last location is included
       if (!any(TESloc == totbins)) {
-        TESname <- append(TESname, (totbins - landmarks[2]) * myinfo[2])
+        TESname <- append(TESname, abs(totbins - landmarks[2]) * myinfo[2])
         TESloc <- c(TESloc, totbins)
       }
       # make sure TES is included

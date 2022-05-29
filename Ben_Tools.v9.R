@@ -661,7 +661,7 @@ server <- function(input, output, session) {
         shinyjs::disable("actionlineslabels")
       }
     }
-  })
+  }) 
   
   # dropcolor opens color select dialog box ----
   observeEvent(c(input$dropcolor), ignoreInit = T, {
@@ -1631,6 +1631,19 @@ server <- function(input, output, session) {
     ignoreInit = TRUE,
     {
         print("observe line and labels")
+      if (sum(c(
+        input$numericbody1,
+        input$numericbody2,
+        input$numerictss,
+        input$numerictes
+      )%%input$numericbinsize) == 0 & sum(c(
+        input$numericbody1,
+        input$numericbody2,
+        input$numerictss,
+        input$numerictes
+      ) >= input$numericbinsize) == 4 ) {
+        shinyjs::enable("actionlineslabels")
+        updateActionButton(session, "actionlineslabels", label = "SET and Plot")
         myset <- c(LIST_DATA$binning[1],
                    input$numericbinsize,
                    input$numerictss,
@@ -1668,6 +1681,10 @@ server <- function(input, output, session) {
                         value = paste(Lines_Labels_List$mybrakes , collapse = " "))
       if(LIST_DATA$STATE[2] > 0) {
         LIST_DATA$STATE[2] <<- 1
+      }
+      } else {
+        updateActionButton(session, "actionlineslabels", label = "bin size must be multiple of and not > other values")
+        shinyjs::disable("actionlineslabels")
       }
     })
   
