@@ -170,7 +170,7 @@ server <- function(input, output, session) {
           LIST_DATA$x_plot_range <<- range(LD$bin)
           # set labels every # bins
           if(LIST_DATA$x_plot_range[2] < 100){
-            if(LIST_DATA$x_plot_range[2] < 3){
+            if(LIST_DATA$x_plot_range[2] < 3 | bin_colname$binning[1] == 0){
               everybp <- 0
             }else{
               everybp <- 5*bin_colname$binning[2]
@@ -1630,18 +1630,34 @@ server <- function(input, output, session) {
     ),
     ignoreInit = TRUE,
     {
-        print("observe line and labels")
+        # print("observe line and labels")
+      # get around check for "reference-point" type files
+      if (all(c(
+        input$numericbody1,
+        input$numericbody2
+        ) > 0) & all(c(
+        input$numericbody1,
+        input$numericbody2
+      ) >= input$numericbinsize)) {
+        mybody <- c(
+          input$numericbody1,
+          input$numericbody2
+        )
+      } else {
+        mybody <- c(
+          input$numericbinsize,
+          input$numericbinsize
+        )
+      }
       if (sum(c(
-        input$numericbody1,
-        input$numericbody2,
+        mybody,
         input$numerictss,
         input$numerictes
-      )%%input$numericbinsize) == 0 & sum(c(
-        input$numericbody1,
-        input$numericbody2,
+      )%%input$numericbinsize) == 0 & all(c(
+        mybody,
         input$numerictss,
         input$numerictes
-      ) >= input$numericbinsize) == 4 ) {
+      ) >= input$numericbinsize)) {
         shinyjs::enable("actionlineslabels")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
         myset <- c(LIST_DATA$binning[1],

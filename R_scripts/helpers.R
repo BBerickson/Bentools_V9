@@ -1,9 +1,10 @@
 # fix common LinesLabelsPreSetGuess, and test,
 # observe print("observe line and labels") ... put in logical limits of what numbers can be, add steps to num boxes? 
-
+# for loops ... preallocate the output container ... out <- vector("list", length(x))  ... seq_along(x)
 # why does filter plot not always update? same number of genes?
 # add info to top line of table
 # dendogram sub sampling/plotting
+# test making a version w/o global LIST_DATA and put things in more reactive values with more observations? ... faster?, more control?, less memory?
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {

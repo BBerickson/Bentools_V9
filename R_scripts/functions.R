@@ -772,11 +772,7 @@ LinesLableLandmarks <- function(myinfo){
     body1bin <- 0
     body2bin <- 0
   }
-  if(myinfo[5] > 0){
-    tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
-  } else {
-    tesbin <- 0
-  }
+  tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
   floor(c(tssbin, tesbin, body1bin, body2bin, myinfo[8]/myinfo[2]))
 }
 
@@ -814,7 +810,7 @@ LinesLabelsSet <- function(myinfo,
     }
     
     # any other landmarks
-    if(myinfo[5] > 0){
+    if(all(c(landmarks[3],landmarks[4]) > 0)){
       # test for unscaled5prime and unscaled3prime
       if(landmarks[3] > landmarks[1] & landmarks[4] > landmarks[3]){
         # landmark1 to unscaled5prime
@@ -850,7 +846,8 @@ LinesLabelsSet <- function(myinfo,
         before <- c(before,unscaled5prime,unscaled3prime)
         beforebins <- c(beforebins,unscaled5primebin,unscaled3primebin)
       } 
-      TESname <- seq(myinfo[8], abs(totbins - landmarks[2]) * myinfo[2], by = myinfo[8])
+      tt <- c(myinfo[8], abs(totbins - landmarks[2]) * myinfo[2])
+      TESname <- seq(min(tt),max(tt), by = myinfo[8])
       TESloc <-
         seq(landmarks[2] + landmarks[5],
             by = landmarks[5],
@@ -869,7 +866,7 @@ LinesLabelsSet <- function(myinfo,
         beforebins <- c(beforebins,TESloc)
       }
       # just 5' or 3'
-    } else {
+    } else if(myinfo[8] <= myinfo[4]){
       landmark  <- trunc(last(beforebins)) + landmarks[5] 
       TESname <- seq(myinfo[8], myinfo[4], by = myinfo[8])
       TESloc <-
@@ -883,6 +880,9 @@ LinesLabelsSet <- function(myinfo,
       }
       before <- c(before,TESname)
       beforebins <- c(beforebins,TESloc)
+    } else {
+      before <- c(before,NA)
+      beforebins <- c(beforebins,totbins)
     }
     # put it all together
     use_plot_breaks <- beforebins
