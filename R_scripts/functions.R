@@ -78,11 +78,11 @@ LinesLabelsPreSetGuess <- function(mytype) {
   # type,binsize,upstream,downstream,body,unscaled5prime,unscaled3prime
   if (mytype == "543") {
     tt <- c(543, 100, 1500, 3500, 2000, 500, 500)
-  } else if (mytype == "5") {
+  } else if (mytype == "5" | mytype == "TSS") {
     tt <- c(5, 25, 1000, 1000, 0,0,0)
-  } else if (mytype == "5L") {
+  } else if (mytype == "5L"| mytype == "TSS") {
     tt <- c(5, 100, 100, 30000, 0,0,0)
-  } else if (mytype == "3") {
+  } else if (mytype == "3" | mytype == "TES") {
     tt <- c(3, 100, 1000, 9000, 0,0,0)
   } else if (mytype == "PI") {
     tt <- c(543, 400, 400, 0, 400, 50, 30)
@@ -97,13 +97,13 @@ SlidersPreSets <- function(num_bins, type){
   # min, max, 5Min, 5Max, 3Min, 3Max
   if (num_bins == 80 & type == '543') {
     setsliders <- c(1,80,14,18,19,45)
-  } else if (num_bins == 80 & type == '5') {
+  } else if (num_bins == 80 & (type == '5'| type == "TSS")) {
     setsliders <- c(1,80,20,60,0,0)
   } else if (num_bins == 2 | type == 'PI') {
     setsliders <- c(1,2,1,1,2,2)
-  } else if (num_bins == 205 & type == '5L') {
+  } else if (num_bins == 205 & (type == '5L'| type == "TSS")) {
     setsliders <- c(1,205,1,15,0,0)
-  } else if (type == '3') {
+  } else if (type == '3'| type == "TES") {
     setsliders <- c(1,num_bins,num_bins/2,
                     num_bins,num_bins/2+1,num_bins)
   } else {
@@ -234,6 +234,22 @@ tableTestbin <- function(meta_data){
                    skip = 1,
                    tokenizer = tokenizer_tsv()) - 5
     col_names <- c("chr", "start", "end","gene", "value", "sign", 1:(num_bins - 1))
+    mylist <- c("bin size","upstream","downstream","body","unscaled 5 prime","unscaled 3 prime")
+    
+    meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F)
+    mm <- meta %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>% 
+      str_replace_all(.,fixed('\"'),"") 
+    type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "[a-zA-Z: ]", "")
+    if(nchar(type) == 0){
+      type <- 543
+    }
+    header <- type
+    for(i in mylist){
+      header <- c(header,mm[str_which(mm,i)] %>% 
+                        str_remove(.,i) %>% 
+                        str_replace_all(., "[a-zA-Z: ]", ""))
+    }
+    binning <- header %>% as.numeric()
   } else if (num_bins > 6 ){
     col_names <- c("gene", 1:(num_bins - 1))
   } else if (num_bins == 4) {
@@ -792,7 +808,7 @@ LinesLabelsSet <- function(myinfo,
     before <- seq(-myinfo[3], 0, by = myinfo[8])
     beforebins <- seq(1,  by = landmarks[5], length.out = length(before))
     # landmark1 is 5' end
-    if(str_detect(myinfo[1], "^3")){
+    if(str_detect(myinfo[1], "^3|TES")){
       tssname <- tesname
       before <- abs(before)
     }
