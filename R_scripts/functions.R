@@ -85,7 +85,7 @@ LinesLabelsPreSetGuess <- function(mytype) {
   } else if (mytype == "3" | mytype == "TES") {
     tt <- c(3, 100, 1000, 9000, 0,0,0)
   } else if (mytype == "PI") {
-    tt <- c(543, 400, 400, 0, 400, 50, 30)
+    tt <- c(543, 400, 400, 400, 400, 0, 0)
   } else {
     tt <- c(0, 100, 1500, 3500, 2000, 500, 500)
   }
