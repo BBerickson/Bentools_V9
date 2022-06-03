@@ -239,8 +239,12 @@ tableTestbin <- function(meta_data){
     meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F)
     mm <- meta %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>% 
       str_replace_all(.,fixed('\"'),"") 
-    type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "[a-zA-Z: ]", "")
-    if(nchar(type) == 0){
+    type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "ref point:", "")
+    if(type == "TSS"){
+      type <- 5
+    } else if(type == "TES") {
+      type <- 3
+    } else{
       type <- 543
     }
     header <- type
