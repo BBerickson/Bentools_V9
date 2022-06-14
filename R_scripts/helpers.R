@@ -1,6 +1,11 @@
+# SlidersSetInfo set 3' values 
+
+
+# CDF plot gene list n/ brakes
+# $STATE[3] to $binning[1]
 # why does filter plot not always update? same number of genes?
 # dendogram sub sampling/plotting
-# test making a version w/o global LIST_DATA and put things in more reactive values with more observations? ... faster?, more control?, less memory?
+# test making a version w/o global LIST_DATA and put things in more reactive values (pre delare and fix undeclared) with more observations? ... faster?, more control?, less memory?
 # program for loading packages ----
 my_packages <- function(x) {
   for (i in x) {

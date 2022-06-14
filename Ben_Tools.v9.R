@@ -279,7 +279,10 @@ server <- function(input, output, session) {
       shinyjs::show("startoff2")
       # sets lines and labels
       # tries to guess lines and labels type
-      reactive_values$setsliders <-SlidersPreSets(LIST_DATA$x_plot_range[2],LIST_DATA$binning[1])
+      reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
+                                      LIST_DATA$x_plot_range[2],
+                                      slider = T)
+      reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
     } 
     # enables tabs after loading file
     shinyjs::enable("startoff")
@@ -509,14 +512,20 @@ server <- function(input, output, session) {
                        list_data_frame,
                        input$myMath,
                        input$selectplotnrom,
-                       as.numeric(input$selectplotBinNorm),
+                       as.numeric(floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$selectplotBinNorm])),
                        input$mygroup
                      )
+                     sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+                       reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
+                     if(length(sliderplotBinRange) < 2){
+                       sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
+                     }
                      reactive_values$Y_Axis_numbers <-
                        YAxisValues(
                          reactive_values$Apply_Math,
-                         input$sliderplotBinRange,
-                         c(0,100),
+                         sliderplotBinRange,
                          input$checkboxlog2
                        )
                      reactive_values$Y_Axis_numbers_set <- reactive_values$Y_Axis_numbers
@@ -616,7 +625,7 @@ server <- function(input, output, session) {
     }
     Y_Axis_Label <- YAxisLabel(input$myMath,
                                input$selectplotnrom,
-                               as.numeric(input$selectplotBinNorm),
+                               input$selectplotBinNorm,
                                input$checkboxsmooth,
                                input$checkboxlog2)
     Lines_Labels_List <- reactive_values$Lines_Labels_List
@@ -624,10 +633,16 @@ server <- function(input, output, session) {
     if(input$mygroup == "groups only"){
       Lines_Labels_List$mysize[2] <- Lines_Labels_List$mysize[2] / 2
     } 
+    sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+      reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
+    if(length(sliderplotBinRange) < 2){
+      sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
+    }
     reactive_values$Plot_controler <-
       GGplotLineDot(
         reactive_values$Apply_Math,
-        input$sliderplotBinRange,
+        sliderplotBinRange,
         reactive_values$Plot_Options,
         reactive_values$Y_Axis_numbers,
         Lines_Labels_List,
@@ -1145,10 +1160,16 @@ server <- function(input, output, session) {
         LIST_DATA$STATE[1] <<- 1
         LIST_DATA$STATE[2] <<- -10
         shinyjs::hide("actionmyplotshow")
-        updateSliderInput(session,"sliderplotBinRange",
-                          min = reactive_values$setsliders[1],
-                          max = reactive_values$setsliders[2],
-                          value = LIST_DATA$x_plot_range)
+        updateSliderTextInput(session,"sliderplotBinRange",
+                          choices = reactive_values$slider_breaks$mylabels,
+                          selected = c(first(reactive_values$slider_breaks$mylabels),
+                                       last(reactive_values$slider_breaks$mylabels))
+                          
+                            )
+        updateSelectInput(session,"selectplotBinNorm",
+                          choices = c("NA",
+                                      reactive_values$slider_breaks$mylabels)
+                            )
         reactive_values$droplinesandlabels <- 1
       }
     }
@@ -1156,19 +1177,19 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "sorttool"){
       if(!is.null(input$sortSamples)){ 
         if(input$sortSamples[1] == "select sample(s)"){
-          updateSliderInput(
+          updateSliderTextInput(
             session,
             "slidersortbinrange",
-            min = reactive_values$setsliders[1],
-            max = reactive_values$setsliders[2],
-            value = reactive_values$setsliders[3:4]
+            choices = reactive_values$slider_breaks$mylabels,
+            selected = reactive_values$setsliders[1:2]
+                                
           )
-          updateSliderInput(
+          updateSliderTextInput(
             session,
             "slidersortbinrangefilter",
-            min = reactive_values$setsliders[1],
-            max = reactive_values$setsliders[2],
-            value = reactive_values$setsliders[c(5,2)]
+            choices = reactive_values$slider_breaks$mylabels,
+            selected = c(reactive_values$setsliders[3],
+                         last(reactive_values$slider_breaks$mylabels))
           )
         }
       }
@@ -1308,26 +1329,24 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "ratiotool"){
       if(!is.null(input$selectratiofile)){
         if(input$selectratiofile == "Load data file"){
-          updateSliderInput(
+          updateSliderTextInput(
             session,
             "sliderbinratio1",
-            min = reactive_values$setsliders[1],
-            max = reactive_values$setsliders[2],
-            value = reactive_values$setsliders[3:4]
+            choices = reactive_values$slider_breaks$mylabels,
+            selected = reactive_values$setsliders[1:2]
           )
-          updateSliderInput(
+          updateSliderTextInput(
             session,
             "sliderbinratio2",
-            min = 0,
-            max = reactive_values$setsliders[2],
-            value = reactive_values$setsliders[5:6]
+            choices = c("NA", reactive_values$slider_breaks$mylabels),
+            selected = reactive_values$setsliders[3:4]
           )
-          updateSliderInput(
+          updateSliderTextInput(
             session,
             "sliderRatioBinNorm",
-            min = 0,
-            max = reactive_values$setsliders[2],
-            value = 0
+            choices = c("NA",
+                        reactive_values$slider_breaks$mylabels),
+            selected = "NA"
           )
         }
       } 
@@ -1373,12 +1392,11 @@ server <- function(input, output, session) {
           shinyjs::hide("hideclusterplots1")
           shinyjs::hide("hideclustertable")
           shinyjs::hide("hideclusterplots2")
-          updateSliderInput(
+          updateSliderTextInput(
             session,
             "sliderbincluster",
-            min = reactive_values$setsliders[1],
-            max = reactive_values$setsliders[2],
-            value = reactive_values$setsliders[3:4]
+            choices = reactive_values$slider_breaks$mylabels,
+            selected = reactive_values$setsliders[1:2]
           )
         }
       }
@@ -1411,20 +1429,19 @@ server <- function(input, output, session) {
     # CDF switch tab ----
     if(input$leftSideTabs == "cdftool"){
       if(input$sliderbincdf1[1] == 0){
-      updateSliderInput(
-        session,
-        "sliderbincdf1",
-        min = reactive_values$setsliders[1],
-        max = reactive_values$setsliders[2],
-        value = reactive_values$setsliders[3:4]
-      )
-      updateSliderInput(
-        session,
-        "sliderbincdf2",
-        min = reactive_values$setsliders[1],
-        max = reactive_values$setsliders[2],
-        value = reactive_values$setsliders[5:6]
-      )
+        updateSliderTextInput(
+          session,
+          "sliderbincdf1",
+          choices = reactive_values$slider_breaks$mylabels,
+          selected = reactive_values$setsliders[1:2]
+        )
+        updateSliderTextInput(
+          session,
+          "sliderbincdf2",
+          choices = reactive_values$slider_breaks$mylabels,
+          selected = reactive_values$setsliders[3:4]
+        )
+        
       }
     shinyjs::hide('plotcdf')
     shinyjs::hide('plotcdfscatter')
@@ -1544,7 +1561,7 @@ server <- function(input, output, session) {
     my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
     if (length(my_pos) == 0) {
       my_label <- "none"
-      my_pos <- reactive_values$setsliders[2] * 2
+      my_pos <- LIST_DATA$x_plot_range[2] * 2
     }
     
     # if tss or tes location make sure there is text
@@ -1554,6 +1571,24 @@ server <- function(input, output, session) {
     if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
       updateTextInput(session, "numerictesname", value = "pA")
     }
+    reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
+                                                    LIST_DATA$x_plot_range[2],
+                                                    slider = T)
+    reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
+    reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
+                                              last(reactive_values$slider_breaks$mylabels))
+    updateSliderTextInput(session,"sliderplotBinRange",
+                          choices = reactive_values$slider_breaks$mylabels,
+                          selected = c(first(reactive_values$slider_breaks$mylabels),
+                                       last(reactive_values$slider_breaks$mylabels))
+                          
+    )
+    
+    updateSelectInput(session,"selectplotBinNorm",
+                      choices = c("NA",
+                                  reactive_values$slider_breaks$mylabels),
+                      selected = "NA"
+    )
     
     reactive_values$Lines_Labels_List <-
       LinesLabelsPlot(
@@ -1676,6 +1711,11 @@ server <- function(input, output, session) {
             myset[i] <- 0
           }
         }
+        if(myset[8] < myset[2] | 
+           myset[8]%%myset[2] != 0){
+          myset[8] <- myset[2]
+        }
+        
         updateNumericInput(session, "numericbinsize", value = myset[2])
         updateNumericInput(session, "numerictss", value = myset[3])
         updateNumericInput(session, "numerictes", value = myset[4])
@@ -2087,8 +2127,9 @@ server <- function(input, output, session) {
                      LIST_DATA,
                      input$sortGeneList,
                      input$sortSamples,
-                     input$slidersortbinrange[1],
-                     input$slidersortbinrange[2],
+                     floor(reactive_values$slider_breaks$mybrakes[
+                       reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
+                     input$slidersortbinrange,
                      input$slidersortpercent,
                      input$selectsorttop
                    )
@@ -2209,9 +2250,11 @@ server <- function(input, output, session) {
     sortmin <- FilterPer(LIST_DATA, 
                          input$sortGeneList,
                          input$sortSamples,
-                         input$slidersortbinrange,
+                         floor(reactive_values$slider_breaks$mybrakes[
+                           reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
                          c(input$numericsortmin,input$numericsortmax),
-                         input$selectsortper)
+                         input$selectsortper,
+                         input$slidersortbinrange)
                  })
     
     if(!is_empty(sortmin$sortplot)){
@@ -2300,28 +2343,31 @@ server <- function(input, output, session) {
     shinyjs::show("hidesortplots1")
     reactive_values$Plot_controler_sort_min <- ggplot()
     shinyjs::hide("hidesortplots2")
-    if (any(between(input$slidersortbinrange,
-                    input$slidersortbinrangefilter[1],
-                    input$slidersortbinrangefilter[2]))) {
+    if (any(between(floor(reactive_values$slider_breaks$mybrakes[
+      reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$slidersortbinrangefilter[1]]),
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$slidersortbinrangefilter[2]])))) {
       showModal(modalDialog(
         title = "Information message",
         paste("Bins regions should not overlap, \nBins set to default"),
         size = "s",
         easyClose = TRUE
       ))
-      updateSliderInput(
+      updateSliderTextInput(
         session,
         "slidersortbinrange",
-        min = reactive_values$setsliders[1],
-        max = reactive_values$setsliders[2],
-        value = reactive_values$setsliders[3:4]
+        choices = reactive_values$slider_breaks$mylabels,
+        selected = reactive_values$setsliders[1:2]
       )
-      updateSliderInput(
+      
+      updateSliderTextInput(
         session,
         "slidersortbinrangefilter",
-        min = reactive_values$setsliders[1],
-        max = reactive_values$setsliders[2],
-        value = reactive_values$setsliders[c(5,2)]
+        choices = reactive_values$slider_breaks$mylabels,
+        selected = c(reactive_values$setsliders[3],
+                     last(reactive_values$slider_breaks$mylabels))
       )
     }
     withProgress(message = 'Calculation in progress',
@@ -2331,9 +2377,13 @@ server <- function(input, output, session) {
     sortmin <- FilterPeak(LIST_DATA, 
                          input$sortGeneList,
                          input$sortSamples,
+                         floor(reactive_values$slider_breaks$mybrakes[
+                           reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
+                         floor(reactive_values$slider_breaks$mybrakes[
+                           reactive_values$slider_breaks$mylabels %in% input$slidersortbinrangefilter]),
+                         input$selectsortpeak,
                          input$slidersortbinrange,
-                         input$slidersortbinrangefilter,
-                         input$selectsortpeak)
+                         input$slidersortbinrangefilter)
                  })
     
     if(!is.null(sortmin)){
@@ -2915,8 +2965,8 @@ server <- function(input, output, session) {
                        LIST_DATA,
                        input$clusterGeneList,
                        input$clusterSamples,
-                       input$sliderbincluster[1],
-                       input$sliderbincluster[2]
+                       floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbincluster])
                      )
                  })
     if (!is_empty(LD$table_file)) {
@@ -2950,8 +3000,7 @@ server <- function(input, output, session) {
                                     LIST_DATA,
                                     input$clusterGeneList,
                                     input$clusterSamples,
-                                    input$sliderbincluster[1],
-                                    input$sliderbincluster[2],
+                                    input$sliderbincluster,
                                     input$selectclusternumber
                                   )
                               })
@@ -3083,10 +3132,10 @@ server <- function(input, output, session) {
       updateNumericInput(session, "numericratio", value = 2)
       numericratio <- 2
     }
-    if (input$sliderbinratio2[1] == 0 & input$sliderbinratio2[2] > 0) {
-      updateSliderInput(session,
+    if (any(is.na(input$sliderbinratio2))) {
+      updateSliderTextInput(session,
                         "sliderbinratio2",
-                        value = c(0,0))
+                        selected = c("NA","NA"))
     }
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
@@ -3098,12 +3147,16 @@ server <- function(input, output, session) {
                        input$selectratiofile,
                        input$pickerratio1file,
                        input$pickerratio2file,
-                       input$sliderbinratio1[1],
-                       input$sliderbinratio1[2],
-                       input$sliderbinratio2[1],
-                       input$sliderbinratio2[2],
+                       floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbinratio1]),
+                       input$sliderbinratio1,
+                       floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbinratio2]),
+                       input$sliderbinratio2,
                        numericratio,
                        input$checkratiozero,
+                       floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$sliderRatioBinNorm]),
                        input$sliderRatioBinNorm
                      )
                  })
@@ -3227,14 +3280,20 @@ server <- function(input, output, session) {
     shinyjs::hide('plotcdf')
     shinyjs::hide('plotcdfscatter')
     if (any(between(
-      input$sliderbincdf1,
-      input$sliderbincdf2[1],
-      input$sliderbincdf2[2]
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$sliderbincdf1]),
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$sliderbincdf2[1]]),
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$sliderbincdf2[2]])
     )) |
     any(between(
-      input$sliderbincdf2,
-      input$sliderbincdf1[1],
-      input$sliderbincdf1[2]
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$sliderbincdf2]),
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$sliderbincdf1[1]]),
+      floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$sliderbincdf1[2]])
     ))) {
       showModal(modalDialog(
         title = "Information message",
@@ -3242,18 +3301,20 @@ server <- function(input, output, session) {
         size = "s",
         easyClose = TRUE
       ))
-      updateSliderInput(session,
-                        "sliderbincdf1",
-                        value = c(
-                          LIST_DATA$x_plot_range[1],
-                          floor(LIST_DATA$x_plot_range[2] / 4)
-                        ))
-      updateSliderInput(session,
-                        "sliderbincdf2",
-                        value = c(
-                          ceiling(LIST_DATA$x_plot_range[2] / 4) + 1,
-                          LIST_DATA$x_plot_range[2]
-                        ))
+      updateSliderTextInput(
+        session,
+        "sliderbincdf1",
+        selected = c(
+          LIST_DATA$x_plot_range[1],
+          floor(LIST_DATA$x_plot_range[2] / 4)
+        ))
+      updateSliderTextInput(
+        session,
+        "sliderbincdf2",
+        selected = c(
+          ceiling(LIST_DATA$x_plot_range[2] / 4) + 1,
+          LIST_DATA$x_plot_range[2]
+        ))
     }
     ttt <-
       reactiveValuesToList(input)[paste0("-cdfspace3-", 
@@ -3281,10 +3342,12 @@ server <- function(input, output, session) {
                      CumulativeDistribution(
                        LIST_DATA,
                        checkboxonoff,
-                       input$sliderbincdf1[1],
-                       input$sliderbincdf1[2],
-                       input$sliderbincdf2[1],
-                       input$sliderbincdf2[2]
+                       floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbincdf1]),
+                       input$sliderbincdf1,
+                       floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbincdf2]),
+                       input$sliderbincdf2
                      )
                  })
     if (!is_empty(LD$table_file)) {
@@ -3298,14 +3361,19 @@ server <- function(input, output, session) {
       newname <-
         grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
       rr <- range(LIST_DATA$gene_file[[newname]]$full$value)
-      updateSliderInput(session, "sliderrangecdf",
-                        min = floor(rr[1]),
-                        max = ceiling(rr[2]),
-                        value = c(0,0))
-      updateSliderInput(session, "sliderrangecdf",
-                        min = floor(rr[1]),
-                        max = ceiling(rr[2]),
-                        value = c(floor(rr[1]), ceiling(rr[2])))
+      # force trigger
+      updateNumericInput(session,
+                         "numericcdfmin",
+                         value = 0)
+      updateNumericInput(session,
+                         "numericcdfmax",
+                         value = 0)
+      updateNumericInput(session,
+                         "numericcdfmin",
+                         value = floor(rr[1]))
+      updateNumericInput(session,
+                         "numericcdfmax",
+                         value = ceiling(rr[2]))
     } else {
       shinyjs::disable('actioncdfcolor')
       return()
@@ -3313,7 +3381,8 @@ server <- function(input, output, session) {
   })
   
   # CDF x plot range ----
-  observeEvent(c(input$sliderrangecdf, reactive_values$df_options), ignoreInit = TRUE, {
+  observeEvent(c(input$numericcdfmin, input$numericcdfmax, 
+                 reactive_values$df_options), ignoreInit = TRUE, {
      # print("cdf plot observe range")
     newname <-
       grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
@@ -3349,13 +3418,14 @@ server <- function(input, output, session) {
           paste(use_header, paste("  p-value = ", format(tt[[2]], scientific = TRUE)))
       }
     }
-    mycdf <- GGplotC(df, df_options, use_header,as.numeric(input$sliderrangecdf))
+    mycdf <- GGplotC(df, df_options, use_header,as.numeric(c(input$numericcdfmin, input$numericcdfmax)))
     output$plotcdf <- renderPlot({
       mycdf
     })
     output$plotcdfscatter <- renderPlot({
       ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_set",
-                alpha=.8, palette = df_options$mycol) + 
+                alpha=.8, palette = df_options$mycol,
+                ylim = as.numeric(c(input$numericcdfmin, input$numericcdfmax))) + 
         rremove("x.text") + rremove("legend")
     })
     shinyjs::enable('actioncdfcolor')
@@ -3600,8 +3670,8 @@ ui <- dashboardPage(
                 selectInput(
                   "selectplotBinNorm",
                   label = "Bin Norm:",
-                  choices = c(0:80),
-                  selected = 0
+                  choices = c("NA"),
+                  selected = "NA"
                 )),
               column(
                 3,
@@ -3629,12 +3699,12 @@ ui <- dashboardPage(
               )),
               column(
                 11,
-                sliderInput(
+                sliderTextInput(
                   "sliderplotBinRange",
                   label = "Plot Bin Range:",
-                  min = 0,
-                  max = 80,
-                  value = c(0, 80)
+                  grid = TRUE,
+                  c("100","100"),
+                  selected = c("100","100")
                 )),
               column(
                 6,offset = 4,
@@ -3937,12 +4007,12 @@ ui <- dashboardPage(
                                choices = (LIST_DATA$gene_info)),
                    div(
                      style = "margin-bottom: -20px;",
-                     sliderInput(
+                     sliderTextInput(
                        "slidersortbinrange",
                        label = "Select Bin Range:",
-                       min = 1,
-                       max = 80,
-                       value = c(1, 80)
+                       grid = TRUE,
+                       c("100","100"),
+                       selected = c("100","100")
                      )
                    )
             ),
@@ -3998,12 +4068,12 @@ ui <- dashboardPage(
             fluidRow(column(
               12,
               style = "margin-bottom: -20px;",
-              sliderInput(
+              sliderTextInput(
                 "slidersortbinrangefilter",
-                label = "Select Bin Range of non-peak:",
-                min = 1,
-                max = 80,
-                value = c(1, 80)
+                label = "Select Bin Range:",
+                grid = TRUE,
+                c("100","100"),
+                selected = c("100","100")
               )
             )
             ),
@@ -4138,31 +4208,31 @@ ui <- dashboardPage(
               ),
               column(
                 5,
-                sliderInput(
+                sliderTextInput(
                   "sliderbinratio1",
-                  label = "Select numerator Bin Range:",
-                  min = 1,
-                  max = 80,
-                  value = c(1, 1)
+                  label = "Select Bin Range:",
+                  grid = TRUE,
+                  choices = c("100","100"),
+                  selected = c("100","100")
                 )
               ),
               column(
                 5,
-                sliderInput(
+                sliderTextInput(
                   "sliderbinratio2",
-                  label = "Select denominator Bin Range:",
-                  min = 0,
-                  max = 80,
-                  value = c(0, 80)
+                  label = "Select Bin Range:",
+                  grid = TRUE,
+                  choices = c("100","100"),
+                  selected = c("100","100")
                 )
               )
             ),
-            sliderInput(
+            sliderTextInput(
               "sliderRatioBinNorm",
-              label = "Bin Norm:",
-              min = 0,
-              max = 80,
-              value = 0
+              label = "Select Bin Range:",
+              grid = TRUE,
+              choices = c("NA"),
+              selected = c("NA")
             )
           ),
           box(
@@ -4229,12 +4299,12 @@ ui <- dashboardPage(
            ),
            column(
              8,
-             sliderInput(
+             sliderTextInput(
                "sliderbincluster",
                label = "Select Bin Range:",
-               min = 1,
-               max = 80,
-               value = c(1, 80)
+               grid = TRUE,
+               choices = c("100","100"),
+               selected = c("100","100")
              )
            )),
            column(width = 6,
@@ -4345,30 +4415,37 @@ ui <- dashboardPage(
             width = 12,
             column(
               width = 6,
-              sliderInput(
+              sliderTextInput(
                 "sliderbincdf1",
                 label = "Select numerator Bin Range:",
-                min = 0,
-                max = 80,
-                value = c(0, 0)
+                grid = TRUE,
+                choices = c("0","100"),
+                selected = c("0","100")
               )),
               column(
                 width = 6,
-              sliderInput(
-                "sliderbincdf2",
-                label = "Select denominator Bin Range:",
-                min = 0,
-                max = 80,
-                value = c(0, 80)
-              )),
-            sliderInput(
-              "sliderrangecdf",
-              label = "Select plot Range:",
-              min = 0,
-              max = 1,
-              value = c(0, 1)
-            ),
-              actionButton("actioncdftool", "Plot CDF"),
+                sliderTextInput(
+                  "sliderbincdf2",
+                  label = "Select denominator Bin Range:",
+                  grid = TRUE,
+                  choices = c("100","100"),
+                  selected = c("100","100")
+                )),
+            fluidRow(column(
+              width = 2,
+            numericInput(
+              "numericcdfmin",
+              label = "Xaxis min",
+              value = 0
+            )),
+            column(
+              width = 2,
+            numericInput(
+              "numericcdfmax",
+              label = "Xaxis max",
+              value = 1
+            ))),
+            actionButton("actioncdftool", "Plot CDF"),
             actionButton("actioncdfcolor", "Set Plot colors")
           ),
           box(

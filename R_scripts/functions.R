@@ -93,22 +93,22 @@ LinesLabelsPreSetGuess <- function(mytype) {
 }
 
 # takes info from file type and number of bins to pre set tools sliders
-SlidersPreSets <- function(num_bins, type){
-  # min, max, 5Min, 5Max, 3Min, 3Max
-  if (num_bins == 80 & type == '543') {
-    setsliders <- c(1,80,14,18,19,45)
+SlidersSetsInfo <- function(slider_breaks, type){
+  # 5Min, 5Max, 3Min, 3Max
+  num_bins <- max(slider_breaks$mybrakes)
+  if (num_bins == 80 & type == '543') { 
+    setsliders <- slider_breaks$mylabels[c(15,19,20,47)] 
   } else if (num_bins == 80 & (type == '5'| type == "TSS")) {
-    setsliders <- c(1,80,20,60,0,0)
+    setsliders <- c(slider_breaks$mylabels[c(21,61)],NA,NA)
   } else if (num_bins == 2 | type == 'PI') {
-    setsliders <- c(1,2,1,1,2,2)
+    setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
   } else if (num_bins == 205 & (type == '5L'| type == "TSS")) {
-    setsliders <- c(1,205,1,15,0,0)
+    setsliders <- slider_breaks$mylabels[c(15,19,20,47)]
   } else if (type == '3'| type == "TES") {
-    setsliders <- c(1,num_bins,num_bins/2,
+    setsliders <- c(num_bins/2,
                     num_bins,num_bins/2+1,num_bins)
   } else {
     setsliders <- c(
-      1, num_bins, 
       floor(num_bins / 5.5),
       floor(num_bins / 4.4),
       floor(num_bins / 4.4) + 1,
@@ -116,7 +116,7 @@ SlidersPreSets <- function(num_bins, type){
   }
   setsliders
 }
-  
+
 # sort out info on file/url
 PrepMetaFile <-
   function(file_path,
@@ -480,6 +480,9 @@ ApplyMath <-
            group="none") {
     # print("applymath fun")
     # normalize per gene relative frequency
+    if(is.empty(normbin)){
+      normbin <- 0
+    }
     if (relative_frequency == "rel gene frequency") {
       list_data <- list_data %>% group_by(plot_set, gene) %>%
         dplyr::mutate(score = score / abs(sum(score, na.rm = TRUE))) %>%
@@ -536,8 +539,8 @@ ApplyMath <-
 YAxisValues <-
   function(apply_math,
            xBinRange,
-           yBinRange = c(0, 100),
-           log_2 = F) {
+           log_2 = F,
+           yBinRange = c(0, 100)) {
     tt <- group_by(apply_math, set) %>%
       dplyr::filter(bin %in% xBinRange[1]:xBinRange[2]) %>%
       ungroup() %>%
@@ -557,7 +560,7 @@ YAxisValues <-
 YAxisLabel <-
   function(use_math = "mean",
            relative_frequency = "none",
-           norm_bin = 0,
+           norm_bin = "NA",
            smoothed = F,
            log_2 = F) {
     use_y_label <- paste(use_math, "of bin counts")
@@ -567,12 +570,12 @@ YAxisLabel <-
       use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
                            "bins : RF")
     }
-    if (norm_bin > 0) {
+    if (norm_bin != "NA") {
       if (relative_frequency == "rel gene frequency") {
-        use_y_label <- paste(use_y_label, " : Norm bin ", norm_bin)
+        use_y_label <- paste(use_y_label, " : Norm ", norm_bin)
       } else {
         use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
-                             "bins : Normalize to bin ",
+                             "bins : Normalize to ",
                              norm_bin)
       }
     }
@@ -783,6 +786,7 @@ GGplotLineDot <-
 
 # gets y axis label landmarks
 LinesLableLandmarks <- function(myinfo){
+  # type, bp/bin, before, after, body, un5, un3, spacing
   # myinfo <- c(543,100,1500,3500,2000,500,500,500)
   tssbin <- myinfo[3]/myinfo[2]
   if (sum(myinfo[5:7]) > 0) {
@@ -800,9 +804,15 @@ LinesLableLandmarks <- function(myinfo){
 LinesLabelsSet <- function(myinfo,
     totbins = 80,
     tssname = "TSS",
-    tesname = "pA") {
-  landmarks <- LinesLableLandmarks(myinfo)
+    tesname = "pA",
+    slider = F) {
+  # LinesLabelsSet(c(543,100,1500,3500,2000,500,500,500),slider = F)
   if (myinfo[8] > 0) {
+    if(totbins > 2){
+    if(slider){
+      myinfo[8] <- myinfo[2]
+    }
+    landmarks <- LinesLableLandmarks(myinfo)
     # y asis locations and labels for 1:before
     if(landmarks[1] > 0){
       mod <- 0.5
@@ -832,7 +842,7 @@ LinesLabelsSet <- function(myinfo,
     # any other landmarks
     if(all(c(landmarks[3],landmarks[4]) > 0)){
       # test for unscaled5prime and unscaled3prime
-      if(landmarks[3] > landmarks[1] & landmarks[4] > landmarks[3]){
+      if(landmarks[3] > landmarks[1] & landmarks[4] > landmarks[3] & all(landmarks%%landmarks[5] == 0)){
         # landmark1 to unscaled5prime
         unscaled5prime <- seq(myinfo[8], (landmarks[3] - landmarks[1]) * myinfo[2], by = myinfo[8])
         unscaled5primebin <- seq(landmarks[1]+landmarks[5], by = landmarks[5], length.out = length(unscaled5prime))
@@ -845,23 +855,33 @@ LinesLabelsSet <- function(myinfo,
           unscaled5prime <- append(unscaled5prime, (landmarks[3] - landmarks[1]) * myinfo[2])
           unscaled5primebin <- c(unscaled5primebin, landmarks[3])
         }
+        # slider body
+        if(slider){
+          unscaled5prime <- c(paste0("5'unscale_",unscaled5prime), 
+                              paste0("scaled_",seq_along((landmarks[3]+1):(landmarks[4]))))
+          unscaled5primebin <- c(unscaled5primebin, (landmarks[3]+1):(landmarks[4]))
+        }
         # unscaled3prime to last landmark
         unscaled3prime <-  abs(seq((landmarks[4] - landmarks[2]) * myinfo[2], 0, by = myinfo[8]))
         if(landmarks[4] == 1){
           unscaled3prime <- unscaled3prime + myinfo[2]
         }
-        unscaled3primebin <- seq(landmarks[4], by = landmarks[5], length.out = length(unscaled3prime))
+        unscaled3primebin <- seq(landmarks[4]+1, by = landmarks[5], length.out = length(unscaled3prime))
         # make sure TES is included
-        myloc <- which(unscaled3prime == 0 | unscaled3primebin == landmarks[2])
+        myloc <- which(unscaled3prime == 0 | unscaled3primebin == landmarks[2]+1)
         if(!is_empty(myloc)){
           myloc <- max(myloc)
         }
-        if (any(unscaled3prime == 0) | any(unscaled3primebin == landmarks[2])) {
+        if (any(unscaled3prime == 0) | any(unscaled3primebin == landmarks[2]+1)) {
           unscaled3primebin[myloc] <- landmarks[2] + .5
           unscaled3prime[myloc] <- tesname
         } else {
           unscaled3primebin <- sort(c(unscaled3primebin, landmarks[2] + .5))
-          unscaled3prime <- append(unscaled3prime, tesname)
+          unscaled3prime[which(unscaled3primebin == landmarks[2] + .5)] <- tesname
+        }
+        if(slider){
+          unscaled3prime[which(unscaled3prime != tesname)] <- 
+            paste0("3'unscale_",unscaled3prime[which(unscaled3prime != tesname)])
         }
         before <- c(before,unscaled5prime,unscaled3prime)
         beforebins <- c(beforebins,unscaled5primebin,unscaled3primebin)
@@ -907,6 +927,10 @@ LinesLabelsSet <- function(myinfo,
     # put it all together
     use_plot_breaks <- beforebins
       use_plot_breaks_labels <- before
+    } else{
+      use_plot_breaks <- c(1,2)
+      use_plot_breaks_labels <- c(tssname,tesname)
+    }
   } else {
     # just print bin numbers
     use_plot_breaks <-
@@ -1177,8 +1201,8 @@ FilterTop <-
   function(list_data,
            list_name,
            file_names,
-           start_bin,
-           end_bin,
+           start_end_bin,
+           start_end_label,
            mynum,
            topbottom) {
     if (is.null(file_names)) {
@@ -1197,7 +1221,7 @@ FilterTop <-
         semi_join(dplyr::filter(list_data$table_file, set == j), 
                   list_data$gene_file[[list_name]]$full, by = 'gene')  
       apply_bins <- group_by(apply_bins, gene) %>%
-        dplyr::filter(bin %in% start_bin:end_bin) %>%
+        dplyr::filter(bin %in% min(start_end_bin):max(start_end_bin)) %>%
         summarise(mysums = sum(score, na.rm = TRUE),.groups="drop") %>%
         mutate(myper = as.numeric(strtrim(cume_dist(mysums), 5))) %>%
         arrange(desc(mysums))
@@ -1252,10 +1276,9 @@ FilterTop <-
       paste(
         "Filter",
         topbottom2,
-        "bins",
-        start_bin,
+        start_end_label[1],
         "to",
-        end_bin,
+        start_end_label[2],
         "from",
         list_name,
         paste(file_names, collapse = " "),
@@ -1272,10 +1295,9 @@ FilterTop <-
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter",
                                                       topbottom2,
-                                                      "bins",
-                                                      start_bin,
+                                                      start_end_label[1],
                                                       "to",
-                                                      end_bin), 
+                                                      start_end_label[2]), 
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(outlist$gene, na.rm = T)),
                                          plot_set = " ")))
@@ -1289,7 +1311,8 @@ FilterPer <-
            file_names,
            start_end_bin,
            my_per,
-           my_type) {
+           my_type,
+           start_end_label) {
     if (is.null(file_names)) {
       showModal(modalDialog(
         title = "Information message",
@@ -1410,10 +1433,9 @@ FilterPer <-
       paste(
         "Filter Prob:",
         topbottom2,
-        "bins",
-        start_end_bin[1],
+        start_end_label[1],
         "to",
-        start_end_bin[2],
+        start_end_label[2],
         "from",
         list_name,
         paste(file_names, collapse = " "),
@@ -1430,10 +1452,9 @@ FilterPer <-
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter Prob:",
                                                       topbottom2,
-                                                      "bins",
-                                                      start_end_bin[1],
+                                                      start_end_label[1],
                                                       "to",
-                                                      start_end_bin[2]),
+                                                      start_end_label[2]),
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(out_list$gene, na.rm = T)),
                                          plot_set = " ")))
@@ -1448,7 +1469,9 @@ FilterPeak <-
            file_names,
            start_end_bin_peak,
            start_end_bin_filter,
-           my_type) {
+           my_type,
+           start_end_label_peak,
+           start_end_label_filter) {
     if (is.null(file_names)) {
       showModal(modalDialog(
         title = "Information message",
@@ -1504,14 +1527,14 @@ FilterPeak <-
                                                       paste(
                                                         "Filter:",
                                                         my_type,
-                                                        "bins",
-                                                        start_end_bin_peak[1],
+                                                        "peak",
+                                                        start_end_label_peak[1],
                                                         "to",
-                                                        start_end_bin_peak[2],
-                                                        "filter bins",
-                                                        start_end_bin_filter[1],
+                                                        start_end_label_peak[2],
+                                                        "filter peaks",
+                                                        start_end_label_filter[1],
                                                         "to",
-                                                        start_end_bin_filter[2],
+                                                        start_end_label_filter[2],
                                                         "from",
                                                         list_name,
                                                         paste(file_names, collapse = " "),
@@ -1528,10 +1551,9 @@ FilterPeak <-
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter:",
                                                       my_type,
-                                                      "bins",
-                                                      start_end_bin_filter[1],
+                                                      start_end_label_filter[1],
                                                       "to",
-                                                      start_end_bin_filter[2]),
+                                                      start_end_label_filter[2]),
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(out_gene$gene, na.rm = T)),
                                          plot_set = " ")))
@@ -1759,8 +1781,7 @@ IntersectGeneLists <-
 FindClusters <- function(list_data,
                          list_name,
                          clusterfile,
-                         start_bin,
-                         end_bin) {
+                         start_end_bin) {
   # print("find clusters")
   if (clusterfile == "") {
     showModal(modalDialog(
@@ -1776,7 +1797,7 @@ FindClusters <- function(list_data,
                 list_data$gene_file[[list_name]]$full, by = 'gene') 
     list_data$clust <- list()
     list_data$clust$cm <-
-      hclust.vector(as.data.frame(spread(df, bin, score))[, c((start_bin:end_bin) + 2)], method = "ward")
+      hclust.vector(as.data.frame(spread(df, bin, score))[, c((start_end_bin[1]:start_end_bin[2]) + 2)], method = "ward")
   list_data$clust$full <- distinct(df, gene)
   list_data
 }
@@ -1785,8 +1806,7 @@ FindClusters <- function(list_data,
 ClusterNumList <- function(list_data,
                            list_name,
                            clusterfile,
-                           start_bin,
-                           end_bin,
+                           start_end_label,
                            my_num) {
   # print("cutree")
   if (is_empty(list_data$clust) | clusterfile == "") {
@@ -1819,10 +1839,9 @@ ClusterNumList <- function(list_data,
     list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
       paste(
         nick_name,
-        "bins",
-        start_bin,
+        start_end_label[1],
         "to",
-        end_bin,
+        start_end_label[2],
         "from",
         list_name,
         clusterfile,
@@ -1859,13 +1878,14 @@ CompareRatios <-
            list_name,
            ratio1file,
            ratio2file,
-           start1_bin,
-           end1_bin,
-           start2_bin,
-           end2_bin,
+           startend1_bin,
+           startend1_label,
+           startend2_bin,
+           startend2_label,
            my_num,
            divzerofix,
-           normbin = 0) {
+           normbin = "NA",
+           normlabel = "NA") {
     if (ratio1file == "") {
       showModal(modalDialog(
         title = "Information message",
@@ -1875,6 +1895,13 @@ CompareRatios <-
       ))
       return()
     }
+    if(length(startend2_bin) < 2){
+      startend2_bin <- c(0,0)
+    }
+    start1_bin <- startend1_bin[1]
+    start2_bin <- startend2_bin[1]
+    end1_bin <- startend1_bin[2]
+    end2_bin <- startend2_bin[2]
     outlist <- NULL
     if (ratio2file == "None" | ratio2file == "") {
       if(start2_bin == 0){
@@ -1888,23 +1915,23 @@ CompareRatios <-
       }
       ratiofile <- ratio1file
       ratio2file <- paste0(ratio1file,
-      "[", start1_bin, ":", end1_bin,
-      "]/[", start2_bin, ":", end2_bin, "]")
+      "[", startend1_label[1], ":", startend1_label[2],
+      "]/[", startend2_label[1], ":", startend2_label[2], "]")
     } else {
       ratiofile <- c(ratio1file, ratio2file)
       ratio2file <- paste0(ratio2file,
-             "[", start1_bin, ":", end1_bin,
-             "]/[", start2_bin, ":", end2_bin, "]/",
+             "[", startend1_label[1], ":", startend1_label[2],
+             "]/[", startend2_label[1], ":", startend2_label[2], "]/",
              ratio1file,
-             "[", start1_bin, ":", end1_bin,
-             "]/[", start2_bin, ":", end2_bin, "]")
+             "[", startend1_label[1], ":", startend1_label[2],
+             "]/[", startend2_label[1], ":", startend2_label[2], "]")
     }
     lc <- 0
     lapply(ratiofile, function(j) {
       df <-
         semi_join(dplyr::filter(list_data$table_file, set == j), 
                   list_data$gene_file[[list_name]]$full, by = 'gene') 
-      if (normbin > 0) {
+      if (normlabel != "NA") {
         df <- group_by(df, gene) %>%
           arrange(bin) %>% 
           dplyr::mutate(score = score / nth(score, normbin))
@@ -2095,10 +2122,10 @@ CompareRatios <-
 CumulativeDistribution <-
   function(list_data,
            onoffs,
-           start1_bin,
-           end1_bin,
-           start2_bin,
-           end2_bin) {
+           startend1_bin,
+           startend1_label,
+           startend2_bin,
+           startend2_label) {
     # print("cdf function")
     if (is.null(onoffs)) {
       showModal(modalDialog(
@@ -2125,8 +2152,8 @@ CumulativeDistribution <-
         semi_join(tf, ., by = 'gene')
       outlist[[list_name]] <- tf %>% 
         group_by(gene,set) %>%
-        summarise(sum1 = mean(score[start1_bin:end1_bin],	na.rm = T),
-                  sum2 = mean(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
+        summarise(sum1 = mean(score[startend1_bin[1]:startend1_bin[2]],	na.rm = T),
+                  sum2 = mean(score[startend2_bin[1]:startend2_bin[2]],	na.rm = T),.groups="drop") %>%
         dplyr::mutate(., value = sum1 / sum2) %>%
         dplyr::mutate(value=log2(value)) %>% 
         na_if(Inf) %>% na_if(-Inf) %>% group_by(gene) %>% 
@@ -2146,7 +2173,7 @@ CumulativeDistribution <-
     # unlist and binds all together
     outlist <- bind_rows(outlist) %>% distinct() %>% arrange(bin)
     # removes top and bottom %
-    if (sum(start1_bin, end1_bin) > sum(start2_bin, end2_bin)) {
+    if (sum(startend1_bin) > sum(startend2_bin)) {
       use_header <- "Log2 EI Cumulative plot"
     } else {
       use_header <- "Log2 PI Cumulative plot"
@@ -2158,14 +2185,13 @@ CumulativeDistribution <-
         paste(
           use_header,
           "CDF",
-          "bins",
-          start1_bin,
+          startend1_label[1],
           "to",
-          end1_bin,
+          startend1_label[2],
           "/",
-          start2_bin,
+          startend2_label[1],
           "to",
-          end2_bin,
+          startend2_label[2],
           "from",
           names(onoffs),
           "gene list(s)",
