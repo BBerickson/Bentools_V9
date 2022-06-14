@@ -624,7 +624,6 @@ GGplotLineDot <-
            use_y_label,
            plot_occupancy,
            auc = FALSE) {
-    
     plot_options <- list_long_data_frame %>% 
       distinct(set,plot_set) %>% right_join(plot_options,.,by="set") %>% 
       dplyr::rename(plot_set=plot_set.y) %>% dplyr::select(-plot_set.x) %>% 

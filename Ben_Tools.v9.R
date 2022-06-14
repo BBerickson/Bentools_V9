@@ -521,6 +521,8 @@ server <- function(input, output, session) {
                      if(length(sliderplotBinRange) < 2){
                        sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
                          reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
+                     } else {
+                       sliderplotBinRange <- range(sliderplotBinRange)
                      }
                      reactive_values$Y_Axis_numbers <-
                        YAxisValues(
@@ -638,6 +640,8 @@ server <- function(input, output, session) {
     if(length(sliderplotBinRange) < 2){
       sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
         reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
+    } else {
+      sliderplotBinRange <- range(sliderplotBinRange)
     }
     reactive_values$Plot_controler <-
       GGplotLineDot(
@@ -646,7 +650,8 @@ server <- function(input, output, session) {
         reactive_values$Plot_Options,
         reactive_values$Y_Axis_numbers,
         Lines_Labels_List,
-        input$checkboxsmooth, Plot_Options_ttest,
+        input$checkboxsmooth, 
+        Plot_Options_ttest,
         input$checkboxlog2,
         Y_Axis_Label,
         input$sliderplotOccupancy,
