@@ -1,5 +1,3 @@
-# SlidersSetInfo set 3' values 
-
 
 # CDF plot gene list n/ brakes
 # $STATE[3] to $binning[1]

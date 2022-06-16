@@ -105,14 +105,14 @@ SlidersSetsInfo <- function(slider_breaks, type){
   } else if (num_bins == 205 & (type == '5L'| type == "TSS")) {
     setsliders <- slider_breaks$mylabels[c(15,19,20,47)]
   } else if (type == '3'| type == "TES") {
-    setsliders <- c(num_bins/2,
-                    num_bins,num_bins/2+1,num_bins)
+    setsliders <- c(1,floor(num_bins/3.2),
+                    floor(num_bins/3.2)+1,num_bins)
   } else {
     setsliders <- c(
-      floor(num_bins / 5.5),
-      floor(num_bins / 4.4),
-      floor(num_bins / 4.4) + 1,
-      floor(num_bins / 1.77))
+      1,
+      floor(num_bins/2),
+      floor(num_bins/2)+1,
+      num_bins)
   }
   setsliders
 }
@@ -480,7 +480,7 @@ ApplyMath <-
            group="none") {
     # print("applymath fun")
     # normalize per gene relative frequency
-    if(is.empty(normbin)){
+    if(is_empty(normbin)){
       normbin <- 0
     }
     if (relative_frequency == "rel gene frequency") {
@@ -2163,7 +2163,7 @@ CumulativeDistribution <-
           gene = gene,
           bin = row_number(),
           set = set,
-          plot_set = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
+          plot_set = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
           value = value
         ) %>%
         ungroup()
@@ -2218,7 +2218,7 @@ CumulativeDistribution <-
                                            onoff = "0",
                                            count = paste("n =", outlist %>% dplyr::filter(grepl(list_name,plot_set)) %>% 
                                                            summarise(n=n_distinct(bin))),
-                                           plot_set = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
+                                           plot_set = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
                                            myheader = use_header)))
     }
     list_data
