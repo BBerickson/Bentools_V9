@@ -2126,6 +2126,12 @@ CumulativeDistribution <-
            startend2_bin,
            startend2_label) {
     # print("cdf function")
+    if(length(startend1_bin) == 1){
+      startend1_bin <- c(startend1_bin,startend1_bin)
+    }
+    if(length(startend2_bin) == 1){
+      startend2_bin <- c(startend2_bin,startend2_bin)
+    }
     if (is.null(onoffs)) {
       showModal(modalDialog(
         title = "Information message",
