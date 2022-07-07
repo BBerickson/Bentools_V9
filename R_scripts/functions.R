@@ -917,6 +917,9 @@ LinesLabelsSet <- function(myinfo,
         TESname <- append(TESname, myinfo[4])
         TESloc <- c(TESloc, totbins)
       }
+      if(str_detect(myinfo[1], "^3|TES") & slider){
+        TESname <- paste0("+", TESname)
+      }
       before <- c(before,TESname)
       beforebins <- c(beforebins,TESloc)
     } else {
@@ -935,6 +938,9 @@ LinesLabelsSet <- function(myinfo,
     use_plot_breaks <-
       seq(1,totbins,by=ceiling(totbins/10))
     use_plot_breaks_labels <- use_plot_breaks
+  }
+  if(slider){
+    use_plot_breaks_labels <- make.unique(use_plot_breaks_labels, sep = "_")
   }
   list(mybrakes = use_plot_breaks,
        mylabels = use_plot_breaks_labels)

@@ -904,6 +904,9 @@ server <- function(input, output, session) {
           solidHeader = F,
           collapsible = FALSE,
           collapsed = FALSE,
+          pickerInput("pickerPlotType",
+                      choices = c("543","5","3"),
+                      selected = "543"),
           column(12,
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
@@ -2366,7 +2369,7 @@ server <- function(input, output, session) {
         choices = reactive_values$slider_breaks$mylabels,
         selected = reactive_values$setsliders[1:2]
       )
-      
+
       updateSliderTextInput(
         session,
         "slidersortbinrangefilter",
