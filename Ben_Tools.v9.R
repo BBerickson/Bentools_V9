@@ -905,7 +905,7 @@ server <- function(input, output, session) {
           collapsible = FALSE,
           collapsed = FALSE,
           pickerInput("pickerPlotType",
-                      choices = c("543","5","3"),
+                      choices = c("543","5","3","PI"),
                       selected = "543"),
           column(12,
                  div(

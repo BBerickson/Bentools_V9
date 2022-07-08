@@ -85,7 +85,7 @@ LinesLabelsPreSetGuess <- function(mytype) {
   } else if (mytype == "3" | mytype == "TES") {
     tt <- c(3, 100, 1000, 9000, 0,0,0)
   } else if (mytype == "PI") {
-    tt <- c(543, 400, 400, 400, 400, 0, 0)
+    tt <- c("PI", 400, 400, 400, 400, 0, 0)
   } else {
     tt <- c(0, 100, 1500, 3500, 2000, 500, 500)
   }
@@ -245,7 +245,11 @@ tableTestbin <- function(meta_data){
     } else if(type == "TES") {
       type <- 3
     } else{
-      type <- 543
+      if(num_bins == 2){
+        type <- "PI"
+      } else{
+        type <- 543
+      }
     }
     header <- type
     for(i in mylist){
@@ -940,7 +944,7 @@ LinesLabelsSet <- function(myinfo,
     use_plot_breaks_labels <- use_plot_breaks
   }
   if(slider){
-    use_plot_breaks_labels <- make.unique(use_plot_breaks_labels, sep = "_")
+    use_plot_breaks_labels <- make.unique(as.character(use_plot_breaks_labels), sep = "_")
   }
   list(mybrakes = use_plot_breaks,
        mylabels = use_plot_breaks_labels)

@@ -1,4 +1,6 @@
-# add pickerPlotType for type override, if TSS/TES is removed on action button change type ??? what values can LIST_DATA$binning[1] be ???
+# add pickerPlotType for type override, function to run LinesLabelsPreSetGuess and trigger update lldrop, 
+#  action button updates LinesLabelsSet-slider=T, and setsliders
+# if TSS/TES is removed on action button change type?
 # 3' adds extra duplicate bin
 # 5' only plots have red line for TSS ? why is it using Pa settings?
 # sliders not updating to whats in the TSS/PA boxes, also not updating if l and l is changed
