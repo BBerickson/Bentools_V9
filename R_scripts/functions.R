@@ -76,12 +76,14 @@ MatchGenes <- function(common_list, gene_list){
 # lines and labels preset helper for older table files
 LinesLabelsPreSetGuess <- function(mytype) {
   # type,binsize,upstream,downstream,body,unscaled5prime,unscaled3prime
+  print("LinesLabelsPreSetGuess")
+  print(mytype)
   if (mytype == "543") {
     tt <- c(543, 100, 1500, 3500, 2000, 500, 500)
   } else if (mytype == "5" | mytype == "TSS") {
     tt <- c(5, 25, 1000, 1000, 0,0,0)
   } else if (mytype == "5L"| mytype == "TSS") {
-    tt <- c(5, 100, 100, 30000, 0,0,0)
+    tt <- c("5L", 100, 100, 30000, 0,0,0)
   } else if (mytype == "3" | mytype == "TES") {
     tt <- c(3, 100, 1000, 9000, 0,0,0)
   } else if (mytype == "PI") {
@@ -95,6 +97,7 @@ LinesLabelsPreSetGuess <- function(mytype) {
 # takes info from file type and number of bins to pre set tools sliders
 SlidersSetsInfo <- function(slider_breaks, type){
   # 5Min, 5Max, 3Min, 3Max
+  print("SlidersSetsInfo")
   num_bins <- max(slider_breaks$mybrakes)
   if (num_bins == 80 & type == '543') { 
     setsliders <- slider_breaks$mylabels[c(15,19,20,47)] 
@@ -223,8 +226,12 @@ tableTestbin <- function(meta_data){
   }
   # check if table file has meta data
   if (str_detect(read_lines(meta_data$filepath,n_max = 1),"# meta=")){
+    tt_binning <- binning[1]
     binning <- str_remove(trimws(read_lines(meta_data$filepath,n_max = 1)),"# meta=") %>% 
       str_split_fixed(.,",",n=7) %>% as.numeric()
+    if(tt_binning  == "PI"){
+      binning[1] <- "PI"
+    }
   }
   # check if file is in wide format or deeptools matrix file
   if (num_bins == 1 | str_detect(meta_data$filepath, "matrix.gz$")) {
@@ -789,8 +796,10 @@ GGplotLineDot <-
 
 # gets y axis label landmarks
 LinesLableLandmarks <- function(myinfo){
+  print("LinesLableLandmarks")
   # type, bp/bin, before, after, body, un5, un3, spacing
   # myinfo <- c(543,100,1500,3500,2000,500,500,500)
+  myinfo <- suppressWarnings(as.double(myinfo))
   tssbin <- myinfo[3]/myinfo[2]
   if (sum(myinfo[5:7]) > 0) {
     body1bin <- tssbin + myinfo[6]/myinfo[2]
@@ -809,7 +818,10 @@ LinesLabelsSet <- function(myinfo,
     tssname = "TSS",
     tesname = "pA",
     slider = F) {
+  print("LinesLabelsSet")
   # LinesLabelsSet(c(543,100,1500,3500,2000,500,500,500),slider = F)
+  mytype <- myinfo[1]
+  myinfo <- suppressWarnings(as.double(myinfo))
   if (myinfo[8] > 0) {
     if(totbins > 2){
     if(slider){
@@ -825,7 +837,7 @@ LinesLabelsSet <- function(myinfo,
     before <- seq(-myinfo[3], 0, by = myinfo[8])
     beforebins <- seq(1,  by = landmarks[5], length.out = length(before))
     # landmark1 is 5' end
-    if(str_detect(myinfo[1], "^3|TES")){
+    if(str_detect(mytype, "^3|TES")){
       tssname <- tesname
       before <- abs(before)
     }
@@ -921,7 +933,7 @@ LinesLabelsSet <- function(myinfo,
         TESname <- append(TESname, myinfo[4])
         TESloc <- c(TESloc, totbins)
       }
-      if(str_detect(myinfo[1], "^3|TES") & slider){
+      if(str_detect(mytype, "^3|TES") & slider){
         TESname <- paste0("+", TESname)
       }
       before <- c(before,TESname)
@@ -970,7 +982,7 @@ LinesLabelsPlot <-
            fontsizey,
            legendsize,
            myalpha) {
-    # print("lines and labels plot fun")
+    print("lines and labels plot fun")
     # myinfo <- c(543,100,1500,3500,2000,500,500,500)
     landmarks <- LinesLableLandmarks(myinfo)
     tssbin <- landmarks[1]

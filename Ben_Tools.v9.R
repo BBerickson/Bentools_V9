@@ -283,6 +283,7 @@ server <- function(input, output, session) {
                                       LIST_DATA$x_plot_range[2],
                                       slider = T)
       reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
+      print(reactive_values$setsliders)
     } 
     # enables tabs after loading file
     shinyjs::enable("startoff")
@@ -905,8 +906,8 @@ server <- function(input, output, session) {
           collapsible = FALSE,
           collapsed = FALSE,
           pickerInput("pickerPlotType",
-                      choices = c("543","5","3","PI"),
-                      selected = "543"),
+                      choices = c("543","5","3","PI","5L","NA"),
+                      selected = LIST_DATA$binning[1]),
           column(12,
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
@@ -1145,6 +1146,44 @@ server <- function(input, output, session) {
         actionButton("actionlineslabels", "SET and Plot"),
       )
     ))
+  })
+  
+  # observes switching type in lines and labels drop ----
+  observeEvent(input$pickerPlotType, ignoreInit = TRUE, {
+    LIST_DATA$binning <<- LinesLabelsPreSetGuess(input$pickerPlotType)
+    if(LIST_DATA$binning[1] == "543"){
+      tss <-"TSS"
+      tes <- "pA"
+      mynum <- 5
+    } else if(LIST_DATA$binning[1] == "5"){
+      tss <-"TSS"
+      tes <- ""
+      mynum <- 5
+    } else if(LIST_DATA$binning[1] == "5L"){
+      tss <-"TSS"
+      tes <- ""
+      mynum <- 50
+    } else if(LIST_DATA$binning[1] == "3"){
+      tss <-""
+      tes <- "pA"
+      mynum <- 5
+    } else if(LIST_DATA$binning[1] == "PI"){
+      tss <-"TSS"
+      tes <- "body"
+      mynum <- 5
+    } else {
+      tss <-"start"
+      tes <- "end"
+      mynum <- 5
+    }
+    updateNumericInput(session, "numericbinsize", value = LIST_DATA$binning[2])
+    updateNumericInput(session, "numerictss", value = LIST_DATA$binning[3])
+    updateNumericInput(session, "numerictes", value = LIST_DATA$binning[4])
+    updateNumericInput(session, "numericbody1", value = LIST_DATA$binning[6])
+    updateNumericInput(session, "numericbody2", value = LIST_DATA$binning[7])
+    updateNumericInput(session, "numericlabelspaceing", value = round(as.double(LIST_DATA$binning[2])*mynum, -2))
+    updateTextInput(session, "numerictssname", value = tss)
+    updateTextInput(session, "numerictesname", value = tes)
   })
   
   # observe switching tabs ----
@@ -1581,6 +1620,8 @@ server <- function(input, output, session) {
     }
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
                                                     LIST_DATA$x_plot_range[2],
+                                                    input$numerictssname,
+                                                    input$numerictesname,
                                                     slider = T)
     reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
     reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
@@ -1673,7 +1714,7 @@ server <- function(input, output, session) {
     ),
     ignoreInit = TRUE,
     {
-        # print("observe line and labels")
+        print("observe line and labels")
       # get around check for "reference-point" type files
       if (all(c(
         input$numericbody1,
@@ -1720,7 +1761,7 @@ server <- function(input, output, session) {
           }
         }
         if(myset[8] < myset[2] | 
-           myset[8]%%myset[2] != 0){
+           as.double(myset[8])%%as.double(myset[2]) != 0){
           myset[8] <- myset[2]
         }
         

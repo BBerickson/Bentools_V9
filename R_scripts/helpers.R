@@ -1,5 +1,5 @@
-# add pickerPlotType for type override, function to run LinesLabelsPreSetGuess and trigger update lldrop, 
-#  action button updates LinesLabelsSet-slider=T, and setsliders
+#  
+#  action button updates LinesLabelsSet-slider=T, and setsliders, have a reset for tab switching
 # if TSS/TES is removed on action button change type?
 # 3' adds extra duplicate bin
 # 5' only plots have red line for TSS ? why is it using Pa settings?
