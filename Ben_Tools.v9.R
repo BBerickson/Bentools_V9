@@ -283,7 +283,6 @@ server <- function(input, output, session) {
                                       LIST_DATA$x_plot_range[2],
                                       slider = T)
       reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
-      print(reactive_values$setsliders)
     } 
     # enables tabs after loading file
     shinyjs::enable("startoff")
@@ -894,6 +893,7 @@ server <- function(input, output, session) {
   # droplinesandlabels ----
   observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, {
      # print("droplinesandlabels")
+    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
     showModal(modalDialog(
       title = "Information message",
       " Set Lines and Labels for plot ",
@@ -921,7 +921,7 @@ server <- function(input, output, session) {
                  ),
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
-                   textInput("numerictssname", value = "TSS", label = "TSS label",width = "60px"),
+                   textInput("numerictssname", value = mynames[1], label = "TSS label",width = "60px"),
                  ),
                  div(
                    style = "padding:2px; display:inline-block;",
@@ -955,7 +955,7 @@ server <- function(input, output, session) {
                  ),
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
-                   textInput("numerictesname", value = "pA", label = " TES label",width = "60px"),
+                   textInput("numerictesname", value = mynames[2], label = " TES label",width = "60px"),
                  ),
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
@@ -1151,39 +1151,15 @@ server <- function(input, output, session) {
   # observes switching type in lines and labels drop ----
   observeEvent(input$pickerPlotType, ignoreInit = TRUE, {
     LIST_DATA$binning <<- LinesLabelsPreSetGuess(input$pickerPlotType)
-    if(LIST_DATA$binning[1] == "543"){
-      tss <-"TSS"
-      tes <- "pA"
-      mynum <- 5
-    } else if(LIST_DATA$binning[1] == "5"){
-      tss <-"TSS"
-      tes <- ""
-      mynum <- 5
-    } else if(LIST_DATA$binning[1] == "5L"){
-      tss <-"TSS"
-      tes <- ""
-      mynum <- 50
-    } else if(LIST_DATA$binning[1] == "3"){
-      tss <-""
-      tes <- "pA"
-      mynum <- 5
-    } else if(LIST_DATA$binning[1] == "PI"){
-      tss <-"TSS"
-      tes <- "body"
-      mynum <- 5
-    } else {
-      tss <-"start"
-      tes <- "end"
-      mynum <- 5
-    }
+    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
     updateNumericInput(session, "numericbinsize", value = LIST_DATA$binning[2])
     updateNumericInput(session, "numerictss", value = LIST_DATA$binning[3])
     updateNumericInput(session, "numerictes", value = LIST_DATA$binning[4])
     updateNumericInput(session, "numericbody1", value = LIST_DATA$binning[6])
     updateNumericInput(session, "numericbody2", value = LIST_DATA$binning[7])
-    updateNumericInput(session, "numericlabelspaceing", value = round(as.double(LIST_DATA$binning[2])*mynum, -2))
-    updateTextInput(session, "numerictssname", value = tss)
-    updateTextInput(session, "numerictesname", value = tes)
+    updateNumericInput(session, "numericlabelspaceing", value = round(as.double(LIST_DATA$binning[2])*as.double(mynames[3]), -2))
+    updateTextInput(session, "numerictssname", value = mynames[1])
+    updateTextInput(session, "numerictesname", value = mynames[2])
   })
   
   # observe switching tabs ----
@@ -1222,24 +1198,6 @@ server <- function(input, output, session) {
     }
     # sort/filter tab ----
     if (input$leftSideTabs == "sorttool"){
-      if(!is.null(input$sortSamples)){ 
-        if(input$sortSamples[1] == "select sample(s)"){
-          updateSliderTextInput(
-            session,
-            "slidersortbinrange",
-            choices = reactive_values$slider_breaks$mylabels,
-            selected = reactive_values$setsliders[1:2]
-                                
-          )
-          updateSliderTextInput(
-            session,
-            "slidersortbinrangefilter",
-            choices = reactive_values$slider_breaks$mylabels,
-            selected = c(reactive_values$setsliders[3],
-                         last(reactive_values$slider_breaks$mylabels))
-          )
-        }
-      }
       ol <- input$sortGeneList
       if(!is.null(ol)){
         if (!ol %in% names(LIST_DATA$gene_file)) {
@@ -1378,18 +1336,6 @@ server <- function(input, output, session) {
         if(input$selectratiofile == "Load data file"){
           updateSliderTextInput(
             session,
-            "sliderbinratio1",
-            choices = reactive_values$slider_breaks$mylabels,
-            selected = reactive_values$setsliders[1:2]
-          )
-          updateSliderTextInput(
-            session,
-            "sliderbinratio2",
-            choices = c("NA", reactive_values$slider_breaks$mylabels),
-            selected = reactive_values$setsliders[3:4]
-          )
-          updateSliderTextInput(
-            session,
             "sliderRatioBinNorm",
             choices = c("NA",
                         reactive_values$slider_breaks$mylabels),
@@ -1439,12 +1385,6 @@ server <- function(input, output, session) {
           shinyjs::hide("hideclusterplots1")
           shinyjs::hide("hideclustertable")
           shinyjs::hide("hideclusterplots2")
-          updateSliderTextInput(
-            session,
-            "sliderbincluster",
-            choices = reactive_values$slider_breaks$mylabels,
-            selected = reactive_values$setsliders[1:2]
-          )
         }
       }
       ol <- input$clusterGeneList
@@ -1475,21 +1415,6 @@ server <- function(input, output, session) {
     }
     # CDF switch tab ----
     if(input$leftSideTabs == "cdftool"){
-      if(input$sliderbincdf1[1] == 0){
-        updateSliderTextInput(
-          session,
-          "sliderbincdf1",
-          choices = reactive_values$slider_breaks$mylabels,
-          selected = reactive_values$setsliders[1:2]
-        )
-        updateSliderTextInput(
-          session,
-          "sliderbincdf2",
-          choices = reactive_values$slider_breaks$mylabels,
-          selected = reactive_values$setsliders[3:4]
-        )
-        
-      }
     shinyjs::hide('plotcdf')
     shinyjs::hide('plotcdfscatter')
     shinyjs::disable('actioncdfcolor')
@@ -1610,13 +1535,13 @@ server <- function(input, output, session) {
       my_label <- "none"
       my_pos <- LIST_DATA$x_plot_range[2] * 2
     }
-    
+    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
     # if tss or tes location make sure there is text
     if(nchar(trimws(input$numerictssname)) == 0 & input$numerictss > 0){
-      updateTextInput(session, "numerictssname", value = "TSS")
+      updateTextInput(session, "numerictssname", value = mynames[1])
     }
     if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
-      updateTextInput(session, "numerictesname", value = "pA")
+      updateTextInput(session, "numerictesname", value = mynames[2])
     }
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
                                                     LIST_DATA$x_plot_range[2],
@@ -1662,6 +1587,53 @@ server <- function(input, output, session) {
     removeModal()
   })
   
+  # update sliders ----
+  observeEvent(reactive_values$setsliders, ignoreInit = TRUE, {
+    updateSliderTextInput(
+      session,
+      "slidersortbinrange",
+      choices = reactive_values$slider_breaks$mylabels,
+      selected = reactive_values$setsliders[1:2]
+      
+    )
+    updateSliderTextInput(
+      session,
+      "slidersortbinrangefilter",
+      choices = reactive_values$slider_breaks$mylabels,
+      selected = c(reactive_values$setsliders[3],
+                   last(reactive_values$slider_breaks$mylabels))
+    )
+    updateSliderTextInput(
+      session,
+      "sliderbinratio1",
+      choices = reactive_values$slider_breaks$mylabels,
+      selected = reactive_values$setsliders[1:2]
+    )
+    updateSliderTextInput(
+      session,
+      "sliderbinratio2",
+      choices = c("NA", reactive_values$slider_breaks$mylabels),
+      selected = reactive_values$setsliders[3:4]
+    )
+    updateSliderTextInput(
+      session,
+      "sliderbincluster",
+      choices = reactive_values$slider_breaks$mylabels,
+      selected = reactive_values$setsliders[1:2]
+    )
+    updateSliderTextInput(
+      session,
+      "sliderbincdf1",
+      choices = reactive_values$slider_breaks$mylabels,
+      selected = reactive_values$setsliders[1:2]
+    )
+    updateSliderTextInput(
+      session,
+      "sliderbincdf2",
+      choices = reactive_values$slider_breaks$mylabels,
+      selected = reactive_values$setsliders[3:4]
+    )
+  })
   # keep sizes real numbers lines and labels ----
   observeEvent(
     c(
@@ -1714,7 +1686,7 @@ server <- function(input, output, session) {
     ),
     ignoreInit = TRUE,
     {
-        print("observe line and labels")
+        # print("observe line and labels")
       # get around check for "reference-point" type files
       if (all(c(
         input$numericbody1,

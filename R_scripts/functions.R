@@ -76,8 +76,7 @@ MatchGenes <- function(common_list, gene_list){
 # lines and labels preset helper for older table files
 LinesLabelsPreSetGuess <- function(mytype) {
   # type,binsize,upstream,downstream,body,unscaled5prime,unscaled3prime
-  print("LinesLabelsPreSetGuess")
-  print(mytype)
+  # print("LinesLabelsPreSetGuess")
   if (mytype == "543") {
     tt <- c(543, 100, 1500, 3500, 2000, 500, 500)
   } else if (mytype == "5" | mytype == "TSS") {
@@ -94,10 +93,27 @@ LinesLabelsPreSetGuess <- function(mytype) {
   tt
 }
 
+# settings for tss tes name and spacing
+LinesLabelsSetNames <- function(mytype){
+  if(mytype == "543"){
+    myname <- c("TSS","pA",5)
+  } else if(mytype == "5"){
+    myname <- c("TSS","",5)
+  } else if(mytype == "5L"){
+    myname <- c("TSS","",50)
+  } else if(mytype == "3"){
+    myname <- c("","pA",5)
+  } else if(mytype == "PI"){
+    myname <- c("TSS","body",5)
+  } else {
+    myname <- c("start","end",5)
+  }
+}
+
 # takes info from file type and number of bins to pre set tools sliders
 SlidersSetsInfo <- function(slider_breaks, type){
   # 5Min, 5Max, 3Min, 3Max
-  print("SlidersSetsInfo")
+  # print("SlidersSetsInfo")
   num_bins <- max(slider_breaks$mybrakes)
   if (num_bins == 80 & type == '543') { 
     setsliders <- slider_breaks$mylabels[c(15,19,20,47)] 
@@ -796,7 +812,7 @@ GGplotLineDot <-
 
 # gets y axis label landmarks
 LinesLableLandmarks <- function(myinfo){
-  print("LinesLableLandmarks")
+  # print("LinesLableLandmarks")
   # type, bp/bin, before, after, body, un5, un3, spacing
   # myinfo <- c(543,100,1500,3500,2000,500,500,500)
   myinfo <- suppressWarnings(as.double(myinfo))
@@ -818,7 +834,7 @@ LinesLabelsSet <- function(myinfo,
     tssname = "TSS",
     tesname = "pA",
     slider = F) {
-  print("LinesLabelsSet")
+  # print("LinesLabelsSet")
   # LinesLabelsSet(c(543,100,1500,3500,2000,500,500,500),slider = F)
   mytype <- myinfo[1]
   myinfo <- suppressWarnings(as.double(myinfo))
@@ -982,7 +998,7 @@ LinesLabelsPlot <-
            fontsizey,
            legendsize,
            myalpha) {
-    print("lines and labels plot fun")
+    # print("lines and labels plot fun")
     # myinfo <- c(543,100,1500,3500,2000,500,500,500)
     landmarks <- LinesLableLandmarks(myinfo)
     tssbin <- landmarks[1]
