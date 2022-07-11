@@ -173,7 +173,7 @@ server <- function(input, output, session) {
             if(LIST_DATA$x_plot_range[2] < 3 | bin_colname$binning[1] == 0){
               everybp <- 0
             }else{
-              everybp <- 5*bin_colname$binning[2]
+              everybp <- round(as.double(bin_colname$binning[2])*5, -2)
             }
           } else {
             everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
@@ -975,7 +975,7 @@ server <- function(input, output, session) {
                      "label spacing",
                      value = LIST_DATA$binning[8],
                      min = 0,
-                     max = 100
+                     max = 1000
                    )
                  )
           ),

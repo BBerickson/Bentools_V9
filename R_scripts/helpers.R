@@ -1,9 +1,6 @@
 #  
-# 3' adds extra duplicate bin
 # 5' only plots have red line for TSS ? why is it using Pa settings?
-# sliders not updating to whats in the TSS/PA boxes, also not updating if l and l is changed
 # CDF plot gene list n/ brakes
-# $STATE[3] to $binning[1]
 # why does filter plot not always update? same number of genes?
 # dendogram sub sampling/plotting
 # do I need  theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) + 
