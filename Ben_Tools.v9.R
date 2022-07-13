@@ -1594,7 +1594,8 @@ server <- function(input, output, session) {
   
   # update sliders ----
   observeEvent(reactive_values$setsliders, ignoreInit = TRUE, {
-    print("update sliders")
+    # print("update sliders")
+    
     updateSliderTextInput(
       session,
       "slidersortbinrange",

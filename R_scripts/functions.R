@@ -955,7 +955,8 @@ LinesLabelsSet <- function(myinfo,
         TESloc <- c(TESloc, totbins)
       }
       if(str_detect(mytype, "^3|TES") & slider){
-        TESname <- paste0("+", TESname)
+        # sliders remove + if connected  
+        TESname <- paste0("+ ", TESname)
       }
       before <- c(before,TESname)
       beforebins <- c(beforebins,TESloc)
