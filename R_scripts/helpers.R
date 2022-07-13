@@ -1,5 +1,5 @@
-#  
-# 5' only plots have red line for TSS ? why is it using Pa settings?
+#  543 type not working, crashes sooner if url than single file?
+# 3' sliders not showing + reactive_values$setsliders print(reactive_values$slider_breaks)
 # CDF plot gene list n/ brakes
 # why does filter plot not always update? same number of genes?
 # dendogram sub sampling/plotting

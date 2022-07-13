@@ -497,7 +497,7 @@ server <- function(input, output, session) {
   
   # observe actionmyplot, Lines_Labels_List, myplot update apply_Math ----
   observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$myplot), ignoreInit = TRUE, {
-     # print("plot button")
+     print("plot button")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -894,6 +894,11 @@ server <- function(input, output, session) {
   observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, {
      # print("droplinesandlabels")
     mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
+    if(LIST_DATA$x_plot_range[2]  != 2){
+      mychoices <- c("543","5","3","5L","NA")
+    } else {
+      mychoices <- c("543","5","3","5L","PI","NA")
+    }
     showModal(modalDialog(
       title = "Information message",
       " Set Lines and Labels for plot ",
@@ -906,7 +911,7 @@ server <- function(input, output, session) {
           collapsible = FALSE,
           collapsed = FALSE,
           pickerInput("pickerPlotType",
-                      choices = c("543","5","3","PI","5L","NA"),
+                      choices = mychoices,
                       selected = LIST_DATA$binning[1]),
           column(12,
                  div(
@@ -1525,7 +1530,7 @@ server <- function(input, output, session) {
   
   # action button update lines and labels ----
   observeEvent(input$actionlineslabels, ignoreInit = TRUE, {
-     # print("action lines and labels")
+     print("action lines and labels")
     my_pos <-
       suppressWarnings(as.numeric(unlist(
         strsplit(input$landlposition, split = "\\s+")
@@ -1589,6 +1594,7 @@ server <- function(input, output, session) {
   
   # update sliders ----
   observeEvent(reactive_values$setsliders, ignoreInit = TRUE, {
+    print("update sliders")
     updateSliderTextInput(
       session,
       "slidersortbinrange",
@@ -1634,6 +1640,7 @@ server <- function(input, output, session) {
       selected = reactive_values$setsliders[3:4]
     )
   })
+  
   # keep sizes real numbers lines and labels ----
   observeEvent(
     c(

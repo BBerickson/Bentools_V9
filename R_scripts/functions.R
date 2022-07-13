@@ -815,6 +815,7 @@ LinesLableLandmarks <- function(myinfo){
   # print("LinesLableLandmarks")
   # type, bp/bin, before, after, body, un5, un3, spacing
   # myinfo <- c(543,100,1500,3500,2000,500,500,500)
+  mytype <- myinfo[1]
   myinfo <- suppressWarnings(as.double(myinfo))
   tssbin <- myinfo[3]/myinfo[2]
   if (sum(myinfo[5:7]) > 0) {
@@ -824,7 +825,11 @@ LinesLableLandmarks <- function(myinfo){
     body1bin <- 0
     body2bin <- 0
   }
-  tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
+  if(mytype != "5"){
+    tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
+  } else {
+    tesbin <- 0
+  }
   floor(c(tssbin, tesbin, body1bin, body2bin, myinfo[8]/myinfo[2]))
 }
 
@@ -974,6 +979,8 @@ LinesLabelsSet <- function(myinfo,
   if(slider){
     use_plot_breaks_labels <- make.unique(as.character(use_plot_breaks_labels), sep = "_")
   }
+  use_plot_breaks_labels <- use_plot_breaks_labels[which(use_plot_breaks <= totbins)]
+  use_plot_breaks <- use_plot_breaks[which(use_plot_breaks <= totbins)]
   list(mybrakes = use_plot_breaks,
        mylabels = use_plot_breaks_labels)
 }
@@ -998,9 +1005,9 @@ LinesLabelsPlot <-
            fontsizey,
            legendsize,
            myalpha) {
-    # print("lines and labels plot fun")
+    print("lines and labels plot fun")
     # myinfo <- c(543,100,1500,3500,2000,500,500,500)
-    landmarks <- LinesLableLandmarks(myinfo)
+    landmarks <- LinesLableLandmarks(LIST_DATA$binning)
     tssbin <- landmarks[1]
     tesbin <- landmarks[2]
     body1bin <- landmarks[3]
