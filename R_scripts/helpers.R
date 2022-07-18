@@ -1,9 +1,6 @@
 #  
 # 
-# CDF plot gene list n/ brakes
-# why does filter plot not always update? same number of genes?
 # dendogram sub sampling/plotting
-# do I need  theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) + 
 # test making a version w/o global LIST_DATA and put things in more reactive values (pre delare and fix undeclared) with more observations? ... faster?, more control?, less memory?
 # program for loading packages ----
 my_packages <- function(x) {

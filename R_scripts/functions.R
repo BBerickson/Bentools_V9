@@ -247,6 +247,8 @@ tableTestbin <- function(meta_data){
       str_split_fixed(.,",",n=7) %>% as.numeric()
     if(tt_binning  == "PI"){
       binning[1] <- "PI"
+    } else if(tt_binning  == "5L"){
+      binning[1] <- "5L"
     }
   }
   # check if file is in wide format or deeptools matrix file
@@ -754,7 +756,6 @@ GGplotLineDot <-
         ylab(plot_ttest$ylabTT)+
         scale_x_continuous(breaks = line_list$mybrakes[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
                            labels = line_list$mylabels[between(line_list$mybrakes, xBinRange[1], xBinRange[2])]) +
-        theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) +
         theme(axis.title.y = element_text(size =  line_list$mysize[4], margin = margin(2, 10, 2, 2))) +
         theme(axis.text.y = element_text(size = line_list$mysize[4],
                                          face = 'bold'))+
@@ -786,7 +787,6 @@ GGplotLineDot <-
         ), collapse = ", "), collapse = ", ")) +
         scale_x_continuous(breaks = line_list$mybrakes[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
                            labels = line_list$mylabels[between(line_list$mybrakes, xBinRange[1], xBinRange[2])]) +
-        theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) +
         theme(
           axis.text.x = element_text(
             color = line_list$mycolors[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
@@ -825,7 +825,7 @@ LinesLableLandmarks <- function(myinfo){
     body1bin <- 0
     body2bin <- 0
   }
-  if(mytype != "5"){
+  if(mytype != "5" | mytype != "5L"){
     tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
   } else {
     tesbin <- 0
@@ -842,13 +842,14 @@ LinesLabelsSet <- function(myinfo,
   # print("LinesLabelsSet")
   # LinesLabelsSet(c(543,100,1500,3500,2000,500,500,500),slider = F)
   mytype <- myinfo[1]
+  landmarks <- LinesLableLandmarks(myinfo)
   myinfo <- suppressWarnings(as.double(myinfo))
   if (myinfo[8] > 0) {
     if(totbins > 2){
     if(slider){
       myinfo[8] <- myinfo[2]
     }
-    landmarks <- LinesLableLandmarks(myinfo)
+    
     # y asis locations and labels for 1:before
     if(landmarks[1] > 0){
       mod <- 0.5
