@@ -848,6 +848,7 @@ LinesLabelsSet <- function(myinfo,
     if(totbins > 2){
     if(slider){
       myinfo[8] <- myinfo[2]
+      landmarks[5] <- 1
     }
     
     # y asis locations and labels for 1:before

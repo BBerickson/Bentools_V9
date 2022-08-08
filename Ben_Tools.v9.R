@@ -1548,12 +1548,16 @@ server <- function(input, output, session) {
     if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
       updateTextInput(session, "numerictesname", value = mynames[2])
     }
+    # print(reactive_values$slider_breaks)
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
                                                     LIST_DATA$x_plot_range[2],
                                                     input$numerictssname,
                                                     input$numerictesname,
                                                     slider = T)
+    # print(reactive_values$slider_breaks)
+    # print(reactive_values$setsliders)
     reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
+    # print(reactive_values$setsliders)
     reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
                                               last(reactive_values$slider_breaks$mylabels))
     updateSliderTextInput(session,"sliderplotBinRange",
@@ -1594,7 +1598,7 @@ server <- function(input, output, session) {
   
   # update sliders ----
   observeEvent(reactive_values$setsliders, ignoreInit = TRUE, {
-    # print("update sliders")
+    print("update sliders")
     
     updateSliderTextInput(
       session,
