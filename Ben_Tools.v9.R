@@ -1155,8 +1155,14 @@ server <- function(input, output, session) {
   
   # observes switching type in lines and labels drop ----
   observeEvent(input$pickerPlotType, ignoreInit = TRUE, {
-    LIST_DATA$binning <<- LinesLabelsPreSetGuess(input$pickerPlotType)
+    binning <- LinesLabelsPreSetGuess(input$pickerPlotType)
+    if(binning[1] == 543){
+      binning[5] <- (LIST_DATA$x_plot_range[2]*LIST_DATA$binning[2]) - (sum(LIST_DATA$binning[c(3,4,6,7)]))
+    }
+    
+    LIST_DATA$binning <<- binning
     mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
+    
     updateNumericInput(session, "numericbinsize", value = LIST_DATA$binning[2])
     updateNumericInput(session, "numerictss", value = LIST_DATA$binning[3])
     updateNumericInput(session, "numerictes", value = LIST_DATA$binning[4])
@@ -2787,7 +2793,7 @@ server <- function(input, output, session) {
   
   # Gene lists DT show gene list ----
   observeEvent(input$actiongenelistsdatatable, ignoreInit = TRUE, {
-     # print("generiate gene lists table")
+     # print("generate gene lists table")
     shinyjs::hide('actiongenelistsdatatable')
     if (any(grep("Gene_List_innerjoin\nn =", names(LIST_DATA$gene_file)) >
             0)) {
@@ -3472,7 +3478,7 @@ server <- function(input, output, session) {
         gg,
         colnames = names(gg),
         rownames = FALSE,
-        filter = "none",
+        filter = "top",
         class = 'cell-border stripe compact',
         options = list(
           pageLength = 20,

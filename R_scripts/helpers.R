@@ -1,6 +1,8 @@
-#  
-# 
+# TSS i showing up red for 5' plots, ratio picker fix label
+#  filter % on % crashes?
+# cdf box color fix
 # dendogram sub sampling/plotting
+# color change crashes on other lists? if name is*-1
 # test making a version w/o global LIST_DATA and put things in more reactive values (pre delare and fix undeclared) with more observations? ... faster?, more control?, less memory?
 # program for loading packages ----
 my_packages <- function(x) {
