@@ -147,7 +147,6 @@ PrepMetaFile <-
         try(count_fields(
           file_path,
           n_max = 1,
-          skip = 1,
           tokenizer = tokenizer_delim(" ")
         ),
         silent = T)
@@ -506,9 +505,14 @@ ApplyMath <-
            use_math,
            relative_frequency,
            normbin,
-           group="none") {
+           group="none",
+           myabs = FALSE) {
     # print("applymath fun")
     # normalize per gene relative frequency
+    if(myabs){
+      list_data <- list_data %>% 
+        dplyr::mutate(score = abs(score))
+    }
     if(is_empty(normbin)){
       normbin <- 0
     }
@@ -1269,7 +1273,7 @@ FilterTop <-
                   list_data$gene_file[[list_name]]$full, by = 'gene')  
       apply_bins <- group_by(apply_bins, gene) %>%
         dplyr::filter(bin %in% min(start_end_bin):max(start_end_bin)) %>%
-        summarise(mysums = sum(score, na.rm = TRUE),.groups="drop") %>%
+        summarise(mysums = sum(abs(score), na.rm = TRUE),.groups="drop") %>%
         mutate(myper = as.numeric(strtrim(cume_dist(mysums), 5))) %>%
         arrange(desc(mysums))
       gene_count <- nrow(apply_bins)
@@ -1369,6 +1373,7 @@ FilterPer <-
       ))
       return(NULL)
     }
+    list_data$table_file <- list_data$table_file %>% mutate(score = abs(score))
     p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
       set_names(paste0("my_p_",seq_along(my_per)))
     gene_list <- list_data$gene_file[[list_name]]$full
@@ -1648,7 +1653,7 @@ MakeNormFile <-
       }
       nd <- nd %>% 
         group_by(bin, set) %>%
-        dplyr::mutate(score = mean(score, na.rm = TRUE)) %>% ungroup()
+        dplyr::mutate(score = mean(abs(score), na.rm = TRUE)) %>% ungroup()
     }
     # applies custom norm factor(s)
     legend_nickname <- nickname
@@ -1661,7 +1666,7 @@ MakeNormFile <-
         gene = gene,
         bin = bin,
         set = legend_nickname,
-        score = score.x + score.y
+        score = abs(score.x) + abs(score.y)
       )
     } else if(addfiles == "-"){
       new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
@@ -1672,7 +1677,7 @@ MakeNormFile <-
         gene = gene,
         bin = bin,
         set = legend_nickname,
-        score = score.x - score.y
+        score = abs(score.x) - abs(score.y)
       )
     } else {
       
@@ -1686,7 +1691,7 @@ MakeNormFile <-
         gene = gene,
         bin = bin,
         set = legend_nickname,
-        score = score.x / score.y
+        score = abs(score.x) / abs(score.y)
       ) %>% na_if(Inf)
     }
     # output test
@@ -1919,6 +1924,102 @@ ClusterNumList <- function(list_data,
   list_data
 }
 
+# finds 2 - 4 groups from the one active file, plotting the patterns and displaying the gene lists
+FindGroups <- function(list_data,
+                       list_name,
+                       groupiesfile,
+                       start_end_bin) {
+  if (groupiesfile == "") {
+    showModal(modalDialog(
+      title = "Information message",
+      paste("No file selected to work on"),
+      size = "s",
+      easyClose = TRUE
+    ))
+    return(NULL)
+  }
+  
+  setProgress(1, detail = paste("gathering data"))
+  df <- semi_join(dplyr::filter(list_data$table_file, set == groupiesfile),
+                  list_data$gene_file[[list_name]]$full, by = 'gene')
+  setProgress(2, detail = "finding groups")
+  list_data$groupies <- list()
+  list_data$groupies$full <- group_by(df, gene) %>%
+    dplyr::filter(bin %in% c(start_end_bin[1]:start_end_bin[2])) %>%
+    summarise(cm = sum(score, na.rm = TRUE),.groups="drop")
+  list_data
+}
+
+# Pull out the number of groups 
+GroupsNumList <- function(list_data,
+                           list_name,
+                           groupiesfile,
+                           start_end_label,
+                           my_num) {
+  # print("ntile")
+  if (is_empty(list_data$groupies) | groupiesfile == "") {
+    showModal(modalDialog(
+      title = "Information message",
+      paste("No file selected to work on"),
+      size = "s",
+      easyClose = TRUE
+    ))
+    return(NULL)
+  }
+  if (n_distinct(LIST_DATA$groupies$full) < as.numeric(my_num)) {
+    showModal(modalDialog(
+      title = "Information message",
+      paste("Can't make more groups than number of genes"),
+      size = "s",
+      easyClose = TRUE
+    ))
+    return(NULL)
+  }
+  list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Groups_")]
+  list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Groups_"))
+  gene_list <-
+    dplyr::mutate(list_data$groupies$full, cm = ntile(list_data$groupies$full$cm, as.numeric(my_num)))
+  for (nn in 1:my_num) {
+    outlist <- dplyr::filter(gene_list, cm == nn)
+    nick_name <-
+      paste(paste0("Groups_", nn, "\nn ="), n_distinct(outlist$gene, na.rm = T))
+    list_data$gene_file[[nick_name]]$full <- dplyr::select(outlist, gene)
+    list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
+                                                      paste(
+                                                        nick_name,
+                                                        start_end_label[1],
+                                                        "to",
+                                                        start_end_label[2],
+                                                        "from",
+                                                        list_name,
+                                                        groupiesfile,
+                                                        my_num,
+                                                        "Groups_",
+                                                        "total",
+                                                        Sys.Date()
+                                                      ),
+                                                    save_name = gsub(" ", "_", paste("Groups", nn, "of", my_num, Sys.Date(), sep = "_")),
+                                                    col_info = "gene"
+    )
+    list_data$gene_info <- 
+      distinct(bind_rows(list_data$gene_info,
+                         list_data$gene_info %>% 
+                           dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                           dplyr::mutate(gene_list = nick_name,
+                                         sub =  paste(
+                                           "Groups_",
+                                           "by",
+                                           my_num,
+                                           "from",
+                                           list_name
+                                         ), 
+                                         onoff = "0",
+                                         count = paste0("n = ", n_distinct(outlist$gene, na.rm = T)),
+                                         plot_set = " ")))
+  }
+  list_data
+}
+
 # a[1]/b[2] or (a[1]/a[2])/(b[1]/b[2]) make gene list
 CompareRatios <-
   function(list_data,
@@ -1966,10 +2067,10 @@ CompareRatios <-
       "]/[", startend2_label[1], ":", startend2_label[2], "]")
     } else {
       ratiofile <- c(ratio1file, ratio2file)
-      ratio2file <- paste0(ratio2file,
+      ratio2file <- paste0(ratio1file,
              "[", startend1_label[1], ":", startend1_label[2],
              "]/[", startend2_label[1], ":", startend2_label[2], "]/",
-             ratio1file,
+             ratio2file,
              "[", startend1_label[1], ":", startend1_label[2],
              "]/[", startend2_label[1], ":", startend2_label[2], "]")
     }

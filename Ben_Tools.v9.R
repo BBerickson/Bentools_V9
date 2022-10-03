@@ -39,6 +39,7 @@ LIST_DATA <<- list(
   ttest = NULL,
   # t.test results $full is for numbers $gene_info for holding plotting options
   clust = NULL,
+  groupies = NULL,
   # Cluster holder
   x_plot_range = c(0, 0),
   STATE = c(0, 0, 5) # flow control,
@@ -103,7 +104,9 @@ server <- function(input, output, session) {
     ttest_values = c("none", "wilcox.test", "two.sided", "FALSE", "FALSE", "-log10", "fdr"),
     ttest_options = c(0, 0, 1, "select sample", 0.05),
     clustergroups = NULL,
+    groupiesgroups = NULL,
     cluster_control = NULL,
+    groupies_control = NULL,
     setsliders = NULL
   )
   
@@ -123,6 +126,7 @@ server <- function(input, output, session) {
   addCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
+  addCssClass(selector = "a[data-value='groupiestool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='DataTableTool']", class = "inactiveLink")
   
@@ -297,6 +301,7 @@ server <- function(input, output, session) {
     removeCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
+    removeCssClass(selector = "a[data-value='groupiestool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='DataTableTool']", class = "inactiveLink")
     
@@ -514,7 +519,8 @@ server <- function(input, output, session) {
                        input$selectplotnrom,
                        as.numeric(floor(reactive_values$slider_breaks$mybrakes[
                          reactive_values$slider_breaks$mylabels %in% input$selectplotBinNorm])),
-                       input$mygroup
+                       input$mygroup,
+                       input$checkboxabs
                      )
                      sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
                        reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
@@ -583,7 +589,8 @@ server <- function(input, output, session) {
                 input$checkboxlog2,
                 input$sliderplotBinRange,
                 input$mygroup,
-                input$checkboxauc
+                input$checkboxauc,
+                input$checkboxabs
     )
     Y_Axis_numbers <-
       c(input$numericYRangeLow,input$numericYRangeHigh)
@@ -1424,6 +1431,44 @@ server <- function(input, output, session) {
                  color = "green")
       })
     }
+    
+    # Groups switch tab ----
+    if (input$leftSideTabs == "groupiestool"){
+      if(!is.null(input$groupiesSamples)){
+        if(input$groupiesSamples[1] == "select sample"){
+          shinyjs::disable("onoffdendrogram")
+          shinyjs::hide("hidegroupiesplots1")
+          shinyjs::hide("hidegroupiestable")
+          shinyjs::hide("hidegroupiesplots2")
+        }
+      }
+      ol <- input$groupiesGeneList
+      if(!is.null(ol)){
+        if (!ol %in% names(LIST_DATA$gene_file)) {
+          ol <- "Complete"
+        }
+      }
+
+      updatePickerInput(session, "groupiesGeneList",
+                        choices = names(LIST_DATA$gene_file),
+                        selected = ol,
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                        ))
+      updatePickerInput(session, "groupiesSamples",
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                        )
+      )
+      output$valueboxsort <- renderValueBox({
+        valueBox(0,
+                 "Gene List Filter",
+                 icon = icon("list"),
+                 color = "green")
+      })
+    }
+    
     # CDF switch tab ----
     if(input$leftSideTabs == "cdftool"){
     shinyjs::hide('plotcdf')
@@ -1486,8 +1531,16 @@ server <- function(input, output, session) {
     } else {
       shinyjs::hide("showpickercluster_cdf")
     }
+    if(any(str_detect(names(LIST_DATA$gene_file),"^Groups_"))){
+      output$DynamicCDFPicker_groupies <- renderUI({
+        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Groups_")]
+      })
+      shinyjs::show("showpickergroupies_cdf")
+    } else {
+      shinyjs::hide("showpickergroupies_cdf")
+    }
     output$DynamicCDFPicker_main <- renderUI({
-      pickercdf[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")]
+      pickercdf[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")]
     })
     if (sum(grepl("CDF ", names(LIST_DATA$gene_file))) == 0) {
       output$plotcdf <- renderPlot({
@@ -1635,6 +1688,12 @@ server <- function(input, output, session) {
     updateSliderTextInput(
       session,
       "sliderbincluster",
+      choices = reactive_values$slider_breaks$mylabels,
+      selected = reactive_values$setsliders[1:2]
+    )
+    updateSliderTextInput(
+      session,
+      "sliderbingroupies",
       choices = reactive_values$slider_breaks$mylabels,
       selected = reactive_values$setsliders[1:2]
     )
@@ -2018,6 +2077,12 @@ server <- function(input, output, session) {
   output$plot2cluster <- renderPlot({
     reactive_values$Plot_controler_dcluster
   })
+  output$plot1groupies <- renderPlot({
+    reactive_values$Plot_controler_groupies
+  })
+  output$plot2groupies <- renderPlot({
+    reactive_values$Plot_controler_dgroupies
+  })
   output$plotratio <- renderPlot({
     reactive_values$Plot_controler_ratio
   })
@@ -2135,6 +2200,14 @@ server <- function(input, output, session) {
       } else {
         shinyjs::hide("showpickercluster")
       }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Groups_"))){
+        output$DynamicGenePicker_groupies <- renderUI({
+          pickerlist[str_detect(names(LIST_DATA$gene_file),"^Groups_")]
+        })
+        shinyjs::show("showpickergroupies")
+      } else {
+        shinyjs::hide("showpickergroupies")
+      }
       if(any(str_detect(names(LIST_DATA$gene_file),"^CDF"))){
         output$DynamicGenePicker_cdf <- renderUI({
           pickerlist[str_detect(names(LIST_DATA$gene_file),"^CDF")]
@@ -2144,7 +2217,7 @@ server <- function(input, output, session) {
         shinyjs::hide("showpickercdf")
       }
       output$DynamicGenePicker_main <- renderUI({
-        pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^CDF")]
+        pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")]
       })
       
     })
@@ -3155,6 +3228,158 @@ server <- function(input, output, session) {
     shinyjs::hide("hideclusterplots2")
   })
   
+  # groupies tool action ----
+  observeEvent(input$actiongroupiestool, ignoreInit = TRUE, {
+    # print("groupies tool action")
+    shinyjs::hide('plot1groupies')
+    shinyjs::hide('plot2groupies')
+    if (n_distinct(LIST_DATA$gene_file[[input$groupiesGeneList]]$full, na.rm = T) < as.numeric(input$selectgroupiesnumber) |
+        is.null(input$groupiesSamples)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("Can't make more groupies than number of genes"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return()
+    }
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <-
+                     FindGroups(
+                       LIST_DATA,
+                       input$groupiesGeneList,
+                       input$groupiesSamples,
+                       floor(reactive_values$slider_breaks$mybrakes[
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbingroupies])
+                     )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      if(LIST_DATA$STATE[1] != 0){
+        LIST_DATA$STATE[1] <<- .5
+      }
+      reactive_values$groupiesgroups <- str_detect(names(LIST_DATA$gene_file),"^Groups_")
+    } else {
+      return()
+    }
+  })
+
+  # Plots groupies based on number selected ----
+  observeEvent(c(input$selectgroupiesnumber, reactive_values$groupiesgroups),
+               ignoreInit = TRUE, ignoreNULL = TRUE,
+               {
+                 # print("groupies tool number")
+                 if (is.null(reactive_values$groupiesgroups)) {
+                   return()
+                 }
+                 shinyjs::hide('hidegroupiesplots1')
+                 shinyjs::hide("hidegroupiestable")
+                 shinyjs::hide('hidegroupiesplots2')
+                 withProgress(message = 'Calculation in progress',
+                              detail = 'This may take a while...',
+                              value = 0,
+                              {
+                                LD <-
+                                  GroupsNumList(
+                                    LIST_DATA,
+                                    input$groupiesGeneList,
+                                    input$groupiesSamples,
+                                    input$sliderbingroupies,
+                                    input$selectgroupiesnumber
+                                  )
+                              })
+                 if (!is_empty(LD$table_file)) {
+                   LIST_DATA <<- LD
+                   ol <- input$selectgroupiesfile
+                   shinyjs::show('hidegroupiesplots1')
+                   shinyjs::show("hidegroupiestable")
+                   shinyjs::show('plot1groupies')
+                   updateSelectInput(
+                     session,
+                     "selectgroupiesfile",
+                     choices = names(LIST_DATA$gene_file),
+                     selected = ol
+                   )
+                   LD$gene_info <- LD$gene_info %>%
+                     dplyr::mutate(onoff=if_else(str_detect(gene_list,"^Groups_") &
+                                                   set == input$groupiesSamples, set, "0"))
+                   withProgress(message = 'Calculation in progress',
+                                detail = 'This may take a while...',
+                                value = 0,
+                                {
+                                  list_data_frame <- Active_list_data(LD)
+                                  if (!is_empty(list_data_frame)) {
+
+                                    Apply_groupies_Math <- ApplyMath(
+                                      list_data_frame,
+                                      "mean",
+                                      "none",
+                                      0
+                                    )
+                                  }
+                                  reactive_values$Plot_controler_groupies <- ggplot()
+                                  reactive_values$Plot_controler_dgroupies <- ggplot()
+                                  gp1 <-
+                                    ggplot(Apply_groupies_Math ,aes(as.numeric(bin),value,color=gene_list)) +
+                                    geom_line() +
+                                    ylab("Mean bin value") +
+                                    theme(legend.position="bottom",
+                                          legend.title = element_blank(),
+                                          axis.title.x=element_blank())
+                                  print(gp1)
+                                  reactive_values$Plot_controler_groupies <- gp1
+                                })
+                   shinyjs::enable("onoffdendrogram")
+                   gts <- list_data_frame %>%
+                     distinct(gene_list) %>%
+                     separate(gene_list,c("Groups","number_of_genes"),sep = "\nn = ",extra = "drop")
+                   dt <- datatable(
+                     gts,
+                     colnames = names(gts),
+                     rownames = FALSE,
+                     filter = "none",
+                     class = 'cell-border stripe compact',
+                     options = list(
+                       scrollX = TRUE,
+                       scrollY = TRUE,
+                       autoWidth = TRUE,
+                       width = 20,
+                       sDom  = '<"top">lrt<"bottom">ip',
+                       info = FALSE,
+                       paging = FALSE,
+                       lengthChange = FALSE,
+                       columnDefs = list(
+                         list(className = 'dt-center ', targets = "_all"),
+                         list(
+                           targets = 0,
+                           render = JS(
+                             "function(data, type, row, meta) {",
+                             "return type === 'display' && data.length > 25 ?",
+                             "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
+                             "}"
+                           )
+                         )
+                       )
+                     )
+                   )
+                   output$groupiestable <- DT::renderDataTable(dt)
+                 } else {
+                   return()
+                 }
+               })
+
+  # groupies reset controller ----
+  observeEvent(c(input$groupiesGeneList,
+                 input$groupiesSamples), ignoreNULL = TRUE, ignoreInit = TRUE, {
+                   reactive_values$groupiesgroups <- NULL
+                   shinyjs::hide("hidegroupiesplots1")
+                   shinyjs::hide("hidegroupiestable")
+                   shinyjs::hide("hidegroupiesplots2")
+                 })
+
   # Ratio tool action ----
   observeEvent(input$actionratiotool, ignoreInit = TRUE, {
      # print("ratio tool action")
@@ -3597,6 +3822,7 @@ ui <- dashboardPage(
       menuItem("Filter Tool", tabName = "sorttool", icon = icon("filter")),
       menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("percentage")),
       menuItem("Cluster Tools", tabName = "clustertool", icon = icon("object-group")),
+      menuItem("Groups Tools", tabName = "groupiestool", icon = icon("object-group")),
       menuItem("CDF Tools", tabName = "cdftool", icon = icon("ruler-combined")),
       menuItem("Data Table Veiw", tabName = "DataTableTool", icon = icon("table"))
     )
@@ -3718,7 +3944,9 @@ ui <- dashboardPage(
               column(
                 2,
                 awesomeCheckbox("checkboxlog2", label = "log2"),
-              awesomeCheckbox("checkboxauc", label = "AUC")),
+              awesomeCheckbox("checkboxauc", label = "AUC"),
+              awesomeCheckbox("checkboxabs", label = "abs")
+              ),
               column(
                 3,
                 numericInput("numericYRangeLow", label = "Plot Y min:", value = 0)
@@ -3832,6 +4060,19 @@ ui <- dashboardPage(
                 collapsible = T,
                 collapsed = F,
                 uiOutput("DynamicGenePicker_clusters")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickergroupies",
+              box(
+                title = "Groups",
+                width = 6,
+                status = "navy",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = F,
+                uiOutput("DynamicGenePicker_groupies")
               )
             )),
           hidden(
@@ -4378,6 +4619,76 @@ ui <- dashboardPage(
         )
       ),
       tabItem(
+        # groupies tools ----
+        tabName = "groupiestool",
+        div(
+          id = "enablemaingroupies",
+          box(title = "Groups tools",
+              status = "primary",
+              solidHeader = T,
+              width = 6,
+              pickerInput("groupiesGeneList", label = "select list",
+                          choices = (LIST_DATA$gene_info)),
+              pickerInput("groupiesSamples", label = "select sample",
+                          choices = "select sample",selected = "select sample",
+                          multiple = F
+              )
+
+          ),
+          box(
+            title = "groupies tools",
+            status = "primary",
+            solidHeader = T,
+            width = 6,
+            id = "groupies_test",
+            style = "margin-bottom: 15px;",
+            fluidRow(column(
+              4,
+              selectInput(
+                inputId = "selectgroupiesnumber",
+                label = "Select number of groupies",
+                choices = c(10:2),
+                selected = 4,
+                width = "99%"
+              )
+            ),
+            column(
+              8,
+              sliderTextInput(
+                "sliderbingroupies",
+                label = "Select Bin Range:",
+                grid = TRUE,
+                choices = c("100","100"),
+                selected = c("100","100")
+              )
+            )),
+            column(width = 6,
+                   actionButton("actiongroupiestool", "Get groups"))
+          ),
+          div(
+            id = "hidegroupiesplots1",
+            box(headerBorder = F,
+                width = 8,
+                withSpinner(plotOutput("plot1groupies",height = "300px"), type = 4)
+            )
+          ),
+          div(
+            id = "hidegroupiestable",
+            box(headerBorder = F,
+                style = "padding: 0px 2px;",
+                width = 4,
+                DT::dataTableOutput('groupiestable',height = "320px")
+            )),
+          div(
+            id = "hidegroupiesplots2",
+            box(headerBorder = F,
+                width = 12,
+                withSpinner(plotOutput("plot2groupies",height = "200px"), type = 4)
+            )
+          )
+        )
+      ),
+      tabItem(
         # cdf ----
         tabName = "cdftool",
         box(
@@ -4444,6 +4755,20 @@ ui <- dashboardPage(
                   collapsible = T,
                   collapsed = T,
                   uiOutput("DynamicCDFPicker_clusters")
+                )
+              ))
+            ,
+            hidden(
+              div(
+                id = "showpickergroupies_cdf",
+                box(
+                  title = "Groups",
+                  width = 6,
+                  status = "navy",
+                  solidHeader = T,
+                  collapsible = T,
+                  collapsed = T,
+                  uiOutput("DynamicCDFPicker_groupies")
                 )
               ))
           ),
