@@ -19,7 +19,8 @@ suppressPackageStartupMessages(my_packages(
     "zip",
     "ggpubr",
     "fastcluster",
-    "dendextend"
+    "dendextend",
+    "valr"
   )
 ))
 
@@ -270,6 +271,13 @@ server <- function(input, output, session) {
             bind_rows(LIST_DATA$gene_info, .)
         }
     }
+      # pull out location data from gene name
+      LIST_DATA$gene_file$Complete$full <<- LIST_DATA$gene_file$Complete$full$gene %>% 
+        sub("-",":",.) %>% sub("(;-|-;)",":-:",.) %>% sub("(;\\+|\\+;)",":+:",.) %>% 
+        sub("(;.|\\.;)",":.:",.) %>% 
+        tibble(gene=.) %>% 
+        separate(.,gene,c("chrom","start","end","strand"),remove = F,sep = ":",extra = "drop",convert = T) %>% 
+        mutate(gene=LIST_DATA$gene_file$Complete$full$gene)
     } else {
       return()
       }
@@ -470,9 +478,7 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       new_comments <-
-        new_comments <- paste("#", Sys.Date(), "\n# File(s) used:")
-      new_comments <-
-        c(new_comments, paste("#", distinct(LIST_DATA$gene_info, set)$set))
+        new_comments <- paste("#", Sys.Date(), "\n")
       new_comments <-
         c(new_comments,  paste("\n#", gsub("\nn = ", " n = ",  input$selectsave)))
       new_comments <-
@@ -2570,6 +2576,90 @@ server <- function(input, output, session) {
     }
   })
   
+  # filters size and separation ----
+  observeEvent(input$actionSizeSep,{
+    genesep <- floor(input$geneSeparation)
+    if(!is.numeric(genesep) || genesep < 0){
+      updateNumericInput(session, "geneSizeMin", value = 0)
+      genesep <- 0
+    }
+    genesizemin <- floor(input$geneSizeMin)
+    if(!is.numeric(genesizemin) || genesizemin < 0){
+      updateNumericInput(session, "geneSizeMin", value = 0)
+      genesizemin <- 0
+    }
+    genesizemax <- floor(input$geneSizeMax)
+    if(!is.numeric(genesizemax) || genesizemax < 0){
+      updateNumericInput(session, "geneSizeMMax", value = 0)
+      genesizemax <- 0
+    }
+    
+    LD <- FilterSepSize(LIST_DATA$gene_file$Complete$full,
+                        genesep,
+                        genesizemin,
+                        genesizemax,
+                        input$checkboxStranded)
+    if(n_distinct(LD$gene) > 0) {
+      # adds full n count to nickname
+      my_name <- "Complete_filtered"
+      # preps meta data
+      gene_info <- LIST_DATA$gene_info %>% 
+        dplyr::filter(gene_list == "Complete") %>% 
+        dplyr::mutate(gene_list = my_name, 
+                      count = paste("n =", n_distinct(LD$gene, na.rm = T)),
+                      sub = " ", onoff = "0",
+                      plot_set = " ")
+      # saves data in list of lists
+      LIST_DATA$gene_file[[my_name]]$full <<- distinct(LD)
+      LIST_DATA$gene_file[[my_name]]$info <<- tibble(loaded_info =
+                                                      paste("Loaded gene list from file",
+                                                            my_name,
+                                                            Sys.Date()),
+                                                    save_name = gsub(" ", "_", str_squish(paste(my_name,
+                                                                                                Sys.Date(), sep ="_"))),
+                                                    col_info = "loaded file"
+      )
+      LIST_DATA$gene_info <<- bind_rows(LIST_DATA$gene_info, gene_info)
+      output$valueboxsort <- renderValueBox({
+        valueBox(
+          n_distinct(LIST_DATA$gene_file[["Complete_filtered"]]$full$gene, na.rm = T),
+          "Gene List Filter",
+          icon = icon("list"),
+          color = "green"
+        )
+      })
+    } else {
+      LIST_DATA$gene_file[["Complete_filtered"]] <<- NULL
+      LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% filter(gene_list != "Complete_filtered")
+      output$valueboxsort <- renderValueBox({
+        valueBox(
+          0,
+          "Gene List Filter",
+          icon = icon("list"),
+          color = "green"
+        )
+      })
+    }
+    
+                    
+      ol <- input$sortGeneList
+      if(!is.null(ol)){
+        if (!ol %in% names(LIST_DATA$gene_file)) {
+          ol <- "Complete"
+        } 
+      }
+      updatePickerInput(session, "sortGeneList",
+                        choices = names(LIST_DATA$gene_file),
+                        selected = ol,
+                        choicesOpt = list(
+                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                        ))
+      if(LIST_DATA$STATE[1] != 0 ){
+        LIST_DATA$STATE[1] <<- 0.75
+      }
+      
+  })
+  
   # observe norm gene pickers ----
   observeEvent(c(input$pickernumerator, input$adddata,
                  input$pickerdenominator), {
@@ -4279,6 +4369,52 @@ ui <- dashboardPage(
         tabName = "sorttool",
         div(
           id = "enablemainsort",
+          box(
+            width = 12,
+            solidHeader = T,
+            status = "primary",
+            collapsible = T,
+            collapsed = T,
+            title = "Size and Separation filter",
+            column(3,
+              numericInput(
+                "geneSeparation",
+                label = "gene separated by bp",
+                value = 0,
+                step = 100,
+                min = 0,
+                max = 1e7
+                ),
+              awesomeCheckbox("checkboxStranded","stranded?"),
+              helpText("0 = no filter")
+            ),
+            column(3,
+              numericInput(
+                "geneSizeMin",
+                label = "Min gene size bp",
+                value = 0,
+                step = 100,
+                min = 0,
+                max = 1e7
+              ),
+              helpText("0/empty = no filter")
+            ),
+            column(3,
+              numericInput(
+                "geneSizeMax",
+                label = "Max gene size bp",
+                value = 0,
+                step = 100,
+                min = 0,
+                max = 1e7
+              ),
+              helpText("0/empty = no filter")
+            ),
+            column(3,
+              helpText("filters on separation then size"),
+              actionButton("actionSizeSep", "filter")
+            )
+          ),
           box(
             width = 12, solidHeader = T,
             status = "primary",

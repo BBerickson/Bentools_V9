@@ -1,6 +1,7 @@
-# fix factor lableing up and down includeing what is saved in gene list
+# add group to color changing lists?
+# get/make bed info, then add tools for filtering on size and separation. 
 # TSS i showing up red for 5' plots, ratio picker fix label
-#  filter % on % crashes?
+#  filter % on % crashes?, fix filter sliders so that I can get exact 25% 75% etc
 # cdf box color fix
 #loading gene list has all lists in data table
 # lines and lables, figuring out body/ put body in 

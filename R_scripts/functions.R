@@ -257,7 +257,7 @@ tableTestbin <- function(meta_data){
                    n_max = 1,
                    skip = 1,
                    tokenizer = tokenizer_tsv()) - 5
-    col_names <- c("chr", "start", "end","gene", "value", "sign", 1:(num_bins - 1))
+    col_names <- c("chrom", "start", "end","gene", "value", "strand", 1:(num_bins - 1))
     mylist <- c("bin size","upstream","downstream","body","unscaled 5 prime","unscaled 3 prime")
     
     meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F)
@@ -1246,6 +1246,43 @@ YaxisValuetTest <- function(ttest, hlinettest, selectttestlog ){
   mm <- c(round(min(mm), 4),round(max(mm), 4))
   return(mm)
 }
+
+# filters based on gene size and separation
+FilterSepSize <-
+  function(genelist,
+           separation = 0,
+           minsize = 0,
+           maxsize = 0,
+           stranded = F){
+    if(sum(separation,minsize,maxsize) == 0){
+      return(tibble(gene=list()))
+    }
+    outlist <- genelist %>% 
+      dplyr::mutate(value2 = end-start)
+    if(separation > 0){
+      if(stranded){
+        outlist <- outlist %>% 
+          group_by(strand) %>% 
+          bed_cluster(max_dist = as.numeric(separation)) %>% 
+          ungroup() %>% 
+          filter(!(duplicated(.id) | duplicated(.id, fromLast=TRUE))) 
+      } else{
+        outlist <- outlist %>%
+          bed_cluster(max_dist = as.numeric(separation)) %>% 
+          filter(!(duplicated(.id) | duplicated(.id, fromLast=TRUE))) 
+      }
+    }
+    if(minsize > 0){
+      outlist <- outlist %>% 
+        filter(value2 >= as.numeric(minsize)) 
+    }
+    
+    if(maxsize > 0){
+      outlist <- outlist %>% 
+        filter(value2 <= as.numeric(maxsize)) 
+    }
+    outlist %>% select(gene)
+  }
 
 # sorts active gene list contain top % signal based on selected bins and file
 FilterTop <-
