@@ -427,7 +427,7 @@ server <- function(input, output, session) {
     shinyjs::reset("filegene1")
     
     gg <-
-      LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete")) %>%
+      LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")) %>%
       select(., gene_list, count) %>% dplyr::rename(Usable = count) %>%
       distinct()
     ggg <- NULL
@@ -508,7 +508,7 @@ server <- function(input, output, session) {
   
   # observe actionmyplot, Lines_Labels_List, myplot update apply_Math ----
   observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$myplot), ignoreInit = TRUE, {
-     print("plot button")
+     # print("plot button")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -525,6 +525,7 @@ server <- function(input, output, session) {
                        input$selectplotnrom,
                        as.numeric(floor(reactive_values$slider_breaks$mybrakes[
                          reactive_values$slider_breaks$mylabels %in% input$selectplotBinNorm])),
+                       input$selectplotBinNorm,
                        input$mygroup,
                        input$checkboxabs
                      )
@@ -760,7 +761,7 @@ server <- function(input, output, session) {
   observeEvent(c(input$actioncdfcolor), ignoreInit = T, {
     gene_info <- LIST_DATA$gene_info %>% 
       dplyr::filter(str_detect(gene_list,"^CDF"))
-     print("actioncdfcolor")
+     # print("actioncdfcolor")
     showModal(modalDialog(
       title = "Information message",
       " Update color of samples",
@@ -838,18 +839,25 @@ server <- function(input, output, session) {
                     "textrgbtohex",
                     value = RgbToHex(x = input$colourhex, convert = "rgb"))
     if (!is.null(names(LIST_DATA$gene_file))) {
+      
       my_sel <- LIST_DATA$gene_info %>% 
         dplyr::filter(gene_list == input$selectgenelistoptions & 
                         set == input$selectdataoption | plot_set == input$selectdataoption)
+      ploton <- if_else(input$selectgenelistoptions == "Complete", T,
+              if_else(any(LIST_DATA$gene_info$gene_list == input$selectgenelistoptions & 
+                        LIST_DATA$gene_info$onoff !=0), T, F))
+
       if (input$colourhex != my_sel$mycol) {
          # print("color new")
         LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
-          dplyr::mutate(mycol=if_else(gene_list == input$selectgenelistoptions & 
-                                        set == input$selectdataoption | plot_set == input$selectdataoption,
+          dplyr::mutate(mycol=if_else((gene_list == input$selectgenelistoptions | 
+                                         input$selectgenelistoptions == "Complete" |
+                                         input$selectgenelistoptions == "Complete_filtered") & 
+                                        (set == input$selectdataoption | plot_set == input$selectdataoption),
                                       input$colourhex, mycol))
         reactive_values$Picker_controler <- 
           c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, mycol)$mycol)
-        if(my_sel$onoff != 0){
+        if(ploton){
           if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
             reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
           } 
@@ -1013,7 +1021,7 @@ server <- function(input, output, session) {
                 selectInput(
                   inputId = 'selecttsscolor',
                   label = 'TSS line and label color',
-                  choices = c("red", "green", "blue", "brown", "black", "white"),
+                  choices = c("green", "red", "blue", "brown", "black", "white"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_color[1]
                 ),
                 selectInput(
@@ -1035,13 +1043,13 @@ server <- function(input, output, session) {
                 selectInput(
                   inputId = 'selectbody1color',
                   label = '5|4 line and label color',
-                  choices = c("red", "green", "blue", "brown", "black", "white"),
+                  choices = c("black", "red", "green", "blue", "brown", "white"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_color[3]
                 ),
                 selectInput(
                   inputId = 'selectbody1line',
                   label = '5|4 line type',
-                  choices = c("dotted", "solid"),
+                  choices = c("solid", "dotted"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[3]
                 ),
                 icon = icon("sliders-h"),
@@ -1056,13 +1064,13 @@ server <- function(input, output, session) {
                 selectInput(
                   inputId = 'selectbody2color',
                   label = '4|3 line and label color',
-                  choices = c("red", "green", "blue", "brown", "black", "white"),
+                  choices = c("black", "red", "green", "blue", "brown", "white"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_color[4]
                 ),
                 selectInput(
                   inputId = 'selectbody2line',
                   label = '4|3 line type',
-                  choices = c("dotted", "solid"),
+                  choices = c("solid", "dotted"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[4]
                 ),
                 icon = icon("sliders-h"),
@@ -1170,7 +1178,8 @@ server <- function(input, output, session) {
   observeEvent(input$pickerPlotType, ignoreInit = TRUE, {
     binning <- LinesLabelsPreSetGuess(input$pickerPlotType)
     if(binning[1] == 543){
-      binning[5] <- (LIST_DATA$x_plot_range[2]*LIST_DATA$binning[2]) - (sum(LIST_DATA$binning[c(3,4,6,7)]))
+      binning[5] <- abs((LIST_DATA$x_plot_range[2]*as.numeric(LIST_DATA$binning[2])) - 
+                          (sum(as.numeric(LIST_DATA$binning[c(3,4,6,7)]))))
     }
     
     LIST_DATA$binning <<- binning
@@ -1214,7 +1223,7 @@ server <- function(input, output, session) {
                           
                             )
         updateSelectInput(session,"selectplotBinNorm",
-                          choices = c("NA",
+                          choices = c("NA","min",
                                       reactive_values$slider_breaks$mylabels)
                             )
         reactive_values$droplinesandlabels <- 1
@@ -1266,12 +1275,12 @@ server <- function(input, output, session) {
       updatePickerInput(
         session,
         "pickerdenominator",
-        choices = c(distinct(LIST_DATA$gene_info, set)$set,"-1"),
+        choices = c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"),
         choicesOpt = list(style = paste("color", dplyr::select(
           dplyr::filter(LIST_DATA$gene_info,
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
-          content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"-1"))
+          content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"))
           )
       )
       updatePickerInput(
@@ -1595,7 +1604,7 @@ server <- function(input, output, session) {
   
   # action button update lines and labels ----
   observeEvent(input$actionlineslabels, ignoreInit = TRUE, {
-     print("action lines and labels")
+     # print("action lines and labels")
     my_pos <-
       suppressWarnings(as.numeric(unlist(
         strsplit(input$landlposition, split = "\\s+")
@@ -1613,16 +1622,15 @@ server <- function(input, output, session) {
     if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
       updateTextInput(session, "numerictesname", value = mynames[2])
     }
-    # print(reactive_values$slider_breaks)
+
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
                                                     LIST_DATA$x_plot_range[2],
                                                     input$numerictssname,
                                                     input$numerictesname,
                                                     slider = T)
-    # print(reactive_values$slider_breaks)
-    # print(reactive_values$setsliders)
+    
     reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
-    # print(reactive_values$setsliders)
+
     reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
                                               last(reactive_values$slider_breaks$mylabels))
     updateSliderTextInput(session,"sliderplotBinRange",
@@ -1633,11 +1641,11 @@ server <- function(input, output, session) {
     )
     
     updateSelectInput(session,"selectplotBinNorm",
-                      choices = c("NA",
+                      choices = c("NA","min",
                                   reactive_values$slider_breaks$mylabels),
                       selected = "NA"
     )
-    
+
     reactive_values$Lines_Labels_List <-
       LinesLabelsPlot(
         LIST_DATA$binning,
@@ -1663,8 +1671,7 @@ server <- function(input, output, session) {
   
   # update sliders ----
   observeEvent(reactive_values$setsliders, ignoreInit = TRUE, {
-    print("update sliders")
-    
+    # print("update sliders")
     updateSliderTextInput(
       session,
       "slidersortbinrange",
@@ -1799,6 +1806,10 @@ server <- function(input, output, session) {
       ) >= input$numericbinsize)) {
         shinyjs::enable("actionlineslabels")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
+        if(LIST_DATA$binning[1] == 543){
+          LIST_DATA$binning[5] <- abs((LIST_DATA$x_plot_range[2]*as.numeric(LIST_DATA$binning[2])) - 
+                            (sum(as.numeric(LIST_DATA$binning[c(3,4,6,7)]))))
+        }
         myset <- c(LIST_DATA$binning[1],
                    input$numericbinsize,
                    input$numerictss,
@@ -2270,6 +2281,7 @@ server <- function(input, output, session) {
             list_data_frame,
             "mean",
             "none",
+            0,
             0
           )
         reactive_values$Plot_controler_sort_min <- ggplot()
@@ -2461,6 +2473,15 @@ server <- function(input, output, session) {
     shinyjs::show("hidesortplots1")
     reactive_values$Plot_controler_sort_min <- ggplot()
     shinyjs::hide("hidesortplots2")
+    if (is.null(file_names)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("No file selected to work on"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return()
+    }
     if (any(between(floor(reactive_values$slider_breaks$mybrakes[
       reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
       floor(reactive_values$slider_breaks$mybrakes[
@@ -2523,6 +2544,7 @@ server <- function(input, output, session) {
                            list_data_frame,
                            "mean",
                            "none",
+                           0,
                            0
                          )
                      })
@@ -2664,12 +2686,11 @@ server <- function(input, output, session) {
   observeEvent(c(input$pickernumerator, input$adddata,
                  input$pickerdenominator), {
                    if (input$pickernumerator != "") {
-                     if(input$pickerdenominator != "-1"){
+                     if(input$pickerdenominator != "Multiply by -1"){
                      updateTextInput(session, "textnromname",value = paste(input$pickernumerator, input$adddata,
                                                                            input$pickerdenominator))
                      } else {
-                       updateTextInput(session, "textnromname",value = paste0(input$pickernumerator, "*",
-                                                                             input$pickerdenominator))
+                       updateTextInput(session, "textnromname",value = paste0(input$pickernumerator))
                        }
                      output$valueboxnormfile <- renderValueBox({
                        valueBox("0%",
@@ -2712,7 +2733,7 @@ server <- function(input, output, session) {
                                           ))
       updatePickerInput(session,
                         "pickerdenominator", selected = "",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set,"-1"),
+                        choices = c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"),
                         choicesOpt = list(style = paste("color", 
                                                         dplyr::select(
                                                           dplyr::filter(LIST_DATA$gene_info,
@@ -2720,7 +2741,7 @@ server <- function(input, output, session) {
                                                                           LIST_DATA$gene_file)[1]),
                                                           mycol)$mycol, 
                                                         sep = ":"),
-                                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"-1"))
+                                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"))
                                           ))
       updatePickerInput(
         session,
@@ -3232,6 +3253,7 @@ server <- function(input, output, session) {
                                       list_data_frame,
                                       "mean",
                                       "none",
+                                      0,
                                       0
                                     )
                                   }
@@ -3407,6 +3429,7 @@ server <- function(input, output, session) {
                                       list_data_frame,
                                       "mean",
                                       "none",
+                                      0,
                                       0
                                     )
                                   }
@@ -4457,7 +4480,7 @@ ui <- dashboardPage(
                 min = 1,
                 max = 100,
                 value = 75,
-                step = 0.1
+                step = 0.2
               )
             ),
             ),

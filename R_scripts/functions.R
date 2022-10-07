@@ -115,23 +115,26 @@ SlidersSetsInfo <- function(slider_breaks, type){
   # 5Min, 5Max, 3Min, 3Max
   # print("SlidersSetsInfo")
   num_bins <- max(slider_breaks$mybrakes)
-  if (num_bins >= 80 & type == '543') { 
-    setsliders <- slider_breaks$mylabels[c(15,19,20,47)] 
-  } else if (num_bins == 80 & (type == '5'| type == "TSS")) {
-    setsliders <- c(slider_breaks$mylabels[c(21,61)],NA,NA)
+  if (type == '543') { 
+    setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
+                                           floor(num_bins*.24),
+                                           floor(num_bins*.24)+1,
+                                           floor(num_bins*.59))] 
+  } else if (type == '5'| type == '5L'| type == "TSS") {
+    setsliders <- c(slider_breaks$mylabels[c(floor(num_bins*.25)+1,
+                                             floor(num_bins*.75)+1)],
+                    NA,NA)
   } else if (num_bins == 2 | type == 'PI') {
     setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
-  } else if (num_bins == 205 & (type == '5L'| type == "TSS")) {
-    setsliders <- slider_breaks$mylabels[c(15,19,20,47)]
   } else if (type == '3'| type == "TES") {
-    setsliders <- c(1,floor(num_bins/3.2),
-                    floor(num_bins/3.2)+1,num_bins)
+    setsliders <- slider_breaks$mylabels[c(1,floor(num_bins/3.2),
+                    floor(num_bins/3.2)+1,num_bins)]
   } else {
-    setsliders <- c(
+    setsliders <- slider_breaks$mylabels[c(
       1,
       floor(num_bins/2),
       floor(num_bins/2)+1,
-      num_bins)
+      num_bins)]
   }
   setsliders
 }
@@ -502,9 +505,10 @@ Active_list_data <-
 # apply math to data file and get ready to plot
 ApplyMath <-
   function(list_data,
-           use_math,
-           relative_frequency,
-           normbin,
+           use_math = "mean",
+           relative_frequency = "none",
+           normbin = 0,
+           normmin = 0,
            group="none",
            myabs = FALSE) {
     # print("applymath fun")
@@ -537,6 +541,14 @@ ApplyMath <-
         dplyr::mutate(value = value / abs(sum(value))) %>%
         ungroup()
     }
+    if(normmin == "min"){
+      # re-scales to min value so plots with -values can plot nicer with +values
+      # might want to change so min value is from sample picked by user
+      list_data <- list_data %>% 
+        mutate(value2=-value[which.min(abs(value))]) %>% 
+        mutate(value=if_else(value>0,value+value2,value-value2)) %>% 
+        select(-value2)
+    }
     # finish making file ready for ggplot
     if(group == "groups only"){
       list_data <- select(list_data, -plot_set) %>% 
@@ -564,7 +576,7 @@ ApplyMath <-
       } else {
         list_data <- list_data %>% 
           mutate(set=plot_set,min=value,max=value)
-    }
+      }
     return(list_data)
   }
 
@@ -791,6 +803,7 @@ GGplotLineDot <-
         ), collapse = ", "), collapse = ", ")) +
         scale_x_continuous(breaks = line_list$mybrakes[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
                            labels = line_list$mylabels[between(line_list$mybrakes, xBinRange[1], xBinRange[2])]) +
+        theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) +
         theme(
           axis.text.x = element_text(
             color = line_list$mycolors[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
@@ -829,7 +842,7 @@ LinesLableLandmarks <- function(myinfo){
     body1bin <- 0
     body2bin <- 0
   }
-  if(mytype != "5" | mytype != "5L"){
+  if(mytype != "5" & mytype != "5L"){
     tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
   } else {
     tesbin <- 0
@@ -1012,9 +1025,9 @@ LinesLabelsPlot <-
            fontsizey,
            legendsize,
            myalpha) {
-    print("lines and labels plot fun")
+    # print("lines and labels plot fun")
     # myinfo <- c(543,100,1500,3500,2000,500,500,500)
-    landmarks <- LinesLableLandmarks(LIST_DATA$binning)
+    landmarks <- LinesLableLandmarks(myinfo)
     tssbin <- landmarks[1]
     tesbin <- landmarks[2]
     body1bin <- landmarks[3]
@@ -1561,15 +1574,6 @@ FilterPeak <-
            my_type,
            start_end_label_peak,
            start_end_label_filter) {
-    if (is.null(file_names)) {
-      showModal(modalDialog(
-        title = "Information message",
-        paste("No file selected to work on"),
-        size = "s",
-        easyClose = TRUE
-      ))
-      return(NULL)
-    }
     gene_list <- list_data$gene_file[[list_name]]$full
     out_list <- list_data$table_file %>% 
       dplyr::filter(set %in% file_names) %>% 
@@ -1591,9 +1595,9 @@ FilterPeak <-
           ungroup() %>% distinct(gene)
     } else {
       out_gene <- out_list %>% 
-          group_by(gene) %>% 
-          dplyr::filter(!all(score<=score2)) %>%
+          group_by(gene) %>%
           filter(n_distinct(set)==length(file_names)) %>%
+          dplyr::filter(!all(score<=score2)) %>%
           ungroup() %>% distinct(gene)
     }
     if (length(out_gene$gene) == 0) {
@@ -1666,108 +1670,107 @@ MakeNormFile <-
     # set up tool info and progress bar
     myname <- "bin_by_bin"
     # get data files
-    if(dnom != "-1"){
+    if(dnom != "Multiply by -1"){
       nd <- list_data$table_file %>% dplyr::filter(set == nom | set== dnom) %>% 
         replace_na(., list(score = 0))
-    if(nchar(nickname)<1){
-      nickname <- paste(nom, addfiles, dnom,sep = " ")
-    }
-    # if min/2 find Na's and 0's, and replace
-    if (divzerofix) {
-      nd <- nd %>% 
-        dplyr::mutate(score=if_else(set == dnom & score == 0, NA_real_, score))
-      myname <- paste0(myname, "_0->min/2")
-      new_min_for_dom <-
-        min(nd$score, na.rm = TRUE) / 2
-      nd <-
-        replace_na(nd, list(score = new_min_for_dom))
-    }
-    # files numbers are replaced with mean of bins if applied
-    if (gbyg != "bin by bin") {
-      myname <- "mean_of_bins"
-      if (divzerofix) {
-        myname <- paste0(myname, "_0->min/2")
-      }
-      nd <- nd %>% 
-        group_by(bin, set) %>%
-        dplyr::mutate(score = mean(abs(score), na.rm = TRUE)) %>% ungroup()
-    }
-    # applies custom norm factor(s)
-    legend_nickname <- nickname
-    if (addfiles == "+") {
-      new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
-                                 dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
-        replace_na(., list(score = 0))
-      new_gene_list <- transmute(
-        new_gene_list,
-        gene = gene,
-        bin = bin,
-        set = legend_nickname,
-        score = abs(score.x) + abs(score.y)
-      )
-    } else if(addfiles == "-"){
-      new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
-                                 dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
-        replace_na(., list(score = 0))
-      new_gene_list <- transmute(
-        new_gene_list,
-        gene = gene,
-        bin = bin,
-        set = legend_nickname,
-        score = abs(score.x) - abs(score.y)
-      )
-    } else {
-      
-      new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
-                                 dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
-        replace_na(., list(score = 0))
-      # make gene list and do math
-      legend_nickname <- paste0(nickname, ": ", myname)
-      new_gene_list <- transmute(
-        new_gene_list,
-        gene = gene,
-        bin = bin,
-        set = legend_nickname,
-        score = abs(score.x) / abs(score.y)
-      ) %>% na_if(Inf)
-    }
-    # output test
-    if (n_distinct(new_gene_list$gene) < 1) {
-      showModal(
-        modalDialog(
-          title = "Information message",
-          " No genes left, try replacing Inf and/or bin by bin",
-          size = "s",
-          easyClose = TRUE
-        )
-      )
-      return(NULL)
-    }
-    } else {
       if(nchar(nickname)<1){
-        nickname <- paste0(nom,"*",dnom)
+        nickname <- paste(nom, addfiles, dnom,sep = " ")
       }
+      # if min/2 find Na's and 0's, and replace
+      if (divzerofix) {
+        nd <- nd %>% 
+          dplyr::mutate(score=if_else(set == dnom & score == 0, NA_real_, score))
+        myname <- paste0(myname, "_0->min/2")
+        new_min_for_dom <-
+          min(nd$score, na.rm = TRUE) / 2
+        nd <-
+          replace_na(nd, list(score = new_min_for_dom))
+      }
+      # files numbers are replaced with mean of bins if applied
+      if (gbyg != "bin by bin") {
+        myname <- "mean_of_bins"
+        if (divzerofix) {
+          myname <- paste0(myname, "_0->min/2")
+        }
+        nd <- nd %>% 
+          group_by(bin, set) %>%
+          dplyr::mutate(score = mean(abs(score), na.rm = TRUE)) %>% ungroup()
+      }
+      # applies custom norm factor(s)
       legend_nickname <- nickname
-      new_gene_list <- list_data$table_file %>% dplyr::filter(set == nom) %>%
-      replace_na(., list(score = 0)) %>% 
-      dplyr::mutate(score=score*-1,set=legend_nickname)
+      if (addfiles == "+") {
+        new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
+                                   dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
+          replace_na(., list(score = 0))
+        new_gene_list <- transmute(
+          new_gene_list,
+          gene = gene,
+          bin = bin,
+          set = legend_nickname,
+          score = abs(score.x) + abs(score.y)
+        )
+      } else if(addfiles == "-"){
+        new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
+                                   dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
+          replace_na(., list(score = 0))
+        new_gene_list <- transmute(
+          new_gene_list,
+          gene = gene,
+          bin = bin,
+          set = legend_nickname,
+          score = abs(score.x) - abs(score.y)
+        )
+      } else {
+        
+        new_gene_list <- full_join(dplyr::filter(nd,set == nom), 
+                                   dplyr::filter(nd,set == dnom), by = c("gene", "bin")) %>% 
+          replace_na(., list(score = 0))
+        # make gene list and do math
+        legend_nickname <- paste0(nickname, ": ", myname)
+        new_gene_list <- transmute(
+          new_gene_list,
+          gene = gene,
+          bin = bin,
+          set = legend_nickname,
+          score = abs(score.x) / abs(score.y)
+        ) %>% na_if(Inf)
+      }
+      # output test
+      if (n_distinct(new_gene_list$gene) < 1) {
+        showModal(
+          modalDialog(
+            title = "Information message",
+            " No genes left, try replacing Inf and/or bin by bin",
+            size = "s",
+            easyClose = TRUE
+          )
+        )
+        return(NULL)
+      }
+      
+      # adds meta data 
+      list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
+      list_data$gene_info <- dplyr::filter(list_data$gene_info, set != legend_nickname)
+      list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
+      list_data$gene_info <- bind_rows(list_data$gene_info,
+                                       tibble(
+                                         gene_list = names(list_data$gene_file)[1],
+                                         count = distinct(list_data$gene_info %>% 
+                                                            filter(gene_list == names(list_data$gene_file)[1]),count)$count,
+                                         set = legend_nickname,
+                                         group = legend_nickname,
+                                         mycol = sample(suppressWarnings(brewer.pal(11, sample(kBrewerList,size=1)))[-c(4:7)],size = 1),
+                                         onoff = "0",
+                                         sub = " ",
+                                         plot_set = " "
+                                       ))
+    } else {
+      list_data$table_file <- list_data$table_file %>%
+        replace_na(., list(score = 0)) %>%
+        dplyr::mutate(score=if_else(set == nom , score*-1, score))
+      
+      
     } 
-    # adds meta data 
-    list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
-    list_data$gene_info <- dplyr::filter(list_data$gene_info, set != legend_nickname)
-    list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
-    list_data$gene_info <- bind_rows(list_data$gene_info,
-                                     tibble(
-                                       gene_list = names(list_data$gene_file)[1],
-                                       count = distinct(list_data$gene_info %>% 
-                                                          filter(gene_list == names(list_data$gene_file)[1]),count)$count,
-                                       set = legend_nickname,
-                                       group = legend_nickname,
-                                       mycol = sample(suppressWarnings(brewer.pal(11, sample(kBrewerList,size=1)))[-c(4:7)],size = 1),
-                                       onoff = "0",
-                                       sub = " ",
-                                       plot_set = " "
-                                     ))
     return(list_data)
   }
 
@@ -2102,7 +2105,9 @@ CompareRatios <-
       ratio2file <- paste0(ratio1file,
       "[", startend1_label[1], ":", startend1_label[2],
       "]/[", startend2_label[1], ":", startend2_label[2], "]")
+      ratiosub <- paste0("\n",ratio2file)
     } else {
+      ratiosub <- paste0("\n",ratio1file," / \n", ratio2file)
       ratiofile <- c(ratio1file, ratio2file)
       ratio2file <- paste0(ratio1file,
              "[", startend1_label[1], ":", startend1_label[2],
@@ -2173,36 +2178,32 @@ CompareRatios <-
     
     if (n_distinct(upratio$gene) > 0) {
       nick_name1 <-
-        paste("Ratio_Up_file1\nn =", n_distinct(upratio$gene, na.rm = T))
+        paste("Ratio_Up\nn =", n_distinct(upratio$gene, na.rm = T))
       nick_name <- c(nick_name, nick_name1)
       list_data$gene_file[[nick_name1]]$full <- upratio 
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
-        paste(
-          "Ratio_Up_file1",
-          ratio2file,
-          "fold change cut off",
-          my_num,
-          divzerofix,
-          "from",
-          list_name,
-          "gene list",
-          Sys.Date()
-        ),
-        save_name = gsub(" ", "_", paste("Ratio_Up_file1_fold_cut_off", my_num, Sys.Date(), sep = "_")),
-        col_info = "gene file2/file1"
-        )
+      paste(
+        "fold change cut off >",
+        my_num,
+        ratio2file,
+        divzerofix,
+        "from",
+        list_name,
+        "gene list",
+        Sys.Date()
+      ),
+      save_name = gsub(" ", "_", paste("Ratios_greater_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+      col_info = "gene file1/file2"
+      )
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
                            list_data$gene_info %>% 
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name1,
                                            sub =  paste(
-                                             "\nRatio_Up_file1",
-                                             "fold change cut off",
-                                             my_num,
-                                             divzerofix,
-                                             "from",
-                                             list_name
+                                             ratiosub,
+                                             "\nfold change cut off",
+                                             my_num
                                            ), 
                                            onoff = "0",
                                            count = paste0("n = ", n_distinct(upratio$gene, na.rm = T)),
@@ -2215,12 +2216,12 @@ CompareRatios <-
     } 
     if (n_distinct(upratio$gene) > 0) {
       nick_name2 <-
-        paste("Ratio_Down_file1\nn =", n_distinct(upratio$gene, na.rm = T))
+        paste("Ratio_Down\nn =", n_distinct(upratio$gene, na.rm = T))
       nick_name <- c(nick_name, nick_name2)
       list_data$gene_file[[nick_name2]]$full <- upratio
       list_data$gene_file[[nick_name2]]$info <- tibble(loaded_info =
         paste(
-          "Ratio_Down_file1",
+          "Ratio_Down",
           ratio2file,
           "fold change cut off",
           my_num,
@@ -2230,8 +2231,8 @@ CompareRatios <-
           "gene list",
           Sys.Date()
         ),
-        save_name = gsub(" ", "_", paste("Ratio_Down_file1_fold_cut_off", my_num, Sys.Date(), sep = "_")),
-        col_info = "gene file2/file1"
+        save_name = gsub(" ", "_", paste("Ratios_less_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+        col_info = "gene file1/file2"
         )
       list_data$gene_info <- 
         distinct(bind_rows(list_data$gene_info,
@@ -2239,12 +2240,9 @@ CompareRatios <-
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name2,
                                            sub =  paste(
-                                             "Ratio_Down_file1",
-                                             "fold change cut off",
-                                             my_num,
-                                             divzerofix,
-                                             "from",
-                                             list_name
+                                             ratiosub,
+                                             "\nfold change cut off",
+                                             my_num
                                            ), 
                                            onoff = "0",
                                            count = paste0("n = ", n_distinct(upratio$gene, na.rm = T)),
@@ -2284,12 +2282,9 @@ CompareRatios <-
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name3,
                                            sub =  paste(
-                                             "Ratio_No_Diff",
-                                             "fold change cut off",
-                                             my_num,
-                                             divzerofix,
-                                             "from",
-                                             list_name
+                                             ratiosub,
+                                             "\nfold change cut off",
+                                             my_num
                                            ), 
                                            onoff = "0",
                                            count = paste0("n = ", n_distinct(upratio$gene, na.rm = T)),
