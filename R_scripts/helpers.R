@@ -1,3 +1,6 @@
+# common filtered n# not correct? common # not correct?
+# change auto save name to not start with tool names
+# change multiple pickers to treeview?
 # dendogram sub sampling/plotting
 # test making a version w/o global LIST_DATA and put things in more reactive values (pre delare and fix undeclared) with more observations? ... faster?, more control?, less memory?
 # program for loading packages ----

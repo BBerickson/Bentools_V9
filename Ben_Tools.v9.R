@@ -1030,7 +1030,7 @@ server <- function(input, output, session) {
                   choices = c("dotted", "solid"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[1]
                 ),
-                icon = icon("sliders-h"),
+                icon = icon("sliders"),
                 status = "success",
                 tooltip = tooltipOptions(title = "TSS Options")
               )
@@ -1052,7 +1052,7 @@ server <- function(input, output, session) {
                   choices = c("solid", "dotted"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[3]
                 ),
-                icon = icon("sliders-h"),
+                icon = icon("sliders"),
                 tooltip = tooltipOptions(title = "5|4 Options")
               )
             ),
@@ -1073,7 +1073,7 @@ server <- function(input, output, session) {
                   choices = c("solid", "dotted"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[4]
                 ),
-                icon = icon("sliders-h"),
+                icon = icon("sliders"),
                 tooltip = tooltipOptions(title = "4|3 Options")
               )
             ),
@@ -1094,7 +1094,7 @@ server <- function(input, output, session) {
                   choices = c("dotted", "solid"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[2]
                 ),
-                icon = icon("sliders-h"),
+                icon = icon("sliders"),
                 status = "danger",
                 tooltip = tooltipOptions(title = "TES Options")
               )
@@ -1128,7 +1128,7 @@ server <- function(input, output, session) {
                   max = 30,
                   step = 1
                 ),
-                icon = icon("sliders-h"),
+                icon = icon("sliders"),
                 status = "warning",
                 tooltip = tooltipOptions(title = "Font Options")
               )
@@ -1162,7 +1162,7 @@ server <- function(input, output, session) {
                   max = 1,
                   step = .1
                 ),
-                icon = icon("sliders-h"),
+                icon = icon("sliders"),
                 status = "warning",
                 tooltip = tooltipOptions(title = "Line Options")
               )
@@ -1294,7 +1294,7 @@ server <- function(input, output, session) {
       output$valueboxnormfile <- renderValueBox({
         valueBox("0%",
                  "Done",
-                 icon = icon("cogs"),
+                 icon = icon("gears"),
                  color = "yellow")
       })
       gts <- LIST_DATA$gene_info %>% 
@@ -2695,7 +2695,7 @@ server <- function(input, output, session) {
                      output$valueboxnormfile <- renderValueBox({
                        valueBox("0%",
                                 "Done",
-                                icon = icon("cogs"),
+                                icon = icon("gears"),
                                 color = "yellow")
                      })
                    }
@@ -2804,7 +2804,7 @@ server <- function(input, output, session) {
       output$valueboxnormfile <- renderValueBox({
         valueBox("0%",
                  "Done",
-                 icon = icon("cogs"),
+                 icon = icon("gears"),
                  color = "red")
       })
     }
@@ -3933,7 +3933,7 @@ ui <- dashboardPage(
       menuItem("Norm data", tabName = "filenorm", icon = icon("copy")),
       menuItem("Compare Lists", tabName = "genelists", icon = icon("grip-lines")),
       menuItem("Filter Tool", tabName = "sorttool", icon = icon("filter")),
-      menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("percentage")),
+      menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("divide")),
       menuItem("Cluster Tools", tabName = "clustertool", icon = icon("object-group")),
       menuItem("Groups Tools", tabName = "groupiestool", icon = icon("object-group")),
       menuItem("CDF Tools", tabName = "cdftool", icon = icon("ruler-combined")),
