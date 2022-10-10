@@ -2473,7 +2473,7 @@ server <- function(input, output, session) {
     shinyjs::show("hidesortplots1")
     reactive_values$Plot_controler_sort_min <- ggplot()
     shinyjs::hide("hidesortplots2")
-    if (is.null(file_names)) {
+    if (is.null(input$sortSamples)) {
       showModal(modalDialog(
         title = "Information message",
         paste("No file selected to work on"),
