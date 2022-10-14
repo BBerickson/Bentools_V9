@@ -451,7 +451,7 @@ LoadGeneFile <-
 
 # input data list, output filtered and bound data with plot legend column
 Active_list_data <-
-  function(list_data, group="none") {
+  function(list_data, group="none", fulljoin=F) {
     table_file <- list_data$table_file
     gene_file <- list_data$gene_file
     gene_info <- list_data$gene_info
@@ -468,6 +468,7 @@ Active_list_data <-
             ungroup()
         }
         my_sel <- gene_info %>% dplyr::filter(gene_list == i & onoff != 0)
+        print("fulljoin here")
         tf <- table_file %>% 
           dplyr::filter(set %in% my_sel$onoff)
         gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
@@ -476,7 +477,7 @@ Active_list_data <-
           ungroup() %>% distinct(gene)
         list_data_out[[i]] <- tf %>% 
           semi_join(., gene_common, by = "gene") %>%
-          semi_join(., gene_file[[i]]$full, by = "gene") %>% 
+          {if (fulljoin) complete(.,my_sel %>% select(set),bin,gene) else semi_join(., gene_file[[i]]$full, by = "gene")} %>% 
           dplyr::mutate(., gene_list = i)
         # test for empty results
         if(is_empty(list_data_out[[i]]$gene)){
@@ -1386,7 +1387,7 @@ FilterTop <-
         Sys.Date(),
         list_data$gene_file[[list_name]]$info
       ),
-      save_name = gsub(" ", "_", paste("Filter",str_remove(topbottom,"%"), Sys.Date(), sep = "_")),
+      save_name = gsub(" ", "_", paste("filter",str_remove(topbottom,"%"), Sys.Date(), sep = "_")),
       col_info = "gene [ % rank(s) ]"
       )
     list_data$gene_info <- 
@@ -1544,7 +1545,7 @@ FilterPer <-
         Sys.Date(),
         list_data$gene_file[[list_name]]$info
       ),
-      save_name = gsub(" ", "_", paste("Filter",str_remove(topbottom2,"%"), Sys.Date(), sep = "_")),
+      save_name = gsub(" ", "_", paste("filter",str_remove(topbottom2,"%"), Sys.Date(), sep = "_")),
       col_info = "gene"
       )
     list_data$gene_info <-
@@ -1634,7 +1635,7 @@ FilterPeak <-
                                                         Sys.Date(),
                                                         list_data$gene_file[[list_name]]$info
                                                       ),
-                                                    save_name = gsub(" ", "_", paste("Filter", my_type, Sys.Date(), sep = "_")),
+                                                    save_name = gsub(" ", "_", paste("filter", my_type, Sys.Date(), sep = "_")),
                                                     col_info = "gene"
                                                     )
     list_data$gene_info <-
@@ -1804,7 +1805,7 @@ IntersectGeneLists <-
               "from",
               paste(list_name, collapse = " and "),
               Sys.Date()),
-        save_name = gsub(" ", "_", paste("Gene_List_Total_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
+        save_name = gsub(" ", "_", paste("gene_list_total_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
         col_info = "gene"
         )
       list_data$gene_info <- 
@@ -1829,7 +1830,7 @@ IntersectGeneLists <-
               "from",
               paste(list_name, collapse = " and "),
               Sys.Date()),
-        save_name = gsub(" ", "_", paste("Gene_List_innerjoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
+        save_name = gsub(" ", "_", paste("gene_list_innerjoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
         col_info = "gene"
         )
       list_data$gene_info <- 
@@ -1853,7 +1854,7 @@ IntersectGeneLists <-
               "from",
               paste(list_name, collapse = " and "),
               Sys.Date()),
-        save_name = gsub(" ", "_", paste("Gene_List_antijoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
+        save_name = gsub(" ", "_", paste("gene_list_antijoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
         col_info = "gene"
         )
       list_data$gene_info <- 
@@ -1942,7 +1943,7 @@ ClusterNumList <- function(list_data,
         "total",
         Sys.Date()
       ),
-      save_name = gsub(" ", "_", paste("Cluster", nn, "of", my_num, Sys.Date(), sep = "_")),
+      save_name = gsub(" ", "_", paste("cluster", nn, "of", my_num, Sys.Date(), sep = "_")),
       col_info = "gene"
       )
     list_data$gene_info <- 
@@ -2038,7 +2039,7 @@ GroupsNumList <- function(list_data,
                                                         "total",
                                                         Sys.Date()
                                                       ),
-                                                    save_name = gsub(" ", "_", paste("Groups", nn, "of", my_num, Sys.Date(), sep = "_")),
+                                                    save_name = gsub(" ", "_", paste("groups", nn, "of", my_num, Sys.Date(), sep = "_")),
                                                     col_info = "gene"
     )
     list_data$gene_info <- 
@@ -2192,7 +2193,7 @@ CompareRatios <-
         "gene list",
         Sys.Date()
       ),
-      save_name = gsub(" ", "_", paste("Ratios_greater_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+      save_name = gsub(" ", "_", paste("ratios_greater_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
       col_info = "gene file1/file2"
       )
       list_data$gene_info <- 
@@ -2231,7 +2232,7 @@ CompareRatios <-
           "gene list",
           Sys.Date()
         ),
-        save_name = gsub(" ", "_", paste("Ratios_less_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+        save_name = gsub(" ", "_", paste("ratios_less_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
         col_info = "gene file1/file2"
         )
       list_data$gene_info <- 
@@ -2273,7 +2274,7 @@ CompareRatios <-
           "gene list",
           Sys.Date()
         ),
-        save_name = gsub(" ", "_", paste("Ratio_No_Diff_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+        save_name = gsub(" ", "_", paste("ratio_No_Diff_fold_cut_off", my_num, Sys.Date(), sep = "_")),
         col_info = "gene file2/file1"
         )
       list_data$gene_info <- 
@@ -2384,7 +2385,7 @@ CumulativeDistribution <-
           paste(distinct(outlist, plot_set), collapse = " "),
           Sys.Date()
         ),
-        save_name = gsub(" ", "_", paste("CDF", Sys.Date(), sep = "_")),
+        save_name = gsub(" ", "_", paste("genelist_CDF", Sys.Date(), sep = "_")),
         col_info = "gene Rank_order sample, plot_legend, PI/EI"
         )
     } else {

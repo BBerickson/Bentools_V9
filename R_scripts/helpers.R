@@ -1,7 +1,8 @@
+# option to use/make all 0's for missing data ... full_join vs inner_join
 # common filtered n# not correct? common # not correct?
-# change auto save name to not start with tool names
 # change multiple pickers to treeview?
-# dendogram sub sampling/plotting
+# change % filter to set max signal instead of searching for it
+# remove dendogram plotting
 # test making a version w/o global LIST_DATA and put things in more reactive values (pre delare and fix undeclared) with more observations? ... faster?, more control?, less memory?
 # program for loading packages ----
 my_packages <- function(x) {
