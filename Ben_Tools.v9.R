@@ -1237,6 +1237,7 @@ server <- function(input, output, session) {
           ol <- "Complete"
         }
       }
+      updateNumericInput(session, "peakfilternum", value = round(max(LIST_DATA$table_file$score)/10,digits = 4))
       updatePickerInput(session, "sortGeneList",
                         choices = names(LIST_DATA$gene_file),
                         selected = ol,
@@ -1678,13 +1679,6 @@ server <- function(input, output, session) {
       choices = reactive_values$slider_breaks$mylabels,
       selected = reactive_values$setsliders[1:2]
       
-    )
-    updateSliderTextInput(
-      session,
-      "slidersortbinrangefilter",
-      choices = reactive_values$slider_breaks$mylabels,
-      selected = c(reactive_values$setsliders[3],
-                   last(reactive_values$slider_breaks$mylabels))
     )
     updateSliderTextInput(
       session,
@@ -2482,32 +2476,15 @@ server <- function(input, output, session) {
       ))
       return()
     }
-    if (any(between(floor(reactive_values$slider_breaks$mybrakes[
-      reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
-      floor(reactive_values$slider_breaks$mybrakes[
-        reactive_values$slider_breaks$mylabels %in% input$slidersortbinrangefilter[1]]),
-      floor(reactive_values$slider_breaks$mybrakes[
-        reactive_values$slider_breaks$mylabels %in% input$slidersortbinrangefilter[2]])))) {
+    if(!is.numeric(input$peakfilternum)){
+        updateNumericInput(session, "peakfilternum", value = 1)
       showModal(modalDialog(
         title = "Information message",
-        paste("Bins regions should not overlap, \nBins set to default"),
+        paste("please set score to filter on"),
         size = "s",
         easyClose = TRUE
       ))
-      updateSliderTextInput(
-        session,
-        "slidersortbinrange",
-        choices = reactive_values$slider_breaks$mylabels,
-        selected = reactive_values$setsliders[1:2]
-      )
-
-      updateSliderTextInput(
-        session,
-        "slidersortbinrangefilter",
-        choices = reactive_values$slider_breaks$mylabels,
-        selected = c(reactive_values$setsliders[3],
-                     last(reactive_values$slider_breaks$mylabels))
-      )
+      return()
     }
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a bit ...',
@@ -2518,11 +2495,9 @@ server <- function(input, output, session) {
                          input$sortSamples,
                          floor(reactive_values$slider_breaks$mybrakes[
                            reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
-                         floor(reactive_values$slider_breaks$mybrakes[
-                           reactive_values$slider_breaks$mylabels %in% input$slidersortbinrangefilter]),
                          input$selectsortpeak,
                          input$slidersortbinrange,
-                         input$slidersortbinrangefilter)
+                         input$peakfilternum)
                  })
     
     if(!is.null(sortmin)){
@@ -4506,16 +4481,13 @@ ui <- dashboardPage(
             collapsible = T,
             fluidRow(column(
               12,
-              style = "margin-bottom: -20px;",
-              sliderTextInput(
-                "slidersortbinrangefilter",
-                label = "Select Bin Range:",
-                grid = TRUE,
-                c("100","100"),
-                selected = c("100","100")
-              )
+              style = "margin-bottom: 10px;",
+              numericInputIcon("peakfilternum",
+                               "signal hight", 
+                               value = "1",
+                               step = ".25"
             )
-            ),
+            )),
             fluidRow(align="center",
                      column(6,
                             pickerInput(

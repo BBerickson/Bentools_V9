@@ -1571,34 +1571,29 @@ FilterPeak <-
            list_name,
            file_names,
            start_end_bin_peak,
-           start_end_bin_filter,
            my_type,
            start_end_label_peak,
-           start_end_label_filter) {
+           peak_filter_num) {
     gene_list <- list_data$gene_file[[list_name]]$full
     out_list <- list_data$table_file %>% 
       dplyr::filter(set %in% file_names) %>% 
       semi_join(.,gene_list,by="gene") %>% 
       mutate(score=abs(score)) 
       
-    my_filter <- out_list %>% 
-      dplyr::filter(bin %in% start_end_bin_peak[1]:start_end_bin_peak[2]) %>% 
-      group_by(set,gene) %>% summarise(score2=max(score,rm.na=T),.groups = "drop")
     out_list <- out_list %>% 
-      dplyr::filter((bin %in% start_end_bin_filter[1]:start_end_bin_filter[2])) %>% 
-      full_join(.,my_filter,by=c("gene","set")) 
-    
+      dplyr::filter(bin %in% start_end_bin_peak[1]:start_end_bin_peak[2]) 
+      
     if(my_type == "peak"){
       out_gene <- out_list %>% 
           group_by(gene) %>% 
           filter(n_distinct(set)==length(file_names)) %>% 
-          dplyr::filter(all(score<=score2)) %>% 
+          dplyr::filter(all(score<=peak_filter_num)) %>% 
           ungroup() %>% distinct(gene)
     } else {
       out_gene <- out_list %>% 
           group_by(gene) %>%
           filter(n_distinct(set)==length(file_names)) %>%
-          dplyr::filter(!all(score<=score2)) %>%
+          dplyr::filter(!all(score<=peak_filter_num)) %>%
           ungroup() %>% distinct(gene)
     }
     if (length(out_gene$gene) == 0) {
@@ -1625,10 +1620,8 @@ FilterPeak <-
                                                         start_end_label_peak[1],
                                                         "to",
                                                         start_end_label_peak[2],
-                                                        "filter peaks",
-                                                        start_end_label_filter[1],
-                                                        "to",
-                                                        start_end_label_filter[2],
+                                                        "filter peaks with signal",
+                                                        peak_filter_num,
                                                         "from",
                                                         list_name,
                                                         paste(file_names, collapse = " "),
@@ -1645,9 +1638,8 @@ FilterPeak <-
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter:",
                                                       my_type,
-                                                      start_end_label_filter[1],
-                                                      "to",
-                                                      start_end_label_filter[2]),
+                                                      "of signal",
+                                                      peak_filter_num),
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(out_gene$gene, na.rm = T)),
                                          plot_set = " ")))
