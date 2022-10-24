@@ -513,7 +513,7 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
-                   list_data_frame <- Active_list_data(LIST_DATA,input$mygroup)
+                   list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull)
                    if (!is_empty(list_data_frame)) {
                      LIST_DATA$gene_info <<- rows_update(LIST_DATA$gene_info,
                                                          list_data_frame %>% 
@@ -1415,10 +1415,8 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "clustertool"){
       if(!is.null(input$clusterSamples)){ 
         if(input$clusterSamples[1] == "select sample"){
-          shinyjs::disable("onoffdendrogram")
           shinyjs::hide("hideclusterplots1")
           shinyjs::hide("hideclustertable")
-          shinyjs::hide("hideclusterplots2")
         }
       }
       ol <- input$clusterGeneList
@@ -1452,7 +1450,6 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "groupiestool"){
       if(!is.null(input$groupiesSamples)){
         if(input$groupiesSamples[1] == "select sample"){
-          shinyjs::disable("onoffdendrogram")
           shinyjs::hide("hidegroupiesplots1")
           shinyjs::hide("hidegroupiestable")
           shinyjs::hide("hidegroupiesplots2")
@@ -2009,7 +2006,7 @@ server <- function(input, output, session) {
     
     if (LIST_DATA$STATE[2] != 2){
        # print("t.test button")
-      list_data_frame <- Active_list_data(LIST_DATA,input$mygroup)
+      list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull)
       if (!is_empty(list_data_frame)) {
         if (sum(ttest_values == reactive_values$ttest_values) != 7){
           reactive_values$ttest_values <- ttest_values
@@ -2084,9 +2081,6 @@ server <- function(input, output, session) {
   })
   output$plot1cluster <- renderPlot({
     reactive_values$Plot_controler_cluster
-  })
-  output$plot2cluster <- renderPlot({
-    reactive_values$Plot_controler_dcluster
   })
   output$plot1groupies <- renderPlot({
     reactive_values$Plot_controler_groupies
@@ -2264,7 +2258,7 @@ server <- function(input, output, session) {
       LD$gene_info <- LD$gene_info %>%
         dplyr::mutate(onoff=if_else(gene_list == names(LD$gene_file)[mylist] &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(LD)
+      list_data_frame <- Active_list_data(LD, input$checkboxfull)
       if (!is_empty(list_data_frame)) {
         withProgress(message = 'Calculation in progress',
                      detail = 'This may take a while...',
@@ -2507,7 +2501,7 @@ server <- function(input, output, session) {
       sortmin$gene_info <- sortmin$gene_info %>%
         dplyr::mutate(onoff=if_else(gene_list == mylist &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(sortmin)
+      list_data_frame <- Active_list_data(sortmin, input$checkboxfull)
       if (!is_empty(list_data_frame)) {
         reactive_values$Plot_controler_sort_min <- ggplot()
         withProgress(message = 'Calculation in progress',
@@ -3143,7 +3137,6 @@ server <- function(input, output, session) {
   observeEvent(input$actionclustertool, ignoreInit = TRUE, {
      # print("cluster tool action")
     shinyjs::hide('plot1cluster')
-    shinyjs::hide('plot2cluster')
     if (n_distinct(LIST_DATA$gene_file[[input$clusterGeneList]]$full, na.rm = T) < as.numeric(input$selectclusternumber) |
         is.null(input$clusterSamples)) {
       showModal(modalDialog(
@@ -3188,7 +3181,6 @@ server <- function(input, output, session) {
                  }
                  shinyjs::hide('hideclusterplots1')
                  shinyjs::hide("hideclustertable")
-                 shinyjs::hide('hideclusterplots2')
                  withProgress(message = 'Calculation in progress',
                               detail = 'This may take a while...',
                               value = 0,
@@ -3221,7 +3213,7 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD)
+                                  list_data_frame <- Active_list_data(LD, input$checkboxfull)
                                   if (!is_empty(list_data_frame)) {
                                     
                                     Apply_Cluster_Math <- ApplyMath(
@@ -3233,7 +3225,6 @@ server <- function(input, output, session) {
                                     )
                                   }
                                   reactive_values$Plot_controler_cluster <- ggplot()
-                                  reactive_values$Plot_controler_dcluster <- ggplot()
                                   gp1 <-
                                     ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=gene_list)) +
                                     geom_line() +
@@ -3244,7 +3235,6 @@ server <- function(input, output, session) {
                                   print(gp1)
                                   reactive_values$Plot_controler_cluster <- gp1
                                 })
-                   shinyjs::enable("onoffdendrogram")
                    gts <- list_data_frame %>% 
                      distinct(gene_list) %>% 
                      separate(gene_list,c("Cluster","number_of_genes"),sep = "\nn = ",extra = "drop")
@@ -3283,36 +3273,12 @@ server <- function(input, output, session) {
                  }
                })
   
-  # plots deprogram of Clusters ----
-  observeEvent(input$actiondclustertool, ignoreInit = TRUE,{
-    shinyjs::show('hideclusterplots2')
-    shinyjs::show('plot2cluster')
-    reactive_values$Plot_controler_dcluster <- ggplot()
-    withProgress(message = 'Calculation in progress',
-                 detail = 'This may take a while...',
-                 value = 0,
-                 {
-                   col <- gg_color_hue(as.numeric(input$selectclusternumber))
-    gp2 <-
-      suppressWarnings(LIST_DATA$clust$cm %>% as.dendrogram() %>% 
-                         set("branches_k_color", value = col, k = as.numeric(input$selectclusternumber)) %>% 
-                         set("labels_colors", value = col, k = as.numeric(input$selectclusternumber)) %>% 
-                         set("branches_lwd", 1.2) %>% 
-                         as.ggdend() %>% 
-                         ggplot())
-    print(gp2)
-    reactive_values$Plot_controler_dcluster <- gp2
-                 })
-  })
-  
   # Cluster reset controller ----
   observeEvent(c(input$clusterGeneList,
                  input$clusterSamples), ignoreNULL = TRUE, ignoreInit = TRUE, {
     reactive_values$clustergroups <- NULL
-    shinyjs::disable("onoffdendrogram")
     shinyjs::hide("hideclusterplots1")
     shinyjs::hide("hideclustertable")
-    shinyjs::hide("hideclusterplots2")
   })
   
   # groupies tool action ----
@@ -3397,7 +3363,7 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD)
+                                  list_data_frame <- Active_list_data(LD, input$checkboxfull)
                                   if (!is_empty(list_data_frame)) {
 
                                     Apply_groupies_Math <- ApplyMath(
@@ -3420,7 +3386,6 @@ server <- function(input, output, session) {
                                   print(gp1)
                                   reactive_values$Plot_controler_groupies <- gp1
                                 })
-                   shinyjs::enable("onoffdendrogram")
                    gts <- list_data_frame %>%
                      distinct(gene_list) %>%
                      separate(gene_list,c("Groups","number_of_genes"),sep = "\nn = ",extra = "drop")
@@ -4033,7 +3998,8 @@ ui <- dashboardPage(
                 2,
                 awesomeCheckbox("checkboxlog2", label = "log2"),
               awesomeCheckbox("checkboxauc", label = "AUC"),
-              awesomeCheckbox("checkboxabs", label = "abs")
+              awesomeCheckbox("checkboxabs", label = "abs"),
+              awesomeCheckbox("checkboxfull", label = "Inc0")
               ),
               column(
                 3,
@@ -4719,12 +4685,7 @@ ui <- dashboardPage(
              )
            )),
            column(width = 6,
-           actionButton("actionclustertool", "Get clusters")),
-           div(
-             id = "onoffdendrogram",
-             column(width = 6,
-           actionButton("actiondclustertool", "plot dendrogram")
-           ))
+           actionButton("actionclustertool", "Get clusters"))
          ),
          div(
             id = "hideclusterplots1",
@@ -4739,14 +4700,7 @@ ui <- dashboardPage(
                style = "padding: 0px 2px;",
            width = 4,
            DT::dataTableOutput('clustertable',height = "320px")     
-                )),
-         div(
-           id = "hideclusterplots2",
-           box(headerBorder = F,
-               width = 12,
-               withSpinner(plotOutput("plot2cluster",height = "200px"), type = 4)
-           )
-         )
+                ))
         )
       ),
       tabItem(

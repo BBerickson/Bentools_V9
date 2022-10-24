@@ -468,24 +468,16 @@ Active_list_data <-
             ungroup()
         }
         my_sel <- gene_info %>% dplyr::filter(gene_list == i & onoff != 0)
-        print("fulljoin here")
         tf <- table_file %>% 
           dplyr::filter(set %in% my_sel$onoff)
-        gene_common <- tf %>% group_by(set) %>% distinct(gene) %>% ungroup()
-        gene_common <- gene_common %>% 
-          group_by(gene) %>% filter(n_distinct(set)==length(my_sel$set)) %>% 
-          ungroup() %>% distinct(gene)
         list_data_out[[i]] <- tf %>% 
-          semi_join(., gene_common, by = "gene") %>%
-          {if (fulljoin) complete(.,my_sel %>% select(set),bin,gene) else semi_join(., gene_file[[i]]$full, by = "gene")} %>% 
-          dplyr::mutate(., gene_list = i)
-        # test for empty results
-        if(is_empty(list_data_out[[i]]$gene)){
-          list_data_out[[i]] <- tf %>% 
-            semi_join(., gene_file[[i]]$full, by = "gene") %>% 
-            complete(.,my_sel %>% select(set),bin,gene) %>% 
-            replace_na(list(score = 0)) %>% 
-            dplyr::mutate(., gene_list = i)
+          semi_join(., gene_file[[i]]$full, by = "gene") %>% 
+          {if (fulljoin) complete(.,distinct(.,set),bin,gene,fill = list(score=0)) else .} %>% 
+          group_by(gene) %>% filter(n_distinct(set)==length(my_sel$set)) %>% 
+          ungroup() %>% dplyr::mutate(., gene_list = i)
+        # test for empty results?
+        if(fulljoin){
+          my_sel <- paste(my_sel, "Inc0")
         }
         # adds line brake at 20 character for legend spacing
         my_sel2 <- my_sel %>% dplyr::mutate(.,plot_set = paste(
