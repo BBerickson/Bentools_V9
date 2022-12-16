@@ -702,7 +702,7 @@ GGplotLineDot <-
                     span = .2, alpha=line_list$mysize[6]) 
     } else{
       gp <- gp +
-        geom_line(size = line_list$mysize[2],alpha=line_list$mysize[6])
+        geom_line(linewidth = line_list$mysize[2],alpha=line_list$mysize[6])
     }
     gp <- gp + 
       geom_ribbon(aes(ymin=min,ymax=max,fill=set),linetype=0,alpha = 0.5) +
@@ -713,7 +713,7 @@ GGplotLineDot <-
       geom_vline(
         data = line_list$myline,
         aes(xintercept = use_virtical_line),
-        size = line_list$mysize[1],
+        linewidth = line_list$mysize[1],
         linetype = line_list$myline$use_virtical_line_type,
         color = line_list$myline$use_virtical_line_color
       ) +
@@ -747,7 +747,7 @@ GGplotLineDot <-
       gp2 <- ggplot(LIST_DATA$ttest, aes(y=p.value,x=bin,
                                          color=set,
                                          linetype = set)) + 
-        geom_line(size = line_list$mysize[2],alpha=line_list$mysize[6]) +
+        geom_line(linewidth = line_list$mysize[2],alpha=line_list$mysize[6]) +
         scale_color_manual(values = use_col_tt) +
         scale_linetype_manual(values = use_line_tt)+
         geom_hline(yintercept = plot_ttest$hlineTT,color="blue") + 
@@ -755,7 +755,7 @@ GGplotLineDot <-
         geom_vline(
           data = line_list$myline,
           aes(xintercept = use_virtical_line),
-          size = line_list$mysize[1],
+          linewidth = line_list$mysize[1],
           linetype = line_list$myline$use_virtical_line_type,
           color = line_list$myline$use_virtical_line_color
         ) +
@@ -769,7 +769,7 @@ GGplotLineDot <-
         theme(axis.text.y = element_text(size = line_list$mysize[4],
                                          face = 'bold'))+
         theme(
-          axis.text.x = element_text(
+          axis.text.x = ggtext::element_markdown(
             color = line_list$mycolors[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
             size = line_list$mysize[3],
             angle = -45,
@@ -780,7 +780,7 @@ GGplotLineDot <-
         ) +
         theme(
           legend.title = element_blank(),
-          legend.key = element_rect(size = line_list$mysize[5] / 2, color = 'white'),
+          legend.key = element_rect(linewidth = line_list$mysize[5] / 2, color = 'white'),
           legend.key.height = unit(legend_space/1.2, "line"),
           legend.text = element_text(size = line_list$mysize[5]/1.2, face = 'bold')
         ) +
@@ -798,7 +798,7 @@ GGplotLineDot <-
                            labels = line_list$mylabels[between(line_list$mybrakes, xBinRange[1], xBinRange[2])]) +
         theme(axis.title.x = element_text(size =  line_list$mysize[3], vjust = .5)) +
         theme(
-          axis.text.x = element_text(
+          axis.text.x = ggtext::element_markdown(
             color = line_list$mycolors[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
             size = line_list$mysize[3],
             angle = -45,
@@ -809,7 +809,7 @@ GGplotLineDot <-
         ) +
         theme(
           legend.title = element_blank(),
-          legend.key = element_rect(size = line_list$mysize[5] / 2, color = 'white'),
+          legend.key = element_rect(linewidth = line_list$mysize[5] / 2, color = 'white'),
           legend.key.height = unit(legend_space, "line"),
           legend.text = element_text(size = line_list$mysize[5], face = 'bold')
         )  +
@@ -2425,7 +2425,7 @@ GGplotC <-
       )) +
       theme(
         legend.title = element_blank(),
-        legend.key = element_rect(size = 5, color = 'white'),
+        legend.key = element_rect(linewidth = 5, color = 'white'),
         legend.key.height = unit(legend_space, "line"),
         legend.text = element_text(size = 10)
       ) +

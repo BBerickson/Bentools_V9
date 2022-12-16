@@ -18,6 +18,7 @@ suppressPackageStartupMessages(my_packages(
     "patchwork",
     "zip",
     "ggpubr",
+    "ggtext",
     "fastcluster",
     "dendextend",
     "valr"
