@@ -34,3 +34,6 @@ kLinesandlabels <- c(
 # math options available ----
 kMathOptions <- c("mean", "sum", "median")
 
+# hotkeys
+hotkeys <- c("enter")
+  

@@ -21,7 +21,8 @@ suppressPackageStartupMessages(my_packages(
     "ggtext",
     "fastcluster",
     "dendextend",
-    "valr"
+    "valr",
+    "keys"
   )
 ))
 
@@ -690,10 +691,12 @@ server <- function(input, output, session) {
       }
       if (length(my_pos) == length(my_label)) {
         shinyjs::enable("actionlineslabels")
+        shinyjs::enable("keys")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
       } else {
         updateActionButton(session, "actionlineslabels", label = "Labels must equel # of positions")
         shinyjs::disable("actionlineslabels")
+        shinyjs::disable("keys")
       }
     }
   }) 
@@ -1170,7 +1173,7 @@ server <- function(input, output, session) {
             )
           )
         ),
-        actionButton("actionlineslabels", "SET and Plot"),
+        actionBttn("actionlineslabels", "SET and Plot"),
       )
     ))
   })
@@ -1601,7 +1604,76 @@ server <- function(input, output, session) {
     
   })
   
+  # enter key update lines and labels ----
+  # todo doubled observeEvent for key press to avoid error ----
+  observeEvent(input$keys, {
+    # print("action lines and labels")
+    my_pos <-
+      suppressWarnings(as.numeric(unlist(
+        strsplit(input$landlposition, split = "\\s+")
+      )))
+    my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
+    if (length(my_pos) == 0) {
+      my_label <- "none"
+      my_pos <- LIST_DATA$x_plot_range[2] * 2
+    }
+    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
+    # if tss or tes location make sure there is text
+    if(nchar(trimws(input$numerictssname)) == 0 & input$numerictss > 0){
+      updateTextInput(session, "numerictssname", value = mynames[1])
+    }
+    if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
+      updateTextInput(session, "numerictesname", value = mynames[2])
+    }
+    
+    reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
+                                                    LIST_DATA$x_plot_range[2],
+                                                    input$numerictssname,
+                                                    input$numerictesname,
+                                                    slider = T)
+    
+    reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
+    
+    reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
+                                                 last(reactive_values$slider_breaks$mylabels))
+    updateSliderTextInput(session,"sliderplotBinRange",
+                          choices = reactive_values$slider_breaks$mylabels,
+                          selected = c(first(reactive_values$slider_breaks$mylabels),
+                                       last(reactive_values$slider_breaks$mylabels))
+                          
+    )
+    
+    updateSelectInput(session,"selectplotBinNorm",
+                      choices = c("NA","min",
+                                  reactive_values$slider_breaks$mylabels),
+                      selected = "NA"
+    )
+    
+    reactive_values$Lines_Labels_List <-
+      LinesLabelsPlot(
+        LIST_DATA$binning,
+        input$selectbody1color,
+        input$selectbody1line,
+        input$selectbody2color,
+        input$selectbody2line,
+        input$selecttsscolor,
+        input$selecttssline,
+        input$selecttescolor,
+        input$selecttesline,
+        my_label,
+        my_pos,
+        input$selectvlinesize,
+        input$selectlinesize,
+        input$selectfontsizex,
+        input$selectfontsizey,
+        input$selectlegendsize,
+        input$selectalpha
+      )
+    removeModal()
+  })
+  
   # action button update lines and labels ----
+  # todo when put in c() error occurres so doubled observeEvent for key press ----
   observeEvent(input$actionlineslabels, ignoreInit = TRUE, {
      # print("action lines and labels")
     my_pos <-
@@ -1797,6 +1869,7 @@ server <- function(input, output, session) {
         input$numerictes
       ) >= input$numericbinsize)) {
         shinyjs::enable("actionlineslabels")
+        shinyjs::enable("keys")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
         if(LIST_DATA$binning[1] == 543){
           LIST_DATA$binning[5] <- abs((LIST_DATA$x_plot_range[2]*as.numeric(LIST_DATA$binning[2])) - 
@@ -1848,6 +1921,7 @@ server <- function(input, output, session) {
       } else {
         updateActionButton(session, "actionlineslabels", label = "bin size must be multiple of and not > other values")
         shinyjs::disable("actionlineslabels")
+        shinyjs::disable("keys")
       }
     })
   
@@ -3883,6 +3957,8 @@ ui <- dashboardPage(
   ),
   body = dashboardBody(
     useShinyjs(),
+    useKeys(),
+    keysInput("keys", hotkeys),
     tabItems(
       # load data tab ----
       tabItem(tabName = "loaddata",
