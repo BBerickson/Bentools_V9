@@ -3968,7 +3968,7 @@ ui <- dashboardPage(
                   box(
                     status = "navy",
                     solidHeader = TRUE,
-                    title = "Load .table/URL.txt file",
+                    title = "Load .matrix.gz/URL.txt file",
                     width = 6,
                     style = "height: 150px;",
                     align = "center",
@@ -3976,7 +3976,7 @@ ui <- dashboardPage(
                       "filetable",
                       width = "75%",
                       label = "",
-                      accept = c('.table','.url.txt'),
+                      accept = NULL,
                       multiple = FALSE
                     ),
                     helpText("load table file(s)"),
@@ -4014,7 +4014,7 @@ ui <- dashboardPage(
                     "filegene1",
                     width = "75%",
                     label = "",
-                    accept = c('.txt', 'bed'),
+                    accept = c('.txt', '.bed'),
                     multiple = FALSE
                   ),
                   helpText("load gene list"),

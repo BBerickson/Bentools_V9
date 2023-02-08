@@ -331,7 +331,7 @@ LoadTableFile <-
       dplyr::mutate(bin = as.numeric(bin),
                     score = as.numeric(score),
                     set = meta_data$nick) %>%
-      na_if(Inf) %>%
+      dplyr::mutate(score = na_if(score,Inf)) %>%
       replace_na(list(score = 0)) %>%
       distinct(gene, bin, .keep_all = T)
   }
@@ -1718,7 +1718,7 @@ MakeNormFile <-
           bin = bin,
           set = legend_nickname,
           score = abs(score.x) / abs(score.y)
-        ) %>% na_if(Inf)
+        ) %>% dplyr::mutate(score = na_if(score,Inf))
       }
       # output test
       if (n_distinct(new_gene_list$gene) < 1) {
@@ -2129,7 +2129,7 @@ CompareRatios <-
       lc <<- lc + 1
       outlist[[lc]] <<-
         transmute(df, gene = gene, Ratio = sum1 / sum2) %>%
-        na_if(Inf) %>% dplyr::select(gene, Ratio)
+        dplyr::mutate(Ratio = na_if(Ratio,Inf)) %>% dplyr::select(gene, Ratio)
       
       if (lc > 1) {
         if (divzerofix) {
@@ -2139,12 +2139,12 @@ CompareRatios <-
           outlist[[1]] <<-
             inner_join(outlist[[1]], outlist[[2]], by = 'gene') %>%
             transmute(gene = gene, Ratio = Ratio.x / Ratio.y) %>%
-            na_if(Inf)  %>% dplyr::select(gene, Ratio)
+            dplyr::mutate(Ratio = na_if(Ratio,Inf)) %>% dplyr::select(gene, Ratio)
         } else {
           outlist[[1]] <<-
             inner_join(outlist[[1]], outlist[[2]], by = 'gene') %>%
             transmute(gene = gene, Ratio = Ratio.x / Ratio.y) %>%
-            na_if(Inf)  %>% dplyr::select(gene, Ratio)
+            dplyr::mutate(Ratio = na_if(Ratio,Inf))  %>% dplyr::select(gene, Ratio)
         }
       }
     })
@@ -2327,7 +2327,9 @@ CumulativeDistribution <-
                   sum2 = mean(score[startend2_bin[1]:startend2_bin[2]],	na.rm = T),.groups="drop") %>%
         dplyr::mutate(., value = sum1 / sum2) %>%
         dplyr::mutate(value=log2(value)) %>% 
-        na_if(Inf) %>% na_if(-Inf) %>% group_by(gene) %>% 
+        dplyr::mutate(value = na_if(value,Inf)) %>% 
+        dplyr::mutate(value = na_if(value,-Inf)) %>% 
+        group_by(gene) %>% 
         dplyr::filter(!any(is.na(value))) %>% ungroup() %>% 
         group_by(., set) %>%
         arrange(value) %>%
