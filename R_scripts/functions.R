@@ -1646,6 +1646,7 @@ MakeNormFile <-
            dnom,
            gbyg,
            divzerofix,
+           divzerofix2,
            addfiles,
            nickname) {
     # check 2 files have been selected
@@ -1662,20 +1663,37 @@ MakeNormFile <-
         nickname <- paste(nom, addfiles, dnom,sep = " ")
       }
       # if min/2 find Na's and 0's, and replace
-      if (divzerofix) {
+      if (divzerofix2) {
+        myname <- paste0(myname, "_0/0->min/2")
+        nd <- nd %>% 
+          dplyr::mutate(score=if_else(set == dnom & score == 0, NA_real_, score)) 
+        new_min_for_dom <- nd %>% dplyr::filter(set == dnom) %>% 
+          summarise(my_min=min(score, na.rm = TRUE)/2)
+        nd <-
+          replace_na(nd, list(score = new_min_for_dom$my_min))
+        nd <- nd %>% 
+          dplyr::mutate(score=if_else(set == nom & score == 0, NA_real_, score)) 
+        new_min_for_nom <- nd %>% dplyr::filter(set == nom) %>% 
+          summarise(my_min=min(score, na.rm = TRUE)/2)
+        nd <-
+          replace_na(nd, list(score = new_min_for_nom$my_min))
+      } else if (divzerofix) {
         nd <- nd %>% 
           dplyr::mutate(score=if_else(set == dnom & score == 0, NA_real_, score))
-        myname <- paste0(myname, "_0->min/2")
-        new_min_for_dom <-
-          min(nd$score, na.rm = TRUE) / 2
+        myname <- paste0(myname, "_#/0->min/2")
+        new_min_for_dom <- nd %>% dplyr::filter(set == dnom) %>% 
+          summarise(my_min=min(score, na.rm = TRUE)/2)
         nd <-
-          replace_na(nd, list(score = new_min_for_dom))
+          replace_na(nd, list(score = new_min_for_dom$my_min))
       }
       # files numbers are replaced with mean of bins if applied
       if (gbyg != "bin by bin") {
         myname <- "mean_of_bins"
         if (divzerofix) {
-          myname <- paste0(myname, "_0->min/2")
+          myname <- paste0(myname, "_#/0->min/2")
+        }
+        if (divzerofix2) {
+          myname <- paste0(myname, "_0/0->min/2")
         }
         nd <- nd %>% 
           group_by(bin, set) %>%
@@ -1737,18 +1755,14 @@ MakeNormFile <-
       list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
       list_data$gene_info <- dplyr::filter(list_data$gene_info, set != legend_nickname)
       list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
-      list_data$gene_info <- bind_rows(list_data$gene_info,
-                                       tibble(
-                                         gene_list = names(list_data$gene_file)[1],
-                                         count = distinct(list_data$gene_info %>% 
-                                                            filter(gene_list == names(list_data$gene_file)[1]),count)$count,
-                                         set = legend_nickname,
-                                         group = legend_nickname,
-                                         mycol = sample(suppressWarnings(brewer.pal(11, sample(kBrewerList,size=1)))[-c(4:7)],size = 1),
-                                         onoff = "0",
-                                         sub = " ",
-                                         plot_set = " "
-                                       ))
+      list_data$gene_info <- distinct(bind_rows(list_data$gene_info,
+                           list_data$gene_info %>%
+                             dplyr::filter(set == nom) %>%
+                             dplyr::mutate(set = legend_nickname,
+                                           group = legend_nickname,
+                                           onoff = "0",
+                                           sub = " ",
+                                           plot_set = " ")))
     } else {
       list_data$table_file <- list_data$table_file %>%
         replace_na(., list(score = 0)) %>%

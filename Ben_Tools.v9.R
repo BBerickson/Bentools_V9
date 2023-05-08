@@ -2757,6 +2757,7 @@ server <- function(input, output, session) {
                      input$pickerdenominator,
                      input$radiogenebygene,
                      input$checkboxnormzero,
+                     input$checkboxnormzero2,
                      input$adddata,
                      input$textnromname
                    )
@@ -4311,7 +4312,10 @@ ui <- dashboardPage(
           ),
           awesomeCheckbox(
             "checkboxnormzero",
-            label = "replace 0 with min/2",value = FALSE),
+            label = "replace denom 0's with min/2",value = FALSE),
+          awesomeCheckbox(
+            "checkboxnormzero2",
+            label = "replace all 0's with min/2",value = FALSE),
           valueBoxOutput("valueboxnormfile")
         ),
         box(
