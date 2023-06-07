@@ -851,6 +851,7 @@ LinesLabelsSet <- function(myinfo,
     slider = F) {
   # print("LinesLabelsSet")
   # LinesLabelsSet(c(543,100,1500,3500,2000,500,500,500),slider = F)
+  lineloc <- c(NA, NA, NA, NA)
   mytype <- myinfo[1]
   landmarks <- LinesLableLandmarks(myinfo)
   myinfo <- suppressWarnings(as.double(myinfo))
@@ -886,6 +887,11 @@ LinesLabelsSet <- function(myinfo,
       beforebins <- sort(c(beforebins, landmarks[1] + mod))
       before <- append(before, tssname)
     }
+    if(str_detect(mytype, "^3|TES")){
+      lineloc[2] <- landmarks[1] + mod
+    } else {
+      lineloc[1] <- landmarks[1] + mod
+    }
     
     # any other landmarks
     if(all(c(landmarks[3],landmarks[4]) > 0)){
@@ -903,6 +909,7 @@ LinesLabelsSet <- function(myinfo,
           unscaled5prime <- append(unscaled5prime, (landmarks[3] - landmarks[1]) * myinfo[2])
           unscaled5primebin <- c(unscaled5primebin, landmarks[3])
         }
+        lineloc[3] <- landmarks[3]
         # slider body
         if(slider){
           unscaled5prime <- c(paste0("5'unscale_",unscaled5prime), 
@@ -915,6 +922,7 @@ LinesLabelsSet <- function(myinfo,
           unscaled3prime <- unscaled3prime + myinfo[2]
         }
         unscaled3primebin <- seq(landmarks[4]+1, by = landmarks[5], length.out = length(unscaled3prime))
+        lineloc[4] <- landmarks[4]+1
         # make sure TES is included
         myloc <- which(unscaled3prime == 0 | unscaled3primebin == landmarks[2]+1)
         if(!is_empty(myloc)){
@@ -927,6 +935,7 @@ LinesLabelsSet <- function(myinfo,
           unscaled3primebin <- sort(c(unscaled3primebin, landmarks[2] + .5))
           unscaled3prime[which(unscaled3primebin == landmarks[2] + .5)] <- tesname
         }
+        lineloc[2] <- landmarks[2] + .5
         if(slider){
           unscaled3prime[which(unscaled3prime != tesname)] <- 
             paste0("3'unscale_",unscaled3prime[which(unscaled3prime != tesname)])
@@ -953,6 +962,7 @@ LinesLabelsSet <- function(myinfo,
         before <- c(before,TESname)
         beforebins <- c(beforebins,TESloc)
       }
+      lineloc[2] <- landmarks[2] + .5
       # just 5' or 3'
     } else if(myinfo[8] <= myinfo[4]){
       landmark  <- trunc(last(beforebins)) + landmarks[5] 
@@ -994,8 +1004,10 @@ LinesLabelsSet <- function(myinfo,
   }
   use_plot_breaks_labels <- use_plot_breaks_labels[which(use_plot_breaks <= totbins)]
   use_plot_breaks <- use_plot_breaks[which(use_plot_breaks <= totbins)]
+  lineloc <- c(lineloc, landmarks[5])
   list(mybrakes = use_plot_breaks,
-       mylabels = use_plot_breaks_labels)
+       mylabels = use_plot_breaks_labels,
+       lineloc = lineloc)
 }
 
 # Sets plot lines and labels colors
@@ -1017,27 +1029,23 @@ LinesLabelsPlot <-
            fontsizex,
            fontsizey,
            legendsize,
-           myalpha) {
+           myalpha,
+           lineloc) {
     # print("lines and labels plot fun")
     # myinfo <- c(543,100,1500,3500,2000,500,500,500)
-    landmarks <- LinesLableLandmarks(myinfo)
-    tssbin <- landmarks[1]
-    tesbin <- landmarks[2]
-    body1bin <- landmarks[3]
-    body2bin <- landmarks[4]
-    binspace <- landmarks[5]
+    
+    tssbin <- lineloc[1]
+    tesbin <- lineloc[2]
+    body1bin <- lineloc[3]
+    body2bin <- lineloc[4]
+    binspace <- lineloc[5]
     binsize <- myinfo[8]
     if (length(use_plot_breaks_labels) > 0) {
       mycolors <- rep("black", length(use_plot_breaks))
-      use_virtical_line <- c(NA, NA, NA, NA)
+      use_virtical_line <- lineloc[1:4]
       if (tssbin > 0) {
-        if(tssbin > 1){
-          mod <- 0.5
-        } else {
-          mod <- 0
-        }
-        mycolors[which(use_plot_breaks == tssbin  + mod)] <- tsscolor
-        use_virtical_line[1] <- tssbin  + mod
+        mycolors[which(use_plot_breaks == tssbin)] <- tsscolor
+        use_virtical_line[1] <- tssbin
         if (tssbin < body1bin &
             body1bin < body2bin &
             body2bin < tesbin & tesbin <= last(use_plot_breaks)) {
@@ -1045,16 +1053,11 @@ LinesLabelsPlot <-
         }
       }
       if (tesbin > 0) {
-        if(tesbin > 1){
-          mod <- 0.5
-        } else {
-          mod <- 0
-        }
-        mycolors[which(use_plot_breaks == tesbin  + mod)] <- tescolor
-        use_virtical_line[2] <- tesbin + mod
+        mycolors[which(use_plot_breaks == tesbin)] <- tescolor
+        use_virtical_line[2] <- tesbin
       }
     } else {
-      use_plot_breaks <- mod
+      use_plot_breaks <- 0
       use_plot_breaks_labels <- "none"
       use_virtical_line <- c(NA, NA, NA, NA)
     }

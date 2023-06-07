@@ -940,7 +940,7 @@ server <- function(input, output, session) {
           collapsed = FALSE,
           pickerInput("pickerPlotType",
                       choices = mychoices,
-                      selected = LIST_DATA$binning[1]),
+                      selected = "default"),
           column(12,
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
@@ -1673,7 +1673,8 @@ server <- function(input, output, session) {
         input$selectfontsizex,
         input$selectfontsizey,
         input$selectlegendsize,
-        input$selectalpha
+        input$selectalpha,
+        reactive_values$slider_breaks$lineloc
       )
     removeModal()
   })
@@ -1742,7 +1743,8 @@ server <- function(input, output, session) {
         input$selectfontsizex,
         input$selectfontsizey,
         input$selectlegendsize,
-        input$selectalpha
+        input$selectalpha,
+        reactive_values$slider_breaks$lineloc
       )
     removeModal()
   })
