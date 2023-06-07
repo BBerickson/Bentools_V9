@@ -186,6 +186,7 @@ server <- function(input, output, session) {
             everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
           }
           LIST_DATA$binning <<- c(bin_colname$binning,everybp)
+          LIST_DATA$binning2 <<- LIST_DATA$binning
         } else if (max(LD$bin) != LIST_DATA$x_plot_range[2]) {
           showModal(
             modalDialog(
@@ -197,7 +198,15 @@ server <- function(input, output, session) {
           )
           next()
         }
-    
+      if(!all(c("chrom", "start", "end","strand") %in% names(LD))){
+        # pull out location data from gene name
+        LD <- LD$gene %>% 
+          sub("-",":",.) %>% sub("(;-|-;)",":-:",.) %>% sub("(;\\+|\\+;)",":+:",.) %>% 
+          sub("(;.|\\.;)",":.:",.) %>% 
+          tibble(gene=.) %>% 
+          separate(.,gene,c("chrom","start","end","strand"),remove = F,sep = ":",extra = "drop",convert = T) %>% 
+          full_join(., LD, by="gene")
+      }
     if (!is_empty(LIST_DATA$gene_file)){
     gene_names <-
       semi_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>% distinct(gene)
@@ -216,13 +225,14 @@ server <- function(input, output, session) {
                 detail = paste("Finishing up",meta_data$nick[i]))
           # make complete gene list
           LIST_DATA$gene_file$Complete$full <<-
-            full_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>%
-            distinct(gene)
+            full_join(LD, LIST_DATA$gene_file$Complete$full, by = c("gene","chrom", "start", "end","strand")) %>%
+            distinct(gene, chrom, start, end, strand)
           LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
             dplyr::mutate(count = if_else(gene_list == "Complete",
-                                          paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full, na.rm = T)), count))
+                                          paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)), count))
+    
         } else {
-          LIST_DATA$gene_file$Complete$full <<- distinct(LD, gene)
+          LIST_DATA$gene_file$Complete$full <<- distinct(LD, gene, chrom, start, end, strand)
         }
         if (LIST_DATA$STATE[2] == 0 &
             n_distinct(LIST_DATA$table_file$set) < 2) {
@@ -235,7 +245,7 @@ server <- function(input, output, session) {
                                                                              Sys.Date()))
         LIST_DATA$gene_info <<- distinct(bind_rows(LIST_DATA$gene_info,tibble(
           gene_list = "Complete",
-          count = paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full, na.rm = T)),
+          count = paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)),
           set = meta_data$nick[i],
           mycol = meta_data$color[i],
           onoff = oo,
@@ -273,13 +283,6 @@ server <- function(input, output, session) {
             bind_rows(LIST_DATA$gene_info, .)
         }
     }
-      # pull out location data from gene name
-      LIST_DATA$gene_file$Complete$full <<- LIST_DATA$gene_file$Complete$full$gene %>% 
-        sub("-",":",.) %>% sub("(;-|-;)",":-:",.) %>% sub("(;\\+|\\+;)",":+:",.) %>% 
-        sub("(;.|\\.;)",":.:",.) %>% 
-        tibble(gene=.) %>% 
-        separate(.,gene,c("chrom","start","end","strand"),remove = F,sep = ":",extra = "drop",convert = T) %>% 
-        mutate(gene=LIST_DATA$gene_file$Complete$full$gene)
     } else {
       return()
       }
@@ -920,9 +923,9 @@ server <- function(input, output, session) {
      # print("droplinesandlabels")
     mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
     if(LIST_DATA$x_plot_range[2]  != 2){
-      mychoices <- c("543","5","3","5L","NA")
+      mychoices <- c("default", "543","5","3","5L","NA")
     } else {
-      mychoices <- c("543","5","3","5L","PI","NA")
+      mychoices <- c("default", "543","5","3","5L","PI","NA")
     }
     showModal(modalDialog(
       title = "Information message",
@@ -1184,6 +1187,9 @@ server <- function(input, output, session) {
     if(binning[1] == 543){
       binning[5] <- abs((LIST_DATA$x_plot_range[2]*as.numeric(LIST_DATA$binning[2])) - 
                           (sum(as.numeric(LIST_DATA$binning[c(3,4,6,7)]))))
+    }
+    if(binning[1] == "default"){
+      binning <- LIST_DATA$binning2
     }
     
     LIST_DATA$binning <<- binning
@@ -1693,6 +1699,7 @@ server <- function(input, output, session) {
     if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
       updateTextInput(session, "numerictesname", value = mynames[2])
     }
+    LIST_DATA$binning2 <<- LIST_DATA$binning
 
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
                                                     LIST_DATA$x_plot_range[2],

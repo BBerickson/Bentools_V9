@@ -77,7 +77,9 @@ MatchGenes <- function(common_list, gene_list){
 LinesLabelsPreSetGuess <- function(mytype) {
   # type,binsize,upstream,downstream,body,unscaled5prime,unscaled3prime
   # print("LinesLabelsPreSetGuess")
-  if (mytype == "543") {
+  if (mytype == "default") {
+    tt <- "default"
+  } else if (mytype == "543") {
     tt <- c(543, 100, 1500, 3500, 2000, 500, 500)
   } else if (mytype == "5" | mytype == "TSS") {
     tt <- c(5, 25, 1000, 1000, 0,0,0)
@@ -313,11 +315,9 @@ LoadTableFile <-
           skip = 1
         )
       ) %>%
-        select(gene, num_range(
-          range = 1:(bin_colname$num_bins - 1),
-          prefix = ""
-        )) %>%
-        gather(., bin, score, 2:(bin_colname$num_bins))
+        pivot_longer(cols = 7:(bin_colname$num_bins+5),
+                     names_to = "bin",values_to = "score")
+        
       # long file
     } else {
       tablefile <-
@@ -862,7 +862,7 @@ LinesLabelsSet <- function(myinfo,
     }
     
     # y asis locations and labels for 1:before
-    if(landmarks[1] > 0){
+    if(landmarks[1] > 0 & landmarks[1] != landmarks[3]){
       mod <- 0.5
     } else {
       mod <- 1
