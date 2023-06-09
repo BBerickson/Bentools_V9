@@ -1043,16 +1043,18 @@ LinesLabelsPlot <-
     if (length(use_plot_breaks_labels) > 0) {
       mycolors <- rep("black", length(use_plot_breaks))
       use_virtical_line <- lineloc[1:4]
-      if (tssbin > 0) {
+      if (!is.na(tssbin) & tssbin > 0) {
         mycolors[which(use_plot_breaks == tssbin)] <- tsscolor
         use_virtical_line[1] <- tssbin
-        if (tssbin < body1bin &
+        if (!is.na(body1bin) &
+            !is.na(body2bin) &
+          tssbin < body1bin &
             body1bin < body2bin &
             body2bin < tesbin & tesbin <= last(use_plot_breaks)) {
           use_virtical_line[3:4] <- c(body1bin, body2bin)
         }
       }
-      if (tesbin > 0) {
+      if (!is.na(tesbin) & tesbin > 0) {
         mycolors[which(use_plot_breaks == tesbin)] <- tescolor
         use_virtical_line[2] <- tesbin
       }
