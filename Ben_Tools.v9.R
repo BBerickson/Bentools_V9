@@ -115,7 +115,7 @@ server <- function(input, output, session) {
   
   output$user <- renderUser({
     dashboardUser(
-      name = "BenTools V9.a",
+      name = "BenTools V9.b",
       image = "ben head.jpg",
       title = "Benjamin Erickson",
       subtitle = "BBErickson@gmail.com"
