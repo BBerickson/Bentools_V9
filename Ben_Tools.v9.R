@@ -5,6 +5,14 @@ source("R_scripts/helpers.R", local = TRUE)
 # run load needed packages using my_packages(x) ----
 suppressPackageStartupMessages(my_packages(
   c(
+    "renv"
+  )
+))
+
+renv::use()
+# run load needed packages using my_packages(x) ----
+suppressPackageStartupMessages(my_packages(
+  c(
     "tidyverse",
     "shiny",
     "shinydashboard",
