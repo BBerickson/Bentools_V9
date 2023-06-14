@@ -9,7 +9,7 @@ suppressPackageStartupMessages(my_packages(
   )
 ))
 
-renv::use()
+renv::restore(prompt = F)
 # run load needed packages using my_packages(x) ----
 suppressPackageStartupMessages(my_packages(
   c(
