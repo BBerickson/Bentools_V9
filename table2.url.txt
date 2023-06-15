@@ -1,3 +1,0 @@
-~/Desktop/Bentools/BenTools_shiny/a.table 543 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 255,0,0
-~/Desktop/Bentools/BenTools_shiny/b.table 543 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb #00FF00
-~/Desktop/Bentools/BenTools_shiny/c.table 543 cccccccccccccccccccccccccccccccccccccc 0,0,255
