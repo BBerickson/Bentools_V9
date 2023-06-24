@@ -341,6 +341,15 @@ LoadGeneFile <-
   function(file_path,
            file_name,
            list_data) {
+    if ( str_detect(file_name,".matrix|.matrix.gz")){
+      showModal(modalDialog(
+        title = "Information message",
+        paste(file_name, "can't load as a gene list at this time"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return()
+    }
     legend_nickname <- last(str_split(file_name,"/",simplify = T)) %>% 
         str_remove(., ".txt") %>% str_replace("\\.","_")
       # checks if file with same nickname has already been loaded
@@ -1571,6 +1580,9 @@ FilterPeak <-
            my_type,
            start_end_label_peak,
            peak_filter_num) {
+    if(length(start_end_bin_peak)==1){
+      start_end_bin_peak <- c(start_end_bin_peak,start_end_bin_peak)
+    }
     gene_list <- list_data$gene_file[[list_name]]$full
     out_list <- list_data$table_file %>% 
       dplyr::filter(set %in% file_names) %>% 

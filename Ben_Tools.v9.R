@@ -171,6 +171,9 @@ server <- function(input, output, session) {
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Loading file",meta_data$nick[i]))
       LD <- LoadTableFile(meta_data[i, ], bin_colname)
+      if(is.na(distinct(LD,set))){
+        next()
+      }
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Testing compatiblity",meta_data$nick[i]))
         if (LIST_DATA$x_plot_range[2] == 0) {
@@ -203,9 +206,8 @@ server <- function(input, output, session) {
         LD <- LD$gene %>% 
           sub("-",":",.) %>% sub("(;-|-;)",":-:",.) %>% sub("(;\\+|\\+;)",":+:",.) %>% 
           sub("(;.|\\.;)",":.:",.) %>% 
-          tibble(gene=.) %>% 
-          separate(.,gene,c("chrom","start","end","strand"),remove = F,sep = ":",extra = "drop",convert = T) %>% 
-          full_join(., LD, by="gene")
+          dplyr::mutate(LD,gene2=.) %>%  
+          separate(.,gene2,c("chrom","start","end","strand"),sep = ":",extra = "drop",convert = T) 
       }
     if (!is_empty(LIST_DATA$gene_file)){
     gene_names <-
@@ -240,7 +242,7 @@ server <- function(input, output, session) {
         } else {
           oo <- "0"
         }
-        LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD))
+        LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD)) %>% filter(!is.na(set))
         LIST_DATA$gene_file$Complete$info <<- tibble(loaded_info = paste("all loaded genes",
                                                                              Sys.Date()))
         LIST_DATA$gene_info <<- distinct(bind_rows(LIST_DATA$gene_info,tibble(
@@ -320,6 +322,7 @@ server <- function(input, output, session) {
     
     gts <- LIST_DATA$table_file %>% group_by(set) %>%
       summarise(number_of_genes = n_distinct(gene, na.rm = T)) %>%
+      filter(!is.na(set)) %>% 
       rename(File = set)
     dt <- datatable(
       gts,
@@ -384,7 +387,7 @@ server <- function(input, output, session) {
         ggg <-
           c(
             ggg,
-            sapply(LIST_DATA$gene_file[i], "[[", "full") %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
+            sapply(LIST_DATA$gene_file[i], function(x) x$full$gene) %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
           )
       }
       ggg <- dplyr::mutate(gg, "total_in_file" = ggg)
@@ -440,7 +443,7 @@ server <- function(input, output, session) {
       ggg <-
         c(
           ggg,
-          sapply(LIST_DATA$gene_file[i], "[[", "full") %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
+          sapply(LIST_DATA$gene_file[i], function(x) x$full$gene) %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
         )
     }
     ggg <- dplyr::mutate(gg, "total_in_file" = ggg)
@@ -1247,7 +1250,8 @@ server <- function(input, output, session) {
           ol <- "Complete"
         }
       }
-      updateNumericInput(session, "peakfilternum", value = round(max(LIST_DATA$table_file$score)/10,digits = 4))
+      updateNumericInput(session, "peakfilternum",value = 0)
+      output$rangeHelptext <- renderUI({helpText("select sample(s)")})
       updatePickerInput(session, "sortGeneList",
                         choices = names(LIST_DATA$gene_file),
                         selected = ol,
@@ -2537,6 +2541,21 @@ server <- function(input, output, session) {
       reactive_values$Plot_controler_sort_max <-
         ggplot()
     }
+  })
+  
+  # filter peak bin range info and suggestion ----
+  observeEvent(c(input$sortSamples, input$slidersortbinrange), ignoreInit = TRUE, ignoreNULL = TRUE, {
+    start_end_bin <- floor(reactive_values$slider_breaks$mybrakes[
+      reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange])
+    if(length(start_end_bin)==1){
+      start_end_bin <- c(start_end_bin,start_end_bin)
+    }
+    df <- LIST_DATA$table_file %>% 
+      dplyr::filter(set %in% input$sortSamples) %>% 
+      dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2])
+    rr <- round(range(abs(df$score)),digits = 4)
+    updateNumericInput(session, "peakfilternum", value = max(rr))
+    output$rangeHelptext <- renderUI({helpText(paste("min",min(rr,na.rm = T),"max",max(rr,na.rm = T)))})
   })
   
   # filter peak tool action ----
@@ -4542,7 +4561,8 @@ ui <- dashboardPage(
                                "signal hight", 
                                value = "1",
                                step = ".25"
-            )
+            ),
+            uiOutput('rangeHelptext'),
             )),
             fluidRow(align="center",
                      column(6,
