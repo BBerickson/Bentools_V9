@@ -221,7 +221,7 @@ server <- function(input, output, session) {
               easyClose = TRUE
             )
           )
-          next()
+          #next()
         }
     setProgress(i/length(meta_data$filepath), 
                 detail = paste("Finishing up",meta_data$nick[i]))
@@ -522,7 +522,7 @@ server <- function(input, output, session) {
                  value = 0,
                  {
                    list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull)
-                   if (!is_empty(list_data_frame)) {
+                   if (!is_empty(list_data_frame) & nrow(list_data_frame) !=0) {
                      LIST_DATA$gene_info <<- rows_update(LIST_DATA$gene_info,
                                                          list_data_frame %>% 
                                                            distinct(set,gene_list,plot_set), 
@@ -624,7 +624,7 @@ server <- function(input, output, session) {
   })
   
   # reactive Apply_Math, sets Y axis min max ----
-  observeEvent(reactive_values$Y_Axis_numbers_set, ignoreInit = T, {
+  observeEvent(reactive_values$Y_Axis_numbers_set, ignoreInit = T, ignoreNULL = T, {
      # print("updates reactive_values$Y_Axis_numbers")
     my_step <-
       (max(reactive_values$Y_Axis_numbers) - min(reactive_values$Y_Axis_numbers)) /
@@ -922,7 +922,7 @@ server <- function(input, output, session) {
   })
   
   # droplinesandlabels ----
-  observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, {
+  observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, ignoreNULL = T, {
      # print("droplinesandlabels")
     mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
     if(LIST_DATA$x_plot_range[2]  != 2){
@@ -1616,7 +1616,7 @@ server <- function(input, output, session) {
   
   # enter key update lines and labels ----
   # todo doubled observeEvent for key press to avoid error ----
-  observeEvent(input$keys, {
+  observeEvent(input$keys, ignoreNULL = T, {
     # print("action lines and labels")
     my_pos <-
       suppressWarnings(as.numeric(unlist(
@@ -1685,7 +1685,7 @@ server <- function(input, output, session) {
   
   # action button update lines and labels ----
   # todo when put in c() error occurres so doubled observeEvent for key press ----
-  observeEvent(input$actionlineslabels, ignoreInit = TRUE, {
+  observeEvent(input$actionlineslabels, ignoreInit = TRUE, ignoreNULL = T, {
      # print("action lines and labels")
     my_pos <-
       suppressWarnings(as.numeric(unlist(
@@ -1852,6 +1852,7 @@ server <- function(input, output, session) {
       input$numericlabelspaceing
     ),
     ignoreInit = TRUE,
+    ignoreNULL = T,
     {
         # print("observe line and labels")
       # get around check for "reference-point" type files
@@ -1939,7 +1940,7 @@ server <- function(input, output, session) {
     })
   
   # dropttest ----
-  observeEvent(input$dropttest, ignoreInit = T, {
+  observeEvent(input$dropttest, ignoreInit = T, ignoreNULL = T, {
     if (is.null(reactive_values$ttest)){
       ttesttype <- "by files"
     } else {
@@ -2550,10 +2551,16 @@ server <- function(input, output, session) {
     if(length(start_end_bin)==1){
       start_end_bin <- c(start_end_bin,start_end_bin)
     }
-    df <- LIST_DATA$table_file %>% 
-      dplyr::filter(set %in% input$sortSamples) %>% 
-      dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2])
-    rr <- round(range(abs(df$score)),digits = 4)
+    
+      df <- LIST_DATA$table_file %>% 
+        dplyr::filter(set %in% input$sortSamples) %>% 
+        dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2])
+      if(length(df$score)==0){
+        rr <- c(0,0)
+      } else {
+        rr <- round(range(abs(df$score)),digits = 4)
+      }
+        
     updateNumericInput(session, "peakfilternum", value = max(rr))
     output$rangeHelptext <- renderUI({helpText(paste("min",min(rr,na.rm = T),"max",max(rr,na.rm = T)))})
   })

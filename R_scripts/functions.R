@@ -265,7 +265,7 @@ tableTestbin <- function(meta_data){
     col_names <- c("chrom", "start", "end","gene", "value", "strand", 1:(num_bins - 1))
     mylist <- c("bin size","upstream","downstream","body","unscaled 5 prime","unscaled 3 prime")
     
-    meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F)
+    meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F, show_col_types = FALSE)
     mm <- meta %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>% 
       str_replace_all(.,fixed('\"'),"") 
     type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "ref point:", "")
@@ -312,7 +312,8 @@ LoadTableFile <-
           meta_data$filepath,
           comment = "#",
           col_names = bin_colname$col_names,
-          skip = 1
+          skip = 1,
+          show_col_types = FALSE
         )
       ) %>%
         pivot_longer(cols = 7:(bin_colname$num_bins+5),
@@ -324,7 +325,8 @@ LoadTableFile <-
         suppressMessages(read_tsv(
           meta_data$filepath,
           comment = "#",
-          col_names = bin_colname$col_names
+          col_names = bin_colname$col_names,
+          show_col_types = FALSE
         ))
     }
     tablefile %>%
@@ -391,7 +393,8 @@ LoadGeneFile <-
       tablefile <-
         suppressMessages(read_tsv(file_path,
                                   comment = "#",
-                                  col_names = col_names)) 
+                                  col_names = col_names,
+                                  show_col_types = FALSE)) 
       if(!"gene" %in% names(tablefile)){
         names(tablefile)[1] <- "gene"
       }
