@@ -117,17 +117,20 @@ SlidersSetsInfo <- function(slider_breaks, type){
   # 5Min, 5Max, 3Min, 3Max
   # print("SlidersSetsInfo")
   num_bins <- max(slider_breaks$mybrakes)
+  print(slider_breaks)
   if (type == '543') { 
     setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
                                            floor(num_bins*.24),
                                            floor(num_bins*.24)+1,
                                            floor(num_bins*.59))] 
   } else if (type == '5'| type == '5L'| type == "TSS") {
-    setsliders <- c(slider_breaks$mylabels[c(floor(num_bins*.25)+1,
-                                             floor(num_bins*.75)+1)],
-                    NA,NA)
-  } else if (num_bins == 2 | type == 'PI') {
-    setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
+    if (num_bins == 2 | type == 'PI') {
+      setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
+    } else {
+      setsliders <- c(slider_breaks$mylabels[c(floor(num_bins*.25)+1,
+                                               floor(num_bins*.75)+1)],
+                      NA,NA)
+    }
   } else if (type == '3'| type == "TES") {
     setsliders <- slider_breaks$mylabels[c(1,floor(num_bins/3.2),
                     floor(num_bins/3.2)+1,num_bins)]
@@ -269,17 +272,21 @@ tableTestbin <- function(meta_data){
     mm <- meta %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>% 
       str_replace_all(.,fixed('\"'),"") 
     type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "ref point:", "")
+    
     if(type == "TSS"){
       type <- 5
     } else if(type == "TES") {
       type <- 3
     } else{
-      if(num_bins == 2){
-        type <- "PI"
-      } else{
-        type <- 543
-      }
+      type <- 543
     }
+    # check if PI type
+    if(type == 5 & num_bins == 3){
+      type2 <- 1
+    } else {
+      type2 <- 0
+    }
+      
     header <- type
     for(i in mylist){
       header <- c(header,mm[str_which(mm,i)] %>% 
@@ -298,7 +305,7 @@ tableTestbin <- function(meta_data){
   } else {
     col_names <- NULL
   }
-  list(num_bins = num_bins, col_names = col_names, binning = binning)
+  list(num_bins = num_bins, col_names = col_names, binning = binning, type2 = type2)
 }
 
 LoadTableFile <-
@@ -306,7 +313,7 @@ LoadTableFile <-
            bin_colname) {
     # print("LoadTableFile")
     # wide file
-    if (bin_colname$num_bin > 6) {
+    if (bin_colname$num_bin > 6 | bin_colname$type2 == 1) {
       tablefile <- suppressMessages(
         read_tsv(
           meta_data$filepath,

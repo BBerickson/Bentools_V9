@@ -3735,7 +3735,7 @@ server <- function(input, output, session) {
         selected = c(
           LIST_DATA$x_plot_range[1],
           floor(LIST_DATA$x_plot_range[2] / 4)
-        ))
+        )%>% replace(.,.==0,1))
       updateSliderTextInput(
         session,
         "sliderbincdf2",
