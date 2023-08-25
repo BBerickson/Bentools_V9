@@ -117,7 +117,7 @@ SlidersSetsInfo <- function(slider_breaks, type){
   # 5Min, 5Max, 3Min, 3Max
   # print("SlidersSetsInfo")
   num_bins <- max(slider_breaks$mybrakes)
-  print(slider_breaks)
+  
   if (type == '543') { 
     setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
                                            floor(num_bins*.24),
