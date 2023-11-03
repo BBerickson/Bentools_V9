@@ -454,7 +454,7 @@ LoadGeneFile <-
                       sub = " ", onoff = "0",
                       plot_set = " ")
       # saves data in list of lists
-      list_data$gene_file[[my_name]]$full <- distinct(gene_names)
+      list_data$gene_file[[my_name]]$full <- tablefile %>% select(gene) %>% distinct()
       list_data$gene_file[[my_name]]$info <- tibble(loaded_info =
                                                       paste("Loaded gene list from file",
                                                             legend_nickname,
@@ -493,10 +493,15 @@ Active_list_data <-
           semi_join(., gene_file[[i]]$full, by = "gene") %>% 
           {if (fulljoin) complete(.,distinct(.,set),bin,gene,fill = list(score=0)) else .} %>% 
           group_by(gene) %>% filter(n_distinct(set)==length(my_sel$set)) %>% 
+          mutate(chrom=last(chrom[!is.na(chrom)]),
+                 start=last(start[!is.na(start)]),
+                 end=last(end[!is.na(end)]),
+                 value=last(value[!is.na(value)]),
+                 strand=last(strand[!is.na(strand)])) %>% 
           ungroup() %>% dplyr::mutate(., gene_list = i)
         # test for empty results?
         if(fulljoin){
-          my_sel <- paste(my_sel, "Inc0")
+          my_sel <- my_sel %>% dplyr::mutate(.,sub = paste(sub, "Inc0"))
         }
         # adds line brake at 20 character for legend spacing
         my_sel2 <- my_sel %>% dplyr::mutate(.,plot_set = paste(
