@@ -387,10 +387,7 @@ LoadGeneFile <-
         ))
         return()
       }
-      if(num_col == 1){
-        #normal gene list
-        col_names <- c("gene")
-      } else if(str_detect(file_path, ".bed")){
+      if(str_detect(file_path, ".bed")){
         col_names <- 1:num_col
         col_names[4] <- "gene"
       } else {
@@ -434,6 +431,7 @@ LoadGeneFile <-
           )
           return()
         } else {
+          tablefile <- gene_names
           showModal(
             modalDialog(
               title = "Information message",
