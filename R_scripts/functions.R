@@ -232,6 +232,7 @@ PrepMetaFile <-
 tableTestbin <- function(meta_data){
   # get info on file to help know what type it is
   # print("tableTestbin")
+  type2 <- 0
   num_bins <-
     try(count_fields(meta_data$filepath,
                      n_max = 1,
@@ -283,8 +284,6 @@ tableTestbin <- function(meta_data){
     # check if PI type
     if(type == 5 & num_bins == 3){
       type2 <- 1
-    } else {
-      type2 <- 0
     }
       
     header <- type
@@ -525,7 +524,8 @@ ApplyMath <-
            normbin = 0,
            normmin = 0,
            group="none",
-           myabs = FALSE) {
+           myabs = FALSE,
+           binnorm = "divide") {
     # print("applymath fun")
     # normalize per gene relative frequency
     if(myabs){
@@ -545,11 +545,19 @@ ApplyMath <-
       summarise(value = get(use_math)(score, na.rm = T), .groups="drop")
     # norm to bin or overall relative frequency
     if (normbin > 0) {
-      list_data <- list_data %>% 
-        group_by(plot_set) %>%
-        arrange(bin) %>%
-        dplyr::mutate(value = value / abs(nth(value, normbin))) %>%
-        ungroup()
+      if(binnorm == "divide"){
+        list_data <- list_data %>% 
+          group_by(plot_set) %>%
+          arrange(bin) %>%
+          dplyr::mutate(value = value / abs(value[bin==normbin])) %>%
+          ungroup()
+      } else {
+        list_data <- list_data %>% 
+          group_by(plot_set) %>%
+          arrange(bin) %>%
+          dplyr::mutate(value = value - value[bin==normbin]) %>%
+          ungroup()
+      }
     } else if (relative_frequency == "relative frequency") {
       list_data <- list_data %>%
         group_by(plot_set) %>%

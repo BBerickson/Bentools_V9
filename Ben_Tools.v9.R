@@ -535,7 +535,8 @@ server <- function(input, output, session) {
                          reactive_values$slider_breaks$mylabels %in% input$selectplotBinNorm])),
                        input$selectplotBinNorm,
                        input$mygroup,
-                       input$checkboxabs
+                       input$checkboxabs,
+                       input$checkboxbin
                      )
                      sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
                        reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
@@ -4106,7 +4107,9 @@ ui <- dashboardPage(
                 )),
               column(
                 3,
-                awesomeCheckbox("checkboxsmooth", label = "smooth")),
+                awesomeCheckbox("checkboxsmooth", label = "smooth"),
+                awesomeRadio("checkboxbin",label = "norm bin",choices = c("divide","subtract"),selected = "divide",inline = T)
+                ),
               column(
                 2,
                 awesomeCheckbox("checkboxlog2", label = "log2"),
