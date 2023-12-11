@@ -233,6 +233,7 @@ tableTestbin <- function(meta_data){
   # get info on file to help know what type it is
   # print("tableTestbin")
   type2 <- 0
+  rnaseq <- F
   num_bins <-
     try(count_fields(meta_data$filepath,
                      n_max = 1,
@@ -292,6 +293,7 @@ tableTestbin <- function(meta_data){
                         str_remove(.,i) %>% 
                         str_replace_all(., "[a-zA-Z: ]", ""))
     }
+    rnaseq <- mm[str_which(mm,"sample_labels:")] %>% str_detect(.,"_fw|_rev")
     binning <- header %>% as.numeric()
   } else if (num_bins > 6 ){
     col_names <- c("gene", 1:(num_bins - 1))
@@ -304,7 +306,7 @@ tableTestbin <- function(meta_data){
   } else {
     col_names <- NULL
   }
-  list(num_bins = num_bins, col_names = col_names, binning = binning, type2 = type2)
+  list(num_bins = num_bins, col_names = col_names, binning = binning, type2 = type2, rnaseq = rnaseq)
 }
 
 LoadTableFile <-

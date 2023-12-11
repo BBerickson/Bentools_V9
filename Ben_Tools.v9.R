@@ -302,6 +302,10 @@ server <- function(input, output, session) {
                                       LIST_DATA$x_plot_range[2],
                                       slider = T)
       reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
+      if(bin_colname$rnaseq){
+        updateAwesomeCheckbox(session,inputId = "checkboxfull",value = TRUE)
+      }
+      
     } 
     # enables tabs after loading file
     shinyjs::enable("startoff")
