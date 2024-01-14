@@ -1,0 +1,4 @@
+test_files/A_test.matrix.gz 543 A_test 255,0,0
+test_files/B_test.matrix.gz 543 B_test 0,255,0
+test_files/C_test.matrix.gz 543 C_test 0,0,255
+test_files/D_test.matrix.gz 543 D_test 0,0,0
