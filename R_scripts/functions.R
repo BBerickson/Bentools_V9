@@ -193,7 +193,7 @@ PrepMetaFile <-
               as_tibble(., name_repair =
                           "unique") %>%
               select(last_col()) %>% unlist() %>%
-              str_remove(., ".table|.table.gz|.matrix.gz") %>% str_replace("\\.", "_"),
+              str_remove(., ".matrix.gz") %>% str_replace("\\.", "_"),
             type = str_extract(nick, "^(\\d)+") %>%
               replace_na("none"),
             color = sample(
@@ -213,7 +213,7 @@ PrepMetaFile <-
       meta_data <-  tibble(
         filepath = file_path,
         nick = last(str_split(file_name, "/", simplify = T)) %>%
-          str_remove(., ".table|.matrix.gz") %>% str_replace("\\.", "_"),
+          str_remove(., ".matrix.gz") %>% str_replace("\\.", "_"),
         type = str_extract(nick, "^(\\d)+") %>%
           replace_na("none"),
         color = sample(
@@ -249,7 +249,7 @@ tableTestbin <- function(meta_data){
     ))
     return()
   }
-  # check if table file has meta data
+  # check if file has meta data
   if (str_detect(read_lines(meta_data$filepath,n_max = 1),"# meta=")){
     tt_binning <- binning[1]
     binning <- str_remove(trimws(read_lines(meta_data$filepath,n_max = 1)),"# meta=") %>% 
@@ -261,7 +261,7 @@ tableTestbin <- function(meta_data){
     }
   }
   # check if file is in wide format or deeptools matrix file
-  if (num_bins == 1 | str_detect(meta_data$filepath, "matrix.gz$")) {
+  if (str_detect(meta_data$filepath, "matrix.gz$")) {
     num_bins <-
       count_fields(meta_data$filepath,
                    n_max = 1,
@@ -295,16 +295,8 @@ tableTestbin <- function(meta_data){
     }
     rnaseq <- mm[str_which(mm,"sample_labels:")] %>% str_detect(.,"_fw|_rev")
     binning <- header %>% as.numeric()
-  } else if (num_bins > 6 ){
-    col_names <- c("gene", 1:(num_bins - 1))
-  } else if (num_bins == 4) {
-    # settings for new style with meta data info
-    col_names <- c("gene", "bin", "score", "set")
-    # settings for reading in bedGraph file style
-  } else if (num_bins == 3) {
-    col_names <- c("gene", "bin", "score")
   } else {
-    col_names <- NULL
+    return(list(NULL))
   }
   list(num_bins = num_bins, col_names = col_names, binning = binning, type2 = type2, rnaseq = rnaseq)
 }
@@ -313,9 +305,7 @@ LoadTableFile <-
   function(meta_data,
            bin_colname) {
     # print("LoadTableFile")
-    # wide file
-    if (bin_colname$num_bin > 6 | bin_colname$type2 == 1) {
-      tablefile <- suppressMessages(
+    tablefile <- suppressMessages(
         read_tsv(
           meta_data$filepath,
           comment = "#",
@@ -326,17 +316,7 @@ LoadTableFile <-
       ) %>%
         pivot_longer(cols = 7:(bin_colname$num_bins+5),
                      names_to = "bin",values_to = "score")
-        
-      # long file
-    } else {
-      tablefile <-
-        suppressMessages(read_tsv(
-          meta_data$filepath,
-          comment = "#",
-          col_names = bin_colname$col_names,
-          show_col_types = FALSE
-        ))
-    }
+    
     tablefile %>%
       dplyr::mutate(bin = as.numeric(bin),
                     score = as.numeric(score),

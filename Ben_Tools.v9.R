@@ -144,7 +144,8 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
-                
+    # checks to see if meta data is provided, 543/5/3/PI, nickname,  rgb or hex plot color
+    # if not creates it
     meta_data <- PrepMetaFile(input$filetable$datapath,
                               input$filetable$name)
     if (!is_empty(meta_data)) {
@@ -152,6 +153,7 @@ server <- function(input, output, session) {
     for (i in seq_along(meta_data$filepath)) {
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Gathering info on",meta_data$nick[i]))
+      # only lets unique file names be loaded
       if (meta_data$nick[i] %in% names(LIST_DATA$table_file)) {
         showModal(modalDialog(
           title = "Information message",
@@ -162,7 +164,6 @@ server <- function(input, output, session) {
         next()
       }
       if(is_empty(bin_colname)){
-        bin_colname <- tableTestbin(meta_data[i + 1, ])
         meta_data <- meta_data %>% filter(filepath != meta_data$filepath[i])
         next()
       }
@@ -201,14 +202,6 @@ server <- function(input, output, session) {
           )
           next()
         }
-      if(!all(c("chrom", "start", "end","strand") %in% names(LD))){
-        # pull out location data from gene name
-        LD <- LD$gene %>% 
-          sub("-",":",.) %>% sub("(;-|-;)",":-:",.) %>% sub("(;\\+|\\+;)",":+:",.) %>% 
-          sub("(;.|\\.;)",":.:",.) %>% 
-          dplyr::mutate(LD,gene2=.) %>%  
-          separate(.,gene2,c("chrom","start","end","strand"),sep = ":",extra = "drop",convert = T) 
-      }
     if (!is_empty(LIST_DATA$gene_file)){
     gene_names <-
       semi_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>% distinct(gene)
