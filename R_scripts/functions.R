@@ -1,117 +1,4 @@
 
-# color Brewer set that is active to use in plot remove all yellows ----
-kListColorSet <- brewer.pal(11, kBrewerList[2]) %>% grep("#FF",.,value = T,invert = T)
-
-# basic test for valid rgb color and type and
-# switches hex <--> rgb, able to apply tint colors
-RgbToHex <- function(x, 
-                     convert = "hex", 
-                     tint = FALSE) {
-  if(str_count(x, ",") == 2){
-    # hex <- rgb
-    myhex <- try(rgb(str_split_fixed(x,",",n=3),
-                     maxColorValue = 255), silent = TRUE)
-    if("try-error" %in% class(myhex)){
-      myhex <- "#000000"
-      mygrb <- "0,0,0"
-    } else {
-      myrgb <- x
-      if (is.numeric(tint) & between(tint,0,1)) {
-        myrgb <- as.numeric(str_split_fixed(myrgb,",",n=3))
-        myrgb <-
-          paste(round(myrgb + (255 - myrgb) * tint), collapse = ",")
-        myhex <- rgb(str_split_fixed(myrgb,",",n=3),
-                     maxColorValue = 255)
-      } 
-    }
-  } else {
-    # rgb <- hex (tint)
-    myrgb <- try(col2rgb(x), silent = TRUE)
-    if("try-error" %in% class(myrgb)){
-      myhex <- "#000000"
-      myrgb <- "0,0,0"
-    } else {
-      if (is.numeric(tint) & between(tint,0,1)) {
-        myrgb <-
-          paste(round(as.numeric(myrgb) + (255 - as.numeric(myrgb)) * tint), collapse = ",")
-        myhex <- rgb(str_split_fixed(myrgb,",",n=3),
-                     maxColorValue = 255)
-        
-      } else {
-        myhex <- x
-        myrgb <- paste(myrgb, collapse = ",")
-      }
-    }
-  }
-  if(convert == "hex"){
-    return(myhex)
-  } else {
-    return(myrgb) 
-  }
-}
-
-# finds first partial match to gene list input 
-MatchGenes <- function(common_list, gene_list){
-  # print("gene match fun")
-  if(str_detect(gene_list$gene[1],"|")){
-    tablefile <-
-      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
-      setNames(gene_list$gene)
-  } else if(str_detect(gene_list$gene[1],"_")){
-    tablefile <-
-      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
-      setNames(gene_list$gene)
-  }else {
-    tablefile <-
-      map(paste0("\\|", gene_list$gene,"$"), str_subset, string = common_list$gene) %>% 
-      setNames(gene_list$gene)
-  }
-  tablefile <- map_df(tablefile, ~as.data.frame(.x), .id="gene") %>% 
-    distinct(gene,.keep_all = T) %>% 
-    full_join(.,gene_list,by="gene") %>% 
-    transmute(org_gene = gene, gene=.x)
-  return(tablefile)
-}
-
-# lines and labels preset helper for older table files
-LinesLabelsPreSetGuess <- function(mytype) {
-  # type,binsize,upstream,downstream,body,unscaled5prime,unscaled3prime
-  # print("LinesLabelsPreSetGuess")
-  if (mytype == "default") {
-    tt <- "default"
-  } else if (mytype == "543") {
-    tt <- c(543, 100, 1500, 3500, 2000, 500, 500)
-  } else if (mytype == "5" | mytype == "TSS") {
-    tt <- c(5, 25, 1000, 1000, 0,0,0)
-  } else if (mytype == "5L"| mytype == "TSS") {
-    tt <- c("5L", 100, 100, 30000, 0,0,0)
-  } else if (mytype == "3" | mytype == "TES") {
-    tt <- c(3, 100, 1000, 9000, 0,0,0)
-  } else if (mytype == "PI") {
-    tt <- c("PI", 400, 400, 400, 400, 0, 0)
-  } else {
-    tt <- c(0, 100, 1500, 3500, 2000, 500, 500)
-  }
-  tt
-}
-
-# settings for tss tes name and spacing
-LinesLabelsSetNames <- function(mytype){
-  if(mytype == "543"){
-    myname <- c("TSS","pA",5)
-  } else if(mytype == "5"){
-    myname <- c("TSS","",5)
-  } else if(mytype == "5L"){
-    myname <- c("TSS","",50)
-  } else if(mytype == "3"){
-    myname <- c("","pA",5)
-  } else if(mytype == "PI"){
-    myname <- c("TSS","body",5)
-  } else {
-    myname <- c("start","end",5)
-  }
-}
-
 # takes info from file type and number of bins to pre set tools sliders
 SlidersSetsInfo <- function(slider_breaks, type){
   # 5Min, 5Max, 3Min, 3Max
@@ -234,40 +121,24 @@ tableTestbin <- function(meta_data){
   # print("tableTestbin")
   type2 <- 0
   rnaseq <- F
-  num_bins <-
-    try(count_fields(meta_data$filepath,
-                     n_max = 1,
-                     tokenizer = tokenizer_tsv()),silent = T)
-  binning <- LinesLabelsPreSetGuess(meta_data$type)
-  # test if file can be loaded in
-  if ("try-error" %in% class(num_bins)) {
+  # test if file can be loaded in and has a deeptools .matrix header
+  read_test <-
+    try(read_tsv(meta_data$filepath,n_max = 1,col_names = F, show_col_types = FALSE),silent = T)
+  if ("try-error" %in% class(read_test) | !str_detect(read_test,"^@\\{")) {
     showModal(modalDialog(
       title = "Information message",
-      paste(meta_data$nick, "cant find file to load"),
+      paste(meta_data$nick, "can't find file or not .matrix file"),
       size = "s",
       easyClose = TRUE
     ))
     return()
   }
-  # check if file has meta data
-  if (str_detect(read_lines(meta_data$filepath,n_max = 1),"# meta=")){
-    tt_binning <- binning[1]
-    binning <- str_remove(trimws(read_lines(meta_data$filepath,n_max = 1)),"# meta=") %>% 
-      str_split_fixed(.,",",n=7) %>% as.numeric()
-    if(tt_binning  == "PI"){
-      binning[1] <- "PI"
-    } else if(tt_binning  == "5L"){
-      binning[1] <- "5L"
-    }
-  }
-  # check if file is in wide format or deeptools matrix file
-  if (str_detect(meta_data$filepath, "matrix.gz$")) {
     num_bins <-
       count_fields(meta_data$filepath,
                    n_max = 1,
                    skip = 1,
-                   tokenizer = tokenizer_tsv()) - 5
-    col_names <- c("chrom", "start", "end","gene", "value", "strand", 1:(num_bins - 1))
+                   tokenizer = tokenizer_tsv())
+    col_names <- c("chrom", "start", "end","gene", "value", "strand", 1:(num_bins - 6))
     mylist <- c("bin size","upstream","downstream","body","unscaled 5 prime","unscaled 3 prime")
     
     meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F, show_col_types = FALSE)
@@ -295,9 +166,6 @@ tableTestbin <- function(meta_data){
     }
     rnaseq <- mm[str_which(mm,"sample_labels:")] %>% str_detect(.,"_fw|_rev")
     binning <- header %>% as.numeric()
-  } else {
-    return(list(NULL))
-  }
   list(num_bins = num_bins, col_names = col_names, binning = binning, type2 = type2, rnaseq = rnaseq)
 }
 
@@ -314,7 +182,7 @@ LoadTableFile <-
           show_col_types = FALSE
         )
       ) %>%
-        pivot_longer(cols = 7:(bin_colname$num_bins+5),
+        pivot_longer(cols = 7:(bin_colname$num_bins),
                      names_to = "bin",values_to = "score")
     
     tablefile %>%

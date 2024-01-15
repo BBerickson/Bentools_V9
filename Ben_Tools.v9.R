@@ -1,6 +1,7 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
 source("R_scripts/helpers.R", local = TRUE)
+source("R_scripts/functions.R", local = TRUE)
 
 # run load needed packages using my_packages(x) ----
 suppressPackageStartupMessages(my_packages(
@@ -21,12 +22,9 @@ suppressPackageStartupMessages(my_packages(
     "ggtext",
     "fastcluster",
     "dendextend",
-    "valr",
-    "keys"
+    "valr"
   )
 ))
-
-source("R_scripts/functions.R", local = TRUE)
 
 # By default, the file size limit is 5MB. It can be changed by
 # setting this option. Here we'll raise limit to 500MB. ----
@@ -115,7 +113,7 @@ server <- function(input, output, session) {
   
   output$user <- renderUser({
     dashboardUser(
-      name = "BenTools V9.b",
+      name = "BenTools V9.c",
       image = "ben head.jpg",
       title = "Benjamin Erickson",
       subtitle = "BBErickson@gmail.com"
@@ -144,30 +142,64 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
-    # checks to see if meta data is provided, 543/5/3/PI, nickname,  rgb or hex plot color
+    # checks to see if meta data is provided, type, nickname,  rgb/hex plot color
     # if not creates it
     meta_data <- PrepMetaFile(input$filetable$datapath,
                               input$filetable$name)
     if (!is_empty(meta_data)) {
-      bin_colname <- tableTestbin(meta_data[1, ])
     for (i in seq_along(meta_data$filepath)) {
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Gathering info on",meta_data$nick[i]))
-      # only lets unique file names be loaded
-      if (meta_data$nick[i] %in% names(LIST_DATA$table_file)) {
-        showModal(modalDialog(
-          title = "Information message",
-          paste(meta_data$nick[i], "has already been loaded"),
-          size = "s",
-          easyClose = TRUE
-        ))
-        next()
+      # check unique nicknames and fix
+      if (!is_empty(LIST_DATA$table_file$set) && meta_data$nick[i] %in% distinct(LIST_DATA$table_file,set)) {
+        meta_data$nick[i] <- paste0(meta_data$nick[i],"_dup")
       }
-      if(is_empty(bin_colname)){
-        meta_data <- meta_data %>% filter(filepath != meta_data$filepath[i])
-        next()
-      }
+      # converts color to hex 
       meta_data$color[i] <- RgbToHex(meta_data$color[i])
+      # check file can be accessed and has is a matrix file
+      bin_colname <- tableTestbin(meta_data[i, ])
+      if(is_empty(bin_colname)){
+        showModal(
+          modalDialog(
+            title = "Information message",
+            paste("File", meta_data$nick[i], "not there, or wrong file type"),
+            size = "s",
+            easyClose = TRUE
+          )
+        )
+        next()
+      }
+      # if first file save info else test file compatibility 
+      setProgress(i/length(meta_data$filepath), 
+                  detail = paste("Testing compatiblity",meta_data$nick[i]))
+      if (LIST_DATA$x_plot_range[2] == 0) {
+        LIST_DATA$x_plot_range <<- c(1,bin_colname$num_bins-6)
+        # set labels every # bins
+        if(LIST_DATA$x_plot_range[2] < 100){
+          if(LIST_DATA$x_plot_range[2] < 3 | bin_colname$binning[1] == 0){
+            everybp <- 0
+          }else{
+            everybp <- round(as.double(bin_colname$binning[2])*5, -2)
+          }
+        } else {
+          everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
+        }
+        LIST_DATA$binning <<- c(bin_colname$binning,everybp)
+        # for testing if files are loaded later and resetting lines and lables
+        LIST_DATA$binning2 <<- LIST_DATA$binning
+        LIST_DATA$rnaseq <<- bin_colname$rnaseq
+      } else if (max(bin_colname$num_bins-6) != LIST_DATA$x_plot_range[2] | 
+                 all(c(bin_colname$binning) != LIST_DATA$binning2[-8])) {
+        showModal(
+          modalDialog(
+            title = "Information message",
+            "Can't load file, different number of bins or bin sizes",
+            size = "s",
+            easyClose = TRUE
+          )
+        )
+        next()
+      }
       shinyjs::reset("filetable")
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Loading file",meta_data$nick[i]))
@@ -175,33 +207,7 @@ server <- function(input, output, session) {
       if(is.na(distinct(LD,set))){
         next()
       }
-      setProgress(i/length(meta_data$filepath), 
-                  detail = paste("Testing compatiblity",meta_data$nick[i]))
-        if (LIST_DATA$x_plot_range[2] == 0) {
-          LIST_DATA$x_plot_range <<- range(LD$bin)
-          # set labels every # bins
-          if(LIST_DATA$x_plot_range[2] < 100){
-            if(LIST_DATA$x_plot_range[2] < 3 | bin_colname$binning[1] == 0){
-              everybp <- 0
-            }else{
-              everybp <- round(as.double(bin_colname$binning[2])*5, -2)
-            }
-          } else {
-            everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
-          }
-          LIST_DATA$binning <<- c(bin_colname$binning,everybp)
-          LIST_DATA$binning2 <<- LIST_DATA$binning
-        } else if (max(LD$bin) != LIST_DATA$x_plot_range[2]) {
-          showModal(
-            modalDialog(
-              title = "Information message",
-              "Can't load file, different number of bins",
-              size = "s",
-              easyClose = TRUE
-            )
-          )
-          next()
-        }
+      
     if (!is_empty(LIST_DATA$gene_file)){
     gene_names <-
       semi_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>% distinct(gene)
@@ -214,7 +220,6 @@ server <- function(input, output, session) {
               easyClose = TRUE
             )
           )
-          #next()
         }
     setProgress(i/length(meta_data$filepath), 
                 detail = paste("Finishing up",meta_data$nick[i]))
@@ -282,9 +287,6 @@ server <- function(input, output, session) {
       return()
       }
   })
-    if(is_empty(meta_data$filepath)){
-      return()
-    }
     # first time starting
     if (LIST_DATA$STATE[1] == 0) {
       shinyjs::show("startoff")
@@ -295,7 +297,7 @@ server <- function(input, output, session) {
                                       LIST_DATA$x_plot_range[2],
                                       slider = T)
       reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
-      if(bin_colname$rnaseq){
+      if(LIST_DATA$rnaseq){
         updateAwesomeCheckbox(session,inputId = "checkboxfull",value = TRUE)
       }
       
@@ -689,18 +691,13 @@ server <- function(input, output, session) {
           strsplit(input$landlposition, split = "\\s+")
         )))
       my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
-      if (any(is.na(my_pos))) {
-        my_pos <- my_pos[is.na(my_pos)]
-        updateTextInput(session, "landlposition", value = my_pos)
-      }
+      
       if (length(my_pos) == length(my_label)) {
         shinyjs::enable("actionlineslabels")
-        shinyjs::enable("keys")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
       } else {
         updateActionButton(session, "actionlineslabels", label = "Labels must equel # of positions")
         shinyjs::disable("actionlineslabels")
-        shinyjs::disable("keys")
       }
     }
   }) 
@@ -923,11 +920,6 @@ server <- function(input, output, session) {
   observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, ignoreNULL = T, {
      # print("droplinesandlabels")
     mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
-    if(LIST_DATA$x_plot_range[2]  != 2){
-      mychoices <- c("default", "543","5","3","5L","NA")
-    } else {
-      mychoices <- c("default", "543","5","3","5L","PI","NA")
-    }
     showModal(modalDialog(
       title = "Information message",
       " Set Lines and Labels for plot ",
@@ -939,68 +931,31 @@ server <- function(input, output, session) {
           solidHeader = F,
           collapsible = FALSE,
           collapsed = FALSE,
-          pickerInput("pickerPlotType",
-                      choices = mychoices,
-                      selected = "default"),
+          column(12,
+                 div(
+                   helpText(paste("Upstream bp:",LIST_DATA$binning[3]))
+                 ),
+                 div(
+                   helpText(paste("unscaled 5prime:",LIST_DATA$binning[6]))
+                 ),
+                 div(
+                   helpText(paste("unscaled 3prime:",LIST_DATA$binning[7]))
+                 ),
+                 div(
+                   helpText(paste("Downstream bp:",LIST_DATA$binning[4]))
+                 ),
+                 div(
+                   helpText(paste("bin size:",LIST_DATA$binning[2]))
+                 ),
+          ),
           column(12,
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
-                   numericInput(
-                     "numerictss",
-                     "Upstream bp",
-                     value = LIST_DATA$binning[3],
-                     min = 0,
-                     max = 100
-                   )
+                   textInput("numerictssname", value = mynames[1], label = "TSS label",width = "100px"),
                  ),
                  div(
                    style = "padding:2px; display:inline-block; text-align:center;",
-                   textInput("numerictssname", value = mynames[1], label = "TSS label",width = "60px"),
-                 ),
-                 div(
-                   style = "padding:2px; display:inline-block;",
-                   numericInput(
-                     "numericbody1",
-                     "unscaled 5prime",
-                     value = LIST_DATA$binning[6],
-                     min = 0,
-                     max = 100
-                   )
-                 ),
-                 div(
-                   style = "padding:2px; display:inline-block; text-align:center;",
-                   numericInput(
-                     "numericbody2",
-                     "unscaled 3prime",
-                     value = LIST_DATA$binning[7],
-                     min = 0,
-                     max = 100
-                   )
-                 ),
-                 div(
-                   style = "padding:2px; display:inline-block; text-align:center;",
-                   numericInput(
-                     "numerictes",
-                     "Downstream bp",
-                     value = LIST_DATA$binning[4],
-                     min = 0,
-                     max = 100
-                   )
-                 ),
-                 div(
-                   style = "padding:2px; display:inline-block; text-align:center;",
-                   textInput("numerictesname", value = mynames[2], label = " TES label",width = "60px"),
-                 ),
-                 div(
-                   style = "padding:2px; display:inline-block; text-align:center;",
-                   numericInput(
-                     "numericbinsize",
-                     "bin size",
-                     value = LIST_DATA$binning[2],
-                     min = 20,
-                     max = 1000,
-                     step = 5
-                   )
+                   textInput("numerictesname", value = mynames[2], label = " TES label",width = "100px"),
                  ),
                  div(
                    style = "padding:2px 8px 2px 2px; display:inline-block; text-align:center;",
@@ -1013,7 +968,6 @@ server <- function(input, output, session) {
                    )
                  )
           ),
-          helpText("For 543 style 0 > TSS < 5|4 < 4|3 < pA < max bin"),
           div(
             textInput("landlnames", reactive_values$Lines_Labels_List$mylabels, label = "Yaxis labels"),
             textInput("landlposition", reactive_values$Lines_Labels_List$mybrakes, label = "Yaxis label position (numbers only)")
@@ -1177,33 +1131,10 @@ server <- function(input, output, session) {
             )
           )
         ),
+        actionBttn("resetlineslabels", "reset"),
         actionBttn("actionlineslabels", "SET and Plot"),
       )
     ))
-  })
-  
-  # observes switching type in lines and labels drop ----
-  observeEvent(input$pickerPlotType, ignoreInit = TRUE, {
-    binning <- LinesLabelsPreSetGuess(input$pickerPlotType)
-    if(binning[1] == 543){
-      binning[5] <- abs((LIST_DATA$x_plot_range[2]*as.numeric(LIST_DATA$binning[2])) - 
-                          (sum(as.numeric(LIST_DATA$binning[c(3,4,6,7)]))))
-    }
-    if(binning[1] == "default"){
-      binning <- LIST_DATA$binning2
-    }
-    
-    LIST_DATA$binning <<- binning
-    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
-    
-    updateNumericInput(session, "numericbinsize", value = LIST_DATA$binning[2])
-    updateNumericInput(session, "numerictss", value = LIST_DATA$binning[3])
-    updateNumericInput(session, "numerictes", value = LIST_DATA$binning[4])
-    updateNumericInput(session, "numericbody1", value = LIST_DATA$binning[6])
-    updateNumericInput(session, "numericbody2", value = LIST_DATA$binning[7])
-    updateNumericInput(session, "numericlabelspaceing", value = round(as.double(LIST_DATA$binning[2])*as.double(mynames[3]), -2))
-    updateTextInput(session, "numerictssname", value = mynames[1])
-    updateTextInput(session, "numerictesname", value = mynames[2])
   })
   
   # observe switching tabs ----
@@ -1612,77 +1543,20 @@ server <- function(input, output, session) {
     
   })
   
-  # enter key update lines and labels ----
-  # todo doubled observeEvent for key press to avoid error ----
-  observeEvent(input$keys, ignoreNULL = T, {
-    # print("action lines and labels")
-    my_pos <-
-      suppressWarnings(as.numeric(unlist(
-        strsplit(input$landlposition, split = "\\s+")
-      )))
-    my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
-    if (length(my_pos) == 0) {
-      my_label <- "none"
-      my_pos <- LIST_DATA$x_plot_range[2] * 2
-    }
-    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
+  # action reset button lines and labels ----
+  observeEvent(input$resetlineslabels, ignoreInit = TRUE, ignoreNULL = T, {
+    # print("action reset lines and labels")
+
+    mynames <- LinesLabelsSetNames(LIST_DATA$binning2[1])
     # if tss or tes location make sure there is text
-    if(nchar(trimws(input$numerictssname)) == 0 & input$numerictss > 0){
-      updateTextInput(session, "numerictssname", value = mynames[1])
-    }
-    if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
-      updateTextInput(session, "numerictesname", value = mynames[2])
-    }
+    updateTextInput(session, "numerictssname", value = mynames[1])
+    updateTextInput(session, "numerictesname", value = mynames[2])
+    updateNumericInput(session,"numericlabelspaceing", value = input$numericlabelspaceing+1)
+    updateNumericInput(session,"numericlabelspaceing", value = LIST_DATA$binning2[8])
     
-    reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
-                                                    LIST_DATA$x_plot_range[2],
-                                                    input$numerictssname,
-                                                    input$numerictesname,
-                                                    slider = T)
-    
-    reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
-    
-    reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
-                                                 last(reactive_values$slider_breaks$mylabels))
-    updateSliderTextInput(session,"sliderplotBinRange",
-                          choices = reactive_values$slider_breaks$mylabels,
-                          selected = c(first(reactive_values$slider_breaks$mylabels),
-                                       last(reactive_values$slider_breaks$mylabels))
-                          
-    )
-    
-    updateSelectInput(session,"selectplotBinNorm",
-                      choices = c("NA","min",
-                                  reactive_values$slider_breaks$mylabels),
-                      selected = "NA"
-    )
-    
-    reactive_values$Lines_Labels_List <-
-      LinesLabelsPlot(
-        LIST_DATA$binning,
-        input$selectbody1color,
-        input$selectbody1line,
-        input$selectbody2color,
-        input$selectbody2line,
-        input$selecttsscolor,
-        input$selecttssline,
-        input$selecttescolor,
-        input$selecttesline,
-        my_label,
-        my_pos,
-        input$selectvlinesize,
-        input$selectlinesize,
-        input$selectfontsizex,
-        input$selectfontsizey,
-        input$selectlegendsize,
-        input$selectalpha,
-        reactive_values$slider_breaks$lineloc
-      )
-    removeModal()
   })
   
   # action button update lines and labels ----
-  # todo when put in c() error occurres so doubled observeEvent for key press ----
   observeEvent(input$actionlineslabels, ignoreInit = TRUE, ignoreNULL = T, {
      # print("action lines and labels")
     my_pos <-
@@ -1694,15 +1568,6 @@ server <- function(input, output, session) {
       my_label <- "none"
       my_pos <- LIST_DATA$x_plot_range[2] * 2
     }
-    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
-    # if tss or tes location make sure there is text
-    if(nchar(trimws(input$numerictssname)) == 0 & input$numerictss > 0){
-      updateTextInput(session, "numerictssname", value = mynames[1])
-    }
-    if(nchar(trimws(input$numerictesname)) == 0 & input$numerictes > 0){
-      updateTextInput(session, "numerictesname", value = mynames[2])
-    }
-    LIST_DATA$binning2 <<- LIST_DATA$binning
 
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
                                                     LIST_DATA$x_plot_range[2],
@@ -1839,83 +1704,22 @@ server <- function(input, output, session) {
   
   # Update lines and labels box's ----
   observeEvent(
-    c(
-      input$numericbody1,
-      input$numericbody2,
-      input$numerictss,
-      input$numerictssname,
-      input$numerictes,
+    c(input$numerictssname,
       input$numerictesname,
-      input$numericbinsize,
       input$numericlabelspaceing
     ),
     ignoreInit = TRUE,
-    ignoreNULL = T,
+    ignoreNULL = TRUE,
     {
         # print("observe line and labels")
-      # get around check for "reference-point" type files
-      if (all(c(
-        input$numericbody1,
-        input$numericbody2
-        ) > 0) & all(c(
-        input$numericbody1,
-        input$numericbody2
-      ) >= input$numericbinsize)) {
-        mybody <- c(
-          input$numericbody1,
-          input$numericbody2
-        )
-      } else {
-        mybody <- c(
-          input$numericbinsize,
-          input$numericbinsize
-        )
-      }
-      if (sum(c(
-        mybody,
-        input$numerictss,
-        input$numerictes
-      )%%input$numericbinsize) == 0 & all(c(
-        mybody,
-        input$numerictss,
-        input$numerictes
-      ) >= input$numericbinsize)) {
+      myset <- input$numericlabelspaceing
+      if (!is.na(myset) & myset >= LIST_DATA$binning[2] &
+          as.double(myset)%%as.double(LIST_DATA$binning[2]) == 0) {
         shinyjs::enable("actionlineslabels")
-        shinyjs::enable("keys")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
-        if(LIST_DATA$binning[1] == 543){
-          LIST_DATA$binning[5] <- abs((LIST_DATA$x_plot_range[2]*as.numeric(LIST_DATA$binning[2])) - 
-                            (sum(as.numeric(LIST_DATA$binning[c(3,4,6,7)]))))
-        }
-        myset <- c(LIST_DATA$binning[1],
-                   input$numericbinsize,
-                   input$numerictss,
-                   input$numerictes,
-                   LIST_DATA$binning[5],
-                   input$numericbody1,
-                   input$numericbody2,
-                   input$numericlabelspaceing
-        )
-        LIST_DATA$binning <<- myset
-        # keep bin positions in bounds > 0
-        for (i in seq_along(myset)) {
-          if (is.na(myset[i]) | myset[i] < 0) {
-            myset[i] <- 0
-          }
-        }
-        if(myset[8] < myset[2] | 
-           as.double(myset[8])%%as.double(myset[2]) != 0){
-          myset[8] <- myset[2]
-        }
-        
-        updateNumericInput(session, "numericbinsize", value = myset[2])
-        updateNumericInput(session, "numerictss", value = myset[3])
-        updateNumericInput(session, "numerictes", value = myset[4])
-        updateNumericInput(session, "numericbody1", value = myset[6])
-        updateNumericInput(session, "numericbody2", value = myset[7])
-        updateNumericInput(session, "numericlabelspaceing", value = myset[8])
-
-        Lines_Labels_List <- LinesLabelsSet(myset,
+  
+        LIST_DATA$binning[8] <<- myset
+        Lines_Labels_List <- LinesLabelsSet(LIST_DATA$binning,
                              LIST_DATA$x_plot_range[2],
                              input$numerictssname,
                              input$numerictesname)
@@ -1933,7 +1737,6 @@ server <- function(input, output, session) {
       } else {
         updateActionButton(session, "actionlineslabels", label = "bin size must be multiple of and not > other values")
         shinyjs::disable("actionlineslabels")
-        shinyjs::disable("keys")
       }
     })
   
@@ -3991,8 +3794,6 @@ ui <- dashboardPage(
   ),
   body = dashboardBody(
     useShinyjs(),
-    useKeys(),
-    keysInput("keys", hotkeys),
     tabItems(
       # load data tab ----
       tabItem(tabName = "loaddata",
