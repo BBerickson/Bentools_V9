@@ -294,12 +294,12 @@ LoadGeneFile <-
       # adds full n count to nickname
       my_name <- legend_nickname
       # preps meta data
-      gene_info <- list_data$gene_info %>% 
+      meta_data <- list_data$meta_data %>% 
         dplyr::filter(gene_list == "Complete") %>% 
         dplyr::mutate(gene_list = my_name, 
                       count = paste("n =", n_distinct(gene_names$gene, na.rm = T)),
                       sub = " ", onoff = "0",
-                      plot_set = " ")
+                      plot_legend = " ")
       # saves data in list of lists
       list_data$gene_file[[my_name]]$full <- tablefile %>% select(gene) %>% distinct()
       list_data$gene_file[[my_name]]$info <- tibble(loaded_info =
@@ -310,7 +310,7 @@ LoadGeneFile <-
                                                                       Sys.Date(), sep ="_"))),
                                                     col_info = "loaded file"
                                                     )
-      list_data$gene_info <- bind_rows(list_data$gene_info, gene_info)
+      list_data$meta_data <- bind_rows(list_data$meta_data, meta_data)
       
     return(list_data)
   }
@@ -320,20 +320,20 @@ Active_list_data <-
   function(list_data, group="none", fulljoin=F) {
     table_file <- list_data$table_file
     gene_file <- list_data$gene_file
-    gene_info <- list_data$gene_info
+    meta_data <- list_data$meta_data
     list_data_out <- NULL
     # print("active data function")
     for ( i in names(gene_file) ){
       # checks to see if at least one file in list is active
-      if (gene_info %>% dplyr::filter(gene_list == i & onoff != 0) %>% nrow() == 0) {
+      if (meta_data %>% dplyr::filter(gene_list == i & onoff != 0) %>% nrow() == 0) {
         next()
       } else {
         if(group != "none"){
-          gene_info <- gene_info %>% group_by(group,gene_list) %>% 
+          meta_data <- meta_data %>% group_by(group,gene_list) %>% 
             mutate(onoff=if_else(gene_list == i & any(onoff != 0),set,onoff)) %>% 
             ungroup()
         }
-        my_sel <- gene_info %>% dplyr::filter(gene_list == i & onoff != 0)
+        my_sel <- meta_data %>% dplyr::filter(gene_list == i & onoff != 0)
         tf <- table_file %>% 
           dplyr::filter(set %in% my_sel$onoff)
         list_data_out[[i]] <- tf %>% 
@@ -351,7 +351,7 @@ Active_list_data <-
           my_sel <- my_sel %>% dplyr::mutate(.,sub = paste(sub, "Inc0"))
         }
         # adds line brake at 20 character for legend spacing
-        my_sel2 <- my_sel %>% dplyr::mutate(.,plot_set = paste(
+        my_sel2 <- my_sel %>% dplyr::mutate(.,plot_legend = paste(
           gsub("(.{20})", "\\1\n", set),
           gsub("(.{20})", "\\1\n", 
                str_split_fixed(i, "\nn = ", n=2)[,1]),
@@ -359,7 +359,7 @@ Active_list_data <-
           sep = '\n'
         ),group=paste(
           gsub("(.{20})", "\\1\n", group)
-        )) %>% dplyr::select(set,plot_set,group)
+        )) %>% dplyr::select(set,plot_legend,group)
         list_data_out[[i]] <- list_data_out[[i]] %>% inner_join(.,my_sel2,by="set")
       }
     }
@@ -386,31 +386,31 @@ ApplyMath <-
       normbin <- 0
     }
     if (relative_frequency == "rel gene frequency") {
-      list_data <- list_data %>% group_by(plot_set, gene) %>%
+      list_data <- list_data %>% group_by(plot_legend, gene) %>%
         dplyr::mutate(score = score / abs(sum(score, na.rm = TRUE))) %>%
         ungroup()
     }
     # apply mean/median/sum/var
-    list_data <- list_data %>% group_by(set, plot_set, bin, group, gene_list) %>%
+    list_data <- list_data %>% group_by(set, plot_legend, bin, group, gene_list) %>%
       summarise(value = get(use_math)(score, na.rm = T), .groups="drop")
     # norm to bin or overall relative frequency
     if (normbin > 0) {
       if(binnorm == "divide"){
         list_data <- list_data %>% 
-          group_by(plot_set) %>%
+          group_by(plot_legend) %>%
           arrange(bin) %>%
           dplyr::mutate(value = value / abs(value[bin==normbin])) %>%
           ungroup()
       } else {
         list_data <- list_data %>% 
-          group_by(plot_set) %>%
+          group_by(plot_legend) %>%
           arrange(bin) %>%
           dplyr::mutate(value = value - value[bin==normbin]) %>%
           ungroup()
       }
     } else if (relative_frequency == "relative frequency") {
       list_data <- list_data %>%
-        group_by(plot_set) %>%
+        group_by(plot_legend) %>%
         dplyr::mutate(value = value / abs(sum(value))) %>%
         ungroup()
     }
@@ -424,31 +424,31 @@ ApplyMath <-
     }
     # finish making file ready for ggplot
     if(group == "groups only"){
-      list_data <- select(list_data, -plot_set) %>% 
+      list_data <- select(list_data, -plot_legend) %>% 
         right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
-                                select(group, plot_set, gene_list),by=c("group","gene_list")) %>% 
-        separate(plot_set,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
-        dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_set)) %>%
-        transmute(set = plot_set,plot_set=group,bin=bin,value=value) %>% 
-         group_by(set, bin,plot_set) %>% 
+                                select(group, plot_legend, gene_list),by=c("group","gene_list")) %>% 
+        separate(plot_legend,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
+        dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_legend)) %>%
+        transmute(set = plot_legend,plot_legend=group,bin=bin,value=value) %>% 
+         group_by(set, bin,plot_legend) %>% 
         summarise(min=min(value),max=max(value),
                   value = mean(value), .groups = "drop") 
       } else if (group == "groups and single"){
-        list_data2 <- select(list_data, -plot_set) %>% 
+        list_data2 <- select(list_data, -plot_legend) %>% 
           right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
-                       select(group, plot_set, gene_list),by=c("group","gene_list")) %>% 
-          separate(plot_set,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
-          dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_set)) %>%
-          transmute(set = plot_set,plot_set=group,bin=bin,value=value) %>% 
-          group_by(set, bin,plot_set) %>% 
+                       select(group, plot_legend, gene_list),by=c("group","gene_list")) %>% 
+          separate(plot_legend,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
+          dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_legend)) %>%
+          transmute(set = plot_legend,plot_legend=group,bin=bin,value=value) %>% 
+          group_by(set, bin,plot_legend) %>% 
           summarise(min=min(value),max=max(value),
                     value = mean(value), .groups = "drop") 
         list_data <- list_data %>% 
-          mutate(set=plot_set,min=value,max=value) %>% 
+          mutate(set=plot_legend,min=value,max=value) %>% 
             bind_rows(.,list_data2)
       } else {
         list_data <- list_data %>% 
-          mutate(set=plot_set,min=value,max=value)
+          mutate(set=plot_legend,min=value,max=value)
       }
     return(list_data)
   }
@@ -506,27 +506,30 @@ YAxisLabel <-
     use_y_label
   }
 
-# gather relevant plot options from gene_info, outputs for ggplot
-MakePlotOptionFrame <- function(gene_info) {
+# gather relevant plot options from meta_data, outputs for ggplot
+MakePlotOptionFrame <- function(meta_data) {
   # print("plot options fun")
   # checks to see if at least one file in list is active
-  if (gene_info %>% dplyr::filter(onoff != 0) %>% nrow() == 0) {
+  if (meta_data %>% dplyr::filter(onoff != 0) %>% nrow() == 0) {
     return(NULL)
   } else {
-    gene_info <- gene_info %>%
+    meta_data <- meta_data %>%
       dplyr::mutate(
         myline = 1,
-        set=plot_set
+        set=plot_legend
       )
   }
   # tint if same color is used more then once
-  ldf <- duplicated(gene_info[c("mycol","onoff")]) & gene_info$onoff != 0
-  for (i in seq_along(gene_info$mycol)) {
+  md <- meta_data %>% filter(onoff != 0)
+  ldf <- duplicated(md["mycol"]) 
+  for (i in seq_along(md$mycol)) {
     if (ldf[i]) {
-      gene_info$mycol[i] <- RgbToHex(gene_info$mycol[i], convert = "hex", tint = log(i,10))
+      md$mycol[i] <- RgbToHex(md$mycol[i], convert = "hex", tint = log(i,10))
+      meta_data <- mutate(meta_data,mycol=if_else(meta_data$plot_legend == md$plot_legend[i], md$mycol[i], mycol))
     }
   }
-  return(gene_info)
+  
+  return(meta_data)
 }
 
 # main ggplot function
@@ -543,11 +546,11 @@ GGplotLineDot <-
            plot_occupancy,
            auc = FALSE) {
     plot_options <- list_long_data_frame %>% 
-      distinct(set,plot_set) %>% right_join(plot_options,.,by="set") %>% 
-      dplyr::rename(plot_set=plot_set.y) %>% dplyr::select(-plot_set.x) %>% 
-      dplyr::mutate(set = plot_set) %>% distinct(.,set,.keep_all = T)
+      distinct(set,plot_legend) %>% right_join(plot_options,.,by="set") %>% 
+      dplyr::rename(plot_legend=plot_legend.y) %>% dplyr::select(-plot_legend.x) %>% 
+      dplyr::mutate(set = plot_legend) %>% distinct(.,set,.keep_all = T)
     list_long_data_frame <- list_long_data_frame %>% 
-      dplyr::mutate(set = plot_set)
+      dplyr::mutate(set = plot_legend)
     list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
     
     legend_space <- lengths(strsplit(sort(plot_options$set), "\n")) / 1.1
@@ -737,11 +740,13 @@ LinesLabelsSet <- function(myinfo,
   myinfo <- suppressWarnings(as.double(myinfo))
   if (myinfo[8] > 0) {
     if(totbins > 2){
-    if(slider){
-      myinfo[8] <- myinfo[2]
-      landmarks[5] <- 1
-    }
-    
+      if(slider){
+        myinfo[8] <- myinfo[2]
+        landmarks[5] <- 1
+      }
+      if(myinfo[3] == 1){
+        myinfo[3] <- 0
+      }
     # y asis locations and labels for 1:before
     if(landmarks[1] > 0 & landmarks[1] != landmarks[3]){
       mod <- 0.5
@@ -1172,7 +1177,7 @@ FilterSepSize <-
       outlist <- outlist %>% 
         filter(value2 <= as.numeric(maxsize)) 
     }
-    outlist %>% select(gene)
+    outlist %>% select(gene,start,end,strand)
   }
 
 # sorts active gene list contain top % signal based on selected bins and file
@@ -1242,7 +1247,7 @@ FilterTop <-
       old_names <- old_names[!old_names %in% list_name]
       # remove old sort gene list keeping max 4
       list_data$gene_file[[first(old_names)]] <- NULL
-      list_data$gene_info <- dplyr::filter(list_data$gene_info,
+      list_data$meta_data <- dplyr::filter(list_data$meta_data,
                                            gene_list != first(old_names))
     }
     topbottom2 <- paste(str_remove(topbottom,"%"), paste0(mynum, "%"))
@@ -1267,9 +1272,9 @@ FilterTop <-
       save_name = gsub(" ", "_", paste("filter",str_remove(topbottom,"%"), Sys.Date(), sep = "_")),
       col_info = "gene [ % rank(s) ]"
       )
-    list_data$gene_info <- 
-      distinct(bind_rows(list_data$gene_info,
-                         list_data$gene_info %>% 
+    list_data$meta_data <- 
+      distinct(bind_rows(list_data$meta_data,
+                         list_data$meta_data %>% 
                            dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter",
@@ -1279,7 +1284,7 @@ FilterTop <-
                                                       start_end_label[2]), 
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(outlist$gene, na.rm = T)),
-                                         plot_set = " ")))
+                                         plot_legend = " ")))
     list_data
   }
 
@@ -1366,7 +1371,7 @@ FilterPer <-
       old_names <- old_names[!old_names %in% list_name]
       # remove old sort gene list keeping 4
       list_data$gene_file[[first(old_names)]] <- NULL
-      list_data$gene_info <- dplyr::filter(list_data$gene_info,
+      list_data$meta_data <- dplyr::filter(list_data$meta_data,
                                            gene_list != first(old_names))
     }
     nick_name <-
@@ -1425,9 +1430,9 @@ FilterPer <-
       save_name = gsub(" ", "_", paste("filter",str_remove(topbottom2,"%"), Sys.Date(), sep = "_")),
       col_info = "gene"
       )
-    list_data$gene_info <-
-      distinct(bind_rows(list_data$gene_info,
-                         list_data$gene_info %>%
+    list_data$meta_data <-
+      distinct(bind_rows(list_data$meta_data,
+                         list_data$meta_data %>%
                            dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>%
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter Prob:",
@@ -1437,7 +1442,7 @@ FilterPer <-
                                                       start_end_label[2]),
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(out_list$gene, na.rm = T)),
-                                         plot_set = " ")))
+                                         plot_legend = " ")))
     
     list_data
   }
@@ -1481,10 +1486,11 @@ FilterPeak <-
     }
     old_names <- grep("^Filter", names(list_data$gene_file), value = T)
     if (length(old_names) > 3) {
+      # don't remove file filtering on
       old_names <- old_names[!old_names %in% list_name]
       # remove old sort gene list keeping 4
       list_data$gene_file[[first(old_names)]] <- NULL
-      list_data$gene_info <- dplyr::filter(list_data$gene_info,
+      list_data$meta_data <- dplyr::filter(list_data$meta_data,
                                            gene_list != first(old_names))
     }
     nick_name <-
@@ -1511,9 +1517,9 @@ FilterPeak <-
                                                     save_name = gsub(" ", "_", paste("filter", my_type, Sys.Date(), sep = "_")),
                                                     col_info = "gene"
                                                     )
-    list_data$gene_info <-
-      distinct(bind_rows(list_data$gene_info,
-                         list_data$gene_info %>%
+    list_data$meta_data <-
+      distinct(bind_rows(list_data$meta_data,
+                         list_data$meta_data %>%
                            dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>%
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste("Filter:",
@@ -1522,7 +1528,7 @@ FilterPeak <-
                                                       peak_filter_num),
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(out_gene$gene, na.rm = T)),
-                                         plot_set = " ")))
+                                         plot_legend = " ")))
     
     list_data
   }
@@ -1641,16 +1647,16 @@ MakeNormFile <-
       
       # adds meta data 
       list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
-      list_data$gene_info <- dplyr::filter(list_data$gene_info, set != legend_nickname)
+      list_data$meta_data <- dplyr::filter(list_data$meta_data, set != legend_nickname)
       list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
-      list_data$gene_info <- distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>%
+      list_data$meta_data <- distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>%
                              dplyr::filter(set == nom) %>%
                              dplyr::mutate(set = legend_nickname,
                                            group = legend_nickname,
                                            onoff = "0",
                                            sub = " ",
-                                           plot_set = " ")))
+                                           plot_legend = " ")))
     } else {
       list_data$table_file <- list_data$table_file %>%
         replace_na(., list(score = 0)) %>%
@@ -1678,7 +1684,7 @@ IntersectGeneLists <-
     outlist <- bind_rows(outlist)
     # remove any pre used data
     list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Gene_List_")]
-    list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Gene_List_"))
+    list_data$meta_data <- list_data$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Gene_List_"))
     
     # record for info
     if (n_distinct(outlist$gene) > 0) {
@@ -1694,14 +1700,14 @@ IntersectGeneLists <-
         save_name = gsub(" ", "_", paste("gene_list_total_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
         col_info = "gene"
         )
-      list_data$gene_info <- 
-        distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>% 
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name1,
                                            sub =  paste("Gene_List_Total"), 
                                            onoff = "0",
-                                           plot_set = " ")))
+                                           plot_legend = " ")))
     }
     innerjoined <- outlist %>% group_by(gene) %>% 
       filter(n_distinct(set)==length(list_name)) %>% 
@@ -1719,14 +1725,14 @@ IntersectGeneLists <-
         save_name = gsub(" ", "_", paste("gene_list_innerjoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
         col_info = "gene"
         )
-      list_data$gene_info <- 
-        distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>% 
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name1,
                                            sub =  paste("Gene_List_innerjoin"), 
                                            onoff = "0",
-                                           plot_set = " ")))
+                                           plot_legend = " ")))
       antijoin <- anti_join(distinct(outlist,gene), innerjoined, by = "gene")
       if (n_distinct(antijoin$gene) == 0) {
         antijoin <- distinct(outlist)
@@ -1743,14 +1749,14 @@ IntersectGeneLists <-
         save_name = gsub(" ", "_", paste("gene_list_antijoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
         col_info = "gene"
         )
-      list_data$gene_info <- 
-        distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>% 
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name1,
                                            sub =  paste("Gene_List_antijoin"), 
                                            onoff = "0",
-                                           plot_set = " ")))
+                                           plot_legend = " ")))
       
     }
     list_data
@@ -1807,7 +1813,7 @@ ClusterNumList <- function(list_data,
     return(NULL)
   }
   list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Cluster_")]
-  list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Cluster_"))
+  list_data$meta_data <- list_data$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Cluster_"))
   gene_list <-
       dplyr::mutate(list_data$clust$full, cm = cutree(list_data$clust$cm, my_num))
   for (nn in 1:my_num) {
@@ -1832,9 +1838,9 @@ ClusterNumList <- function(list_data,
       save_name = gsub(" ", "_", paste("cluster", nn, "of", my_num, Sys.Date(), sep = "_")),
       col_info = "gene"
       )
-    list_data$gene_info <- 
-      distinct(bind_rows(list_data$gene_info,
-                         list_data$gene_info %>% 
+    list_data$meta_data <- 
+      distinct(bind_rows(list_data$meta_data,
+                         list_data$meta_data %>% 
                            dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste(
@@ -1846,7 +1852,7 @@ ClusterNumList <- function(list_data,
                                          ), 
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(outlist$gene, na.rm = T)),
-                                         plot_set = " ")))
+                                         plot_legend = " ")))
   }
   list_data
 }
@@ -1903,7 +1909,7 @@ GroupsNumList <- function(list_data,
     return(NULL)
   }
   list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Groups_")]
-  list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Groups_"))
+  list_data$meta_data <- list_data$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Groups_"))
   gene_list <-
     dplyr::mutate(list_data$groupies$full, cm = ntile(list_data$groupies$full$cm, as.numeric(my_num)))
   for (nn in 1:my_num) {
@@ -1928,9 +1934,9 @@ GroupsNumList <- function(list_data,
                                                     save_name = gsub(" ", "_", paste("groups", nn, "of", my_num, Sys.Date(), sep = "_")),
                                                     col_info = "gene"
     )
-    list_data$gene_info <- 
-      distinct(bind_rows(list_data$gene_info,
-                         list_data$gene_info %>% 
+    list_data$meta_data <- 
+      distinct(bind_rows(list_data$meta_data,
+                         list_data$meta_data %>% 
                            dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                            dplyr::mutate(gene_list = nick_name,
                                          sub =  paste(
@@ -1942,7 +1948,7 @@ GroupsNumList <- function(list_data,
                                          ), 
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(outlist$gene, na.rm = T)),
-                                         plot_set = " ")))
+                                         plot_legend = " ")))
   }
   list_data
 }
@@ -2052,7 +2058,7 @@ CompareRatios <-
     })
     #remove old info
     list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Ratio_")]
-    list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Ratio_"))
+    list_data$meta_data <- list_data$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Ratio_"))
     if(my_num < 0){
       my_num <- 1/my_num
     }
@@ -2082,9 +2088,9 @@ CompareRatios <-
       save_name = gsub(" ", "_", paste("ratios_greater_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
       col_info = "gene file1/file2"
       )
-      list_data$gene_info <- 
-        distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>% 
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name1,
                                            sub =  paste(
@@ -2094,7 +2100,7 @@ CompareRatios <-
                                            ), 
                                            onoff = "0",
                                            count = paste0("n = ", n_distinct(upratio$gene, na.rm = T)),
-                                           plot_set = " ")))
+                                           plot_legend = " ")))
     }
     if(my_num != 0){
       upratio <- dplyr::filter(outlist[[1]], Ratio < 1 / my_num & Ratio != 0)
@@ -2121,9 +2127,9 @@ CompareRatios <-
         save_name = gsub(" ", "_", paste("ratios_less_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
         col_info = "gene file1/file2"
         )
-      list_data$gene_info <- 
-        distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>% 
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name2,
                                            sub =  paste(
@@ -2133,7 +2139,7 @@ CompareRatios <-
                                            ), 
                                            onoff = "0",
                                            count = paste0("n = ", n_distinct(upratio$gene, na.rm = T)),
-                                           plot_set = " ")))
+                                           plot_legend = " ")))
     }
     if(my_num != 0){
       upratio <-
@@ -2163,9 +2169,9 @@ CompareRatios <-
         save_name = gsub(" ", "_", paste("ratio_No_Diff_fold_cut_off", my_num, Sys.Date(), sep = "_")),
         col_info = "gene file2/file1"
         )
-      list_data$gene_info <- 
-        distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>% 
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
                              dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
                              dplyr::mutate(gene_list = nick_name3,
                                            sub =  paste(
@@ -2175,7 +2181,7 @@ CompareRatios <-
                                            ), 
                                            onoff = "0",
                                            count = paste0("n = ", n_distinct(upratio$gene, na.rm = T)),
-                                           plot_set = " ")))
+                                           plot_legend = " ")))
     }
     list_data$boxRatio <- NULL
     for (nn in nick_name) {
@@ -2211,7 +2217,7 @@ CumulativeDistribution <-
     }
     # remove old data sets
     list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^CDF")]
-    list_data$gene_info <- list_data$gene_info %>% dplyr::filter(!str_detect(gene_list,"^CDF"))
+    list_data$meta_data <- list_data$meta_data %>% dplyr::filter(!str_detect(gene_list,"^CDF"))
     outlist <- NULL
     for (list_name in names(onoffs)) {
       # Complete within gene list and sum regions
@@ -2239,7 +2245,7 @@ CumulativeDistribution <-
           gene = gene,
           bin = row_number(),
           set = set,
-          plot_set = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
+          plot_legend = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
           value = value
         ) %>%
         ungroup()
@@ -2270,7 +2276,7 @@ CumulativeDistribution <-
           "from",
           names(onoffs),
           "gene list(s)",
-          paste(distinct(outlist, plot_set), collapse = " "),
+          paste(distinct(outlist, plot_legend), collapse = " "),
           Sys.Date()
         ),
         save_name = gsub(" ", "_", paste("genelist_CDF", Sys.Date(), sep = "_")),
@@ -2281,9 +2287,9 @@ CumulativeDistribution <-
     }
     
     for (list_name in names(onoffs)) {
-      list_data$gene_info <- 
-        distinct(bind_rows(list_data$gene_info,
-                           list_data$gene_info %>% 
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
                              dplyr::filter(gene_list == list_name &
                                              set %in% onoffs[[list_name]]) %>% 
                              dplyr::mutate(gene_list = nick_name1,
@@ -2292,9 +2298,9 @@ CumulativeDistribution <-
                                              list_name
                                            ), 
                                            onoff = "0",
-                                           count = paste("n =", outlist %>% dplyr::filter(grepl(list_name,plot_set)) %>% 
+                                           count = paste("n =", outlist %>% dplyr::filter(grepl(list_name,plot_legend)) %>% 
                                                            summarise(n=n_distinct(bin))),
-                                           plot_set = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
+                                           plot_legend = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
                                            myheader = use_header)))
     }
     list_data

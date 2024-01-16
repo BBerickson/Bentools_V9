@@ -36,14 +36,17 @@ LIST_DATA <<- list(
   gene_file = NULL,
   # holds $Complete genes from files and $gene file(s)
   gene_info = NULL,
-  # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_set")]
+  # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_legend")]
   ttest = NULL,
-  # t.test results $full is for numbers $gene_info for holding plotting options
+  # t.test results $full is for numbers $meta_data for holding plotting options
   clust = NULL,
   groupies = NULL,
   # Cluster holder
   x_plot_range = c(0, 0),
-  STATE = c(0, 0, 5) # flow control,
+  # tss tes
+  tss_tes = c("TSS", "pA"),
+  # flow control
+  STATE = c(0, 0, 5) 
   # [1] 1 = at least one file has been loaded and lets reactive fill in info
   #
   # [2] 0 = first time switching tab auto plotting
@@ -227,7 +230,7 @@ server <- function(input, output, session) {
           LIST_DATA$gene_file$Complete$full <<-
             full_join(LD, LIST_DATA$gene_file$Complete$full, by = c("gene","chrom", "start", "end","strand")) %>%
             distinct(gene, chrom, start, end, strand)
-          LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+          LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
             dplyr::mutate(count = if_else(gene_list == "Complete",
                                           paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)), count))
     
@@ -243,14 +246,14 @@ server <- function(input, output, session) {
         LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD)) %>% filter(!is.na(set))
         LIST_DATA$gene_file$Complete$info <<- tibble(loaded_info = paste("all loaded genes",
                                                                              Sys.Date()))
-        LIST_DATA$gene_info <<- distinct(bind_rows(LIST_DATA$gene_info,tibble(
+        LIST_DATA$meta_data <<- distinct(bind_rows(LIST_DATA$meta_data,tibble(
           gene_list = "Complete",
           count = paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)),
           set = meta_data$nick[i],
           mycol = meta_data$color[i],
           onoff = oo,
           sub = " ",
-          plot_set = " ",
+          plot_legend = " ",
           group = meta_data$nick[i]
         )))
         ### check if grep of gene has occurred
@@ -264,7 +267,7 @@ server <- function(input, output, session) {
             if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
               # fix name, fix info
               listname <- names(LIST_DATA$gene_file)[gg]
-              LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+              LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
                 dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)),
                                             count))
             }
@@ -272,15 +275,15 @@ server <- function(input, output, session) {
           setProgress(i/length(meta_data$filepath), 
                       detail = paste("Updating gene lists",meta_data$nick[i]))
           # add missing data
-          LIST_DATA$gene_info <<- LIST_DATA$gene_info %>%
+          LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
             dplyr::filter(gene_list == names(LIST_DATA$gene_file)[gg]) %>%
             dplyr::mutate(set = meta_data$nick[i],
                           count = count[i],
                           mycol = meta_data$color[i],
                           onoff = "0",
                           sub = " ",
-                          plot_set = " ") %>%
-            bind_rows(LIST_DATA$gene_info, .)
+                          plot_legend = " ") %>%
+            bind_rows(LIST_DATA$meta_data, .)
         }
     }
     } else {
@@ -378,7 +381,7 @@ server <- function(input, output, session) {
     )
     output$loadedfilestotaltable <- DT::renderDataTable(dt2)
     if (length(LIST_DATA$gene_file) > 1) {
-      gg <- LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete")) %>%
+      gg <- LIST_DATA$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Complete")) %>%
         select(., gene_list, count) %>% dplyr::rename(Usable = count) %>% 
         distinct()
       ggg <- NULL
@@ -434,7 +437,7 @@ server <- function(input, output, session) {
     shinyjs::reset("filegene1")
     
     gg <-
-      LIST_DATA$gene_info %>% dplyr::filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")) %>%
+      LIST_DATA$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Complete|^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")) %>%
       select(., gene_list, count) %>% dplyr::rename(Usable = count) %>%
       distinct()
     ggg <- NULL
@@ -501,7 +504,7 @@ server <- function(input, output, session) {
           LIST_DATA$gene_file[[input$selectsave]]$full
       if(input$selectsave == "CDF Log2 PI Cumulative plot"){
         new_comments2 <- new_comments2 %>% 
-          select(-plot_set, -bin) %>% 
+          select(-plot_legend, -bin) %>% 
           spread(set,value)
       }
       write_lines(new_comments, file)
@@ -522,9 +525,9 @@ server <- function(input, output, session) {
                  {
                    list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull)
                    if (!is_empty(list_data_frame) & nrow(list_data_frame) !=0) {
-                     LIST_DATA$gene_info <<- rows_update(LIST_DATA$gene_info,
+                     LIST_DATA$meta_data <<- rows_update(LIST_DATA$meta_data,
                                                          list_data_frame %>% 
-                                                           distinct(set,gene_list,plot_set), 
+                                                           distinct(set,gene_list,plot_legend), 
                                                          by=c("set","gene_list"))
                      reactive_values$Apply_Math <- ApplyMath(
                        list_data_frame,
@@ -574,7 +577,7 @@ server <- function(input, output, session) {
                      }
                      reactive_values$Plot_Options <- NULL
                      reactive_values$Plot_Options <-
-                       MakePlotOptionFrame(LIST_DATA$gene_info)
+                       MakePlotOptionFrame(LIST_DATA$meta_data)
                      
                    } else {
                      LIST_DATA$STATE[2] <<- 2
@@ -617,7 +620,7 @@ server <- function(input, output, session) {
       if (!is_empty(reactive_values$Apply_Math)) {
         reactive_values$Plot_Options <- NULL
         reactive_values$Plot_Options <-
-          MakePlotOptionFrame(LIST_DATA$gene_info)
+          MakePlotOptionFrame(LIST_DATA$meta_data)
       }
     }
     updateBoxSidebar(id = "sidebarmath")
@@ -726,9 +729,9 @@ server <- function(input, output, session) {
                 solidHeader = T,
                 status = "info",
                 background = "light-blue",
-                colourInput("colourhex", "Select color HEX",value = distinct(LIST_DATA$gene_info,mycol)$mycol[1]),
+                colourInput("colourhex", "Select color HEX",value = distinct(LIST_DATA$meta_data,mycol)$mycol[1]),
                 tags$hr(),
-                textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(LIST_DATA$gene_info,mycol)$mycol[1], convert = "rgb")),
+                textInput("textrgbtohex", "RGB", value = RgbToHex(x = distinct(LIST_DATA$meta_data,mycol)$mycol[1], convert = "rgb")),
                 tags$hr(),
                 actionButton("actionmyrgb", "Update color",width = 100)
               )
@@ -741,18 +744,18 @@ server <- function(input, output, session) {
             solidHeader = T,
             pickerInput("selectgenelistoptions", "", 
                         width = 300, 
-                        choices = distinct(LIST_DATA$gene_info,gene_list)$gene_list,
-                        selected = distinct(LIST_DATA$gene_info,gene_list)$gene_list[1],
+                        choices = distinct(LIST_DATA$meta_data,gene_list)$gene_list,
+                        selected = distinct(LIST_DATA$meta_data,gene_list)$gene_list[1],
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info,gene_list)$gene_list)
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data,gene_list)$gene_list)
                         )),
-            pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$gene_info,set)$set, 
-                        selected = distinct(LIST_DATA$gene_info,set)$set[1],
+            pickerInput("selectdataoption", "", choices = distinct(LIST_DATA$meta_data,set)$set, 
+                        selected = distinct(LIST_DATA$meta_data,set)$set[1],
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info,set)$set)
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data,set)$set)
                         )),
             tags$hr(style = "color: #2e6da4; background-color: #2e6da4; border-color: #2e6da4;"),
-            textInput("textnickname", "Update Nickname",value = distinct(LIST_DATA$gene_info,set)$set[1]),
+            textInput("textnickname", "Update Nickname",value = distinct(LIST_DATA$meta_data,set)$set[1]),
             actionButton("actionoptions", "Set Nickname"),
             helpText("Need to press to update")
           )
@@ -764,7 +767,7 @@ server <- function(input, output, session) {
 
   # CDF color select dialog box ----
   observeEvent(c(input$actioncdfcolor), ignoreInit = T, {
-    gene_info <- LIST_DATA$gene_info %>% 
+    gene_info <- LIST_DATA$meta_data %>% 
       dplyr::filter(str_detect(gene_list,"^CDF"))
      # print("actioncdfcolor")
     showModal(modalDialog(
@@ -804,10 +807,10 @@ server <- function(input, output, session) {
             solidHeader = T,
             pickerInput("selectgenelistoptions", "", width = 300, choices = distinct(gene_info,gene_list)$gene_list,
                         selected = distinct(gene_info,gene_list)$gene_list),
-            pickerInput("selectdataoption", "", choices = distinct(gene_info,plot_set)$plot_set,
-                        selected = distinct(gene_info,plot_set)$plot_set[1],
+            pickerInput("selectdataoption", "", choices = distinct(gene_info,plot_legend)$plot_legend,
+                        selected = distinct(gene_info,plot_legend)$plot_legend[1],
                         choicesOpt = list(
-                          content = gsub("\\n", "\\1<br>", distinct(gene_info,plot_set)$plot_set)
+                          content = gsub("\\n", "\\1<br>", distinct(gene_info,plot_legend)$plot_legend)
                         ))
         ),
         modalButton("Close")
@@ -820,9 +823,9 @@ server <- function(input, output, session) {
                ignoreInit = TRUE, ignoreNULL = TRUE,
                {
                  # print("options update")
-                 my_sel <- LIST_DATA$gene_info %>% 
+                 my_sel <- LIST_DATA$meta_data %>% 
                    dplyr::filter(gene_list == input$selectgenelistoptions & 
-                                   set == input$selectdataoption | plot_set == input$selectdataoption)
+                                   set == input$selectdataoption | plot_legend == input$selectdataoption)
                  
                  updateColourInput(session, "colourhex", value = paste(my_sel$mycol))
                  
@@ -845,26 +848,26 @@ server <- function(input, output, session) {
                     value = RgbToHex(x = input$colourhex, convert = "rgb"))
     if (!is.null(names(LIST_DATA$gene_file))) {
       
-      my_sel <- LIST_DATA$gene_info %>% 
+      my_sel <- LIST_DATA$meta_data %>% 
         dplyr::filter(gene_list == input$selectgenelistoptions & 
-                        set == input$selectdataoption | plot_set == input$selectdataoption)
+                        set == input$selectdataoption | plot_legend == input$selectdataoption)
       ploton <- if_else(input$selectgenelistoptions == "Complete", T,
-              if_else(any(LIST_DATA$gene_info$gene_list == input$selectgenelistoptions & 
-                        LIST_DATA$gene_info$onoff !=0), T, F))
+              if_else(any(LIST_DATA$meta_data$gene_list == input$selectgenelistoptions & 
+                        LIST_DATA$meta_data$onoff !=0), T, F))
 
       if (input$colourhex != my_sel$mycol) {
          # print("color new")
-        LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+        LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
           dplyr::mutate(mycol=if_else((gene_list == input$selectgenelistoptions | 
                                          input$selectgenelistoptions == "Complete" |
                                          input$selectgenelistoptions == "Complete_filtered") & 
-                                        (set == input$selectdataoption | plot_set == input$selectdataoption),
+                                        (set == input$selectdataoption | plot_legend == input$selectdataoption),
                                       input$colourhex, mycol))
         reactive_values$Picker_controler <- 
-          c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, mycol)$mycol)
+          c(names(LIST_DATA$gene_file), distinct(LIST_DATA$meta_data, mycol)$mycol)
         if(ploton){
           if (!is.null(reactive_values$Apply_Math) & input$leftSideTabs == "mainplot") {
-            reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$gene_info)
+            reactive_values$Plot_Options <- MakePlotOptionFrame(LIST_DATA$meta_data)
           } 
         }
         if(input$leftSideTabs == "cdftool"){
@@ -883,27 +886,27 @@ server <- function(input, output, session) {
                       value = paste(input$selectdataoption))
     } else if (input$textnickname != input$selectdataoption) {
        # print("new nickname")
-      if (any(input$textnickname == distinct(LIST_DATA$gene_info, set)$set)) {
+      if (any(input$textnickname == distinct(LIST_DATA$meta_data, set)$set)) {
         updateTextInput(session,
                         "textnickname",
                         value = paste0(input$selectdataoption,"-",input$textnickname,
                                        "-dup"))
       }
-      LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+      LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
         dplyr::mutate(set = if_else(set == input$selectdataoption,
                                     input$textnickname, set)) %>% 
         dplyr::mutate(onoff = if_else(onoff == input$selectdataoption,
                                       input$textnickname, onoff)) %>% 
-        dplyr::mutate(plot_set = str_replace(LIST_DATA$gene_info$plot_set,
+        dplyr::mutate(plot_legend = str_replace(LIST_DATA$meta_data$plot_legend,
                                              paste0("^",input$selectdataoption),input$textnickname)) %>% 
-        dplyr::mutate(group = str_replace(LIST_DATA$gene_info$group,
+        dplyr::mutate(group = str_replace(LIST_DATA$meta_data$group,
                                           input$selectdataoption,input$textnickname))
       
       LIST_DATA$table_file <<- LIST_DATA$table_file %>%
         dplyr::mutate(set = if_else(set == input$selectdataoption,
                                     input$textnickname, set))
       reactive_values$Picker_controler <- 
-        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
+        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$meta_data, set)$set)
       ff <- distinct(LIST_DATA$table_file, set)$set
       updatePickerInput(session,
                         "selectdataoption",
@@ -919,7 +922,7 @@ server <- function(input, output, session) {
   # droplinesandlabels ----
   observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, ignoreNULL = T, {
      # print("droplinesandlabels")
-    mynames <- LinesLabelsSetNames(LIST_DATA$binning[1])
+    mynames <- LIST_DATA$tss_tes
     showModal(modalDialog(
       title = "Information message",
       " Set Lines and Labels for plot ",
@@ -1153,7 +1156,7 @@ server <- function(input, output, session) {
     # main plot tab ----
     if (input$leftSideTabs == "mainplot") {
       reactive_values$Picker_controler <- 
-        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$gene_info, set)$set)
+        c(names(LIST_DATA$gene_file), distinct(LIST_DATA$meta_data, set)$set)
       if(LIST_DATA$STATE[1] == 0){
         LIST_DATA$STATE[1] <<- 1
         LIST_DATA$STATE[2] <<- -10
@@ -1188,9 +1191,9 @@ server <- function(input, output, session) {
                           content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
                         ))
       updatePickerInput(session, "sortSamples",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choices = c(distinct(LIST_DATA$meta_data, set)$set),
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         )
                         )
       output$valueboxsort <- renderValueBox({
@@ -1208,31 +1211,31 @@ server <- function(input, output, session) {
       updatePickerInput(
         session,
         "pickernumerator",
-        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choices = distinct(LIST_DATA$meta_data, set)$set,
         choicesOpt = list(style = paste("color", dplyr::select(
-          dplyr::filter(LIST_DATA$gene_info,
+          dplyr::filter(LIST_DATA$meta_data,
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
-          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
           )
       )
       updatePickerInput(
         session,
         "pickerdenominator",
-        choices = c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"),
+        choices = c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"),
         choicesOpt = list(style = paste("color", dplyr::select(
-          dplyr::filter(LIST_DATA$gene_info,
+          dplyr::filter(LIST_DATA$meta_data,
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
-          content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"))
+          content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"))
           )
       )
       updatePickerInput(
         session,
         "pickergroupsample",
-        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choices = distinct(LIST_DATA$meta_data, set)$set,
         choicesOpt = list(
-          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
         )
       )
       output$valueboxnormfile <- renderValueBox({
@@ -1241,7 +1244,7 @@ server <- function(input, output, session) {
                  icon = icon("gears"),
                  color = "yellow")
       })
-      gts <- LIST_DATA$gene_info %>% 
+      gts <- LIST_DATA$meta_data %>% 
         filter(gene_list == "Complete") %>% 
         mutate(group = if_else(gsub("\n","", group) != set,as.character(as.integer(as.factor(group))),"self" )) %>% 
         select(set,group) %>%
@@ -1326,14 +1329,14 @@ server <- function(input, output, session) {
         choices = names(LIST_DATA$gene_file)
       )
       updatePickerInput(session, "pickerratio1file",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choices = c(distinct(LIST_DATA$meta_data, set)$set),
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         ))
       updatePickerInput(session, "pickerratio2file",
-                        choices = c("None", distinct(LIST_DATA$gene_info, set)$set),
+                        choices = c("None", distinct(LIST_DATA$meta_data, set)$set),
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", c("None", distinct(LIST_DATA$gene_info, set)$set))
+                          content = gsub("(.{35})", "\\1<br>", c("None", distinct(LIST_DATA$meta_data, set)$set))
                         ))
       output$valueboxratio1 <- renderValueBox({
         valueBox(0,
@@ -1376,9 +1379,9 @@ server <- function(input, output, session) {
                           content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
                         ))
       updatePickerInput(session, "clusterSamples",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choices = c(distinct(LIST_DATA$meta_data, set)$set),
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         )
                         )
       output$valueboxsort <- renderValueBox({
@@ -1412,9 +1415,9 @@ server <- function(input, output, session) {
                           content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
                         ))
       updatePickerInput(session, "groupiesSamples",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
+                        choices = c(distinct(LIST_DATA$meta_data, set)$set),
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         )
       )
       output$valueboxsort <- renderValueBox({
@@ -1441,17 +1444,17 @@ server <- function(input, output, session) {
                                 gsub("\n", "-cdfspace1-", i))),
             label = i,
             width = "99%",
-            choices = distinct(LIST_DATA$gene_info, set)$set,
+            choices = distinct(LIST_DATA$meta_data, set)$set,
             multiple = T,
             options = list(
               `actions-box` = TRUE,
               `selected-text-format` = "count > 0"
             ),
             choicesOpt = list(style = paste("color", dplyr::select(
-              dplyr::filter(LIST_DATA$gene_info,
+              dplyr::filter(LIST_DATA$meta_data,
                             gene_list == names(LIST_DATA$gene_file)[1]),
               mycol)$mycol, sep = ":"),
-              content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set))
+              content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set))
           )
         ))
     }
@@ -1534,10 +1537,10 @@ server <- function(input, output, session) {
     if(input$leftSideTabs == "qcOptions"){
       shinyjs::hide("hidespinersQC")
       updatePickerInput(session, "QCsample",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set),
-                        selected = c(distinct(LIST_DATA$gene_info, set)$set)[1],
+                        choices = c(distinct(LIST_DATA$meta_data, set)$set),
+                        selected = c(distinct(LIST_DATA$meta_data, set)$set)[1],
                         choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set))
+                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set))
                         ))
     }
     
@@ -1568,6 +1571,8 @@ server <- function(input, output, session) {
       my_label <- "none"
       my_pos <- LIST_DATA$x_plot_range[2] * 2
     }
+    
+    LIST_DATA$tss_tes <<- c(input$numerictssname,input$numerictesname)
 
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
                                                     LIST_DATA$x_plot_range[2],
@@ -1747,7 +1752,7 @@ server <- function(input, output, session) {
     } else {
       ttesttype <- reactive_values$ttest_values[1]
     }
-    if(n_distinct(LIST_DATA$gene_info$gene_list, na.rm = T) > 1){
+    if(n_distinct(LIST_DATA$meta_data$gene_list, na.rm = T) > 1){
       reactive_values$ttest <- c("none","by files", "by lists")
     } else {
       reactive_values$ttest <- c("none","by files")
@@ -1941,7 +1946,7 @@ server <- function(input, output, session) {
         }
         reactive_values$Plot_Options <- NULL
         reactive_values$Plot_Options <-
-          MakePlotOptionFrame(LIST_DATA$gene_info)
+          MakePlotOptionFrame(LIST_DATA$meta_data)
       } else {
         LIST_DATA$STATE[2] <<- 2
         text = paste("Nothing selected to plot.\n")
@@ -2012,9 +2017,9 @@ server <- function(input, output, session) {
                                                                         onoff = NA, set = NA))
                      }
                    }  
-                   LIST_DATA$gene_info <<-
+                   LIST_DATA$meta_data <<-
                      CheckBoxOnOff(checkboxonoff,
-                                   LIST_DATA$gene_info)
+                                   LIST_DATA$meta_data)
                    if (LIST_DATA$STATE[2] > 0) {
                      shinyjs::show("actionmyplotshow")
                      LIST_DATA$STATE[2] <<- 2
@@ -2047,8 +2052,8 @@ server <- function(input, output, session) {
               inputId = gsub(" ", "-bensspace2-", gsub("\n", "-bensspace1-", i)),
               label = i,
               width = "99%",
-              choices = distinct(LIST_DATA$gene_info, set)$set,
-              selected =  dplyr::select(dplyr::filter(LIST_DATA$gene_info, 
+              choices = distinct(LIST_DATA$meta_data, set)$set,
+              selected =  dplyr::select(dplyr::filter(LIST_DATA$meta_data, 
                                                       gene_list == i & onoff != 0), 
                                         onoff)$onoff,
               multiple = T,
@@ -2056,10 +2061,10 @@ server <- function(input, output, session) {
                 `actions-box` = TRUE,
                 `selected-text-format` = "count > 0"),
               choicesOpt = list(style = paste("color", 
-                                              dplyr::select(dplyr::filter(LIST_DATA$gene_info, 
+                                              dplyr::select(dplyr::filter(LIST_DATA$meta_data, 
                                                                           gene_list == i), mycol)$mycol,
                                               sep = ":"),
-                                content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set))
+                                content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set))
             )
           ))
       }
@@ -2145,7 +2150,7 @@ server <- function(input, output, session) {
       LIST_DATA <<- LD
       LD <- LIST_DATA
       mylist <- last(grep("^Filter", names(LIST_DATA$gene_file)))
-      LD$gene_info <- LD$gene_info %>%
+      LD$meta_data <- LD$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == names(LD$gene_file)[mylist] &
                                       set %in% input$sortSamples, set, "0"))
       list_data_frame <- Active_list_data(LD, input$checkboxfull)
@@ -2409,7 +2414,7 @@ server <- function(input, output, session) {
       LIST_DATA <<- sortmin
       # pull info for preview plot
       mylist <- last(grep("^Filter", names(sortmin$gene_file),value = T))
-      sortmin$gene_info <- sortmin$gene_info %>%
+      sortmin$meta_data <- sortmin$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == mylist &
                                       set %in% input$sortSamples, set, "0"))
       list_data_frame <- Active_list_data(sortmin, input$checkboxfull)
@@ -2481,6 +2486,7 @@ server <- function(input, output, session) {
   # filters size and separation ----
   observeEvent(input$actionSizeSep,{
     genesep <- floor(input$geneSeparation)
+    my_name <- "Complete_filtered"
     if(!is.numeric(genesep) || genesep < 0){
       updateNumericInput(session, "geneSizeMin", value = 0)
       genesep <- 0
@@ -2495,6 +2501,8 @@ server <- function(input, output, session) {
       updateNumericInput(session, "geneSizeMMax", value = 0)
       genesizemax <- 0
     }
+    LIST_DATA$gene_file[[my_name]] <<- NULL
+    LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% filter(gene_list != my_name)
     
     LD <- FilterSepSize(LIST_DATA$gene_file$Complete$full,
                         genesep,
@@ -2503,14 +2511,14 @@ server <- function(input, output, session) {
                         input$checkboxStranded)
     if(n_distinct(LD$gene) > 0) {
       # adds full n count to nickname
-      my_name <- "Complete_filtered"
+      
       # preps meta data
-      gene_info <- LIST_DATA$gene_info %>% 
+      gene_info <- LIST_DATA$meta_data %>% 
         dplyr::filter(gene_list == "Complete") %>% 
         dplyr::mutate(gene_list = my_name, 
                       count = paste("n =", n_distinct(LD$gene, na.rm = T)),
                       sub = " ", onoff = "0",
-                      plot_set = " ")
+                      plot_legend = " ")
       # saves data in list of lists
       LIST_DATA$gene_file[[my_name]]$full <<- distinct(LD)
       LIST_DATA$gene_file[[my_name]]$info <<- tibble(loaded_info =
@@ -2521,18 +2529,16 @@ server <- function(input, output, session) {
                                                                                                 Sys.Date(), sep ="_"))),
                                                     col_info = "loaded file"
       )
-      LIST_DATA$gene_info <<- bind_rows(LIST_DATA$gene_info, gene_info)
+      LIST_DATA$meta_data <<- bind_rows(LIST_DATA$meta_data, gene_info)
       output$valueboxsort <- renderValueBox({
         valueBox(
-          n_distinct(LIST_DATA$gene_file[["Complete_filtered"]]$full$gene, na.rm = T),
+          n_distinct(LIST_DATA$gene_file[[my_name]]$full$gene, na.rm = T),
           "Gene List Filter",
           icon = icon("list"),
           color = "green"
         )
       })
     } else {
-      LIST_DATA$gene_file[["Complete_filtered"]] <<- NULL
-      LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% filter(gene_list != "Complete_filtered")
       output$valueboxsort <- renderValueBox({
         valueBox(
           0,
@@ -2602,37 +2608,37 @@ server <- function(input, output, session) {
       LIST_DATA <<- LD
       updatePickerInput(session,
                         "pickernumerator", selected = "",
-                        choices = distinct(LIST_DATA$gene_info, set)$set,
+                        choices = distinct(LIST_DATA$meta_data, set)$set,
                         choicesOpt = list(style = paste("color", 
                                                         dplyr::select(
-                                                          dplyr::filter(LIST_DATA$gene_info,
+                                                          dplyr::filter(LIST_DATA$meta_data,
                                                                         gene_list == names(
                                                                           LIST_DATA$gene_file)[1]), 
                                                           mycol)$mycol, 
                                                         sep = ":"),
-                                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+                                          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                                           ))
       updatePickerInput(session,
                         "pickerdenominator", selected = "",
-                        choices = c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"),
+                        choices = c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"),
                         choicesOpt = list(style = paste("color", 
                                                         dplyr::select(
-                                                          dplyr::filter(LIST_DATA$gene_info,
+                                                          dplyr::filter(LIST_DATA$meta_data,
                                                                         gene_list == names(
                                                                           LIST_DATA$gene_file)[1]),
                                                           mycol)$mycol, 
                                                         sep = ":"),
-                                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$gene_info, set)$set,"Multiply by -1"))
+                                          content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"))
                                           ))
       updatePickerInput(
         session,
         "pickergroupsample",
-        choices = distinct(LIST_DATA$gene_info, set)$set,
+        choices = distinct(LIST_DATA$meta_data, set)$set,
         choicesOpt = list(
-          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$gene_info, set)$set)
+          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
         )
       )
-      gts <- LIST_DATA$gene_info %>% 
+      gts <- LIST_DATA$meta_data %>% 
         filter(gene_list == "Complete") %>% 
         mutate(group = if_else(gsub("\n","", group) != set,as.character(as.integer(as.factor(group))),"self" )) %>% 
         select(set,group) %>%
@@ -2676,7 +2682,7 @@ server <- function(input, output, session) {
           color = "green"
         )
       })
-      ff <- distinct(LIST_DATA$gene_info, set)$set
+      ff <- distinct(LIST_DATA$meta_data, set)$set
       updateSelectInput(session,
                         "selectdataoption",
                         choices = ff)
@@ -2700,7 +2706,7 @@ server <- function(input, output, session) {
   # create groups file ----
   observeEvent(input$actiongroup, ignoreInit = TRUE, {
     if (!is.null(input$pickergroupsample)) {
-    LIST_DATA$gene_info <<- LIST_DATA$gene_info %>% 
+    LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
       mutate(group = if_else(set %in% input$pickergroupsample,
                              gsub("(.{20})", "\\1\n",
                                   gsub(",",":",input$textgroupname)), group))
@@ -2708,7 +2714,7 @@ server <- function(input, output, session) {
                         "pickergroupsample", selected = "",
                         options = list(title = "Select at least 2 files"))
       updateTextInput(session, "textgroupname", value = "")
-      gts <- LIST_DATA$gene_info %>% 
+      gts <- LIST_DATA$meta_data %>% 
         filter(gene_list == "Complete") %>% 
         mutate(group = if_else(gsub("\n","", group) != set,as.character(as.integer(as.factor(group))),"self" )) %>% 
         select(set,group) %>%
@@ -3118,7 +3124,7 @@ server <- function(input, output, session) {
                      choices = names(LIST_DATA$gene_file),
                      selected = ol
                    )
-                   LD$gene_info <- LD$gene_info %>%
+                   LD$meta_data <- LD$meta_data %>%
                      dplyr::mutate(onoff=if_else(str_detect(gene_list,"^Cluster_") &
                                                    set == input$clusterSamples, set, "0"))
                    withProgress(message = 'Calculation in progress',
@@ -3268,7 +3274,7 @@ server <- function(input, output, session) {
                      choices = names(LIST_DATA$gene_file),
                      selected = ol
                    )
-                   LD$gene_info <- LD$gene_info %>%
+                   LD$meta_data <- LD$meta_data %>%
                      dplyr::mutate(onoff=if_else(str_detect(gene_list,"^Groups_") &
                                                    set == input$groupiesSamples, set, "0"))
                    withProgress(message = 'Calculation in progress',
@@ -3619,14 +3625,14 @@ server <- function(input, output, session) {
       return()
     }
     df_options <-
-      LIST_DATA$gene_info %>%
+      LIST_DATA$meta_data %>%
       dplyr::filter(gene_list ==  newname) %>%
       dplyr::mutate(set = paste(
         count,
-        sub(" - ","\n", plot_set),sep = "\n")
+        sub(" - ","\n", plot_legend),sep = "\n")
       )
     df <- LIST_DATA$gene_file[[newname]]$full %>%
-      full_join(.,df_options %>% select(set,plot_set),by="plot_set") %>%
+      full_join(.,df_options %>% select(set,plot_legend),by="plot_legend") %>%
       dplyr::mutate(set=set.y) %>% select(-set.x,-set.y)
     
     use_header <- pull(distinct(df_options, myheader))
@@ -3652,7 +3658,7 @@ server <- function(input, output, session) {
       mycdf
     })
     output$plotcdfscatter <- renderPlot({
-      ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_set",
+      ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_legend",
                 alpha=.8, palette = df_options$mycol,
                 ylim = as.numeric(c(input$numericcdfmin, input$numericcdfmax))) + 
         rremove("x.text") + rremove("legend")
@@ -4301,7 +4307,7 @@ ui <- dashboardPage(
             status = "primary",
             column(width = 6,
                    pickerInput("sortGeneList", label = "select list",
-                               choices = (LIST_DATA$gene_info)),
+                               choices = (LIST_DATA$meta_data)),
                    div(
                      style = "margin-bottom: -20px;",
                      sliderTextInput(
@@ -4568,7 +4574,7 @@ ui <- dashboardPage(
               solidHeader = T,
               width = 6,
               pickerInput("clusterGeneList", label = "select list",
-                                 choices = (LIST_DATA$gene_info)),
+                                 choices = (LIST_DATA$meta_data)),
          pickerInput("clusterSamples", label = "select sample",
                              choices = "select sample",selected = "select sample",
                              multiple = F
@@ -4631,7 +4637,7 @@ ui <- dashboardPage(
               solidHeader = T,
               width = 6,
               pickerInput("groupiesGeneList", label = "select list",
-                          choices = (LIST_DATA$gene_info)),
+                          choices = (LIST_DATA$meta_data)),
               pickerInput("groupiesSamples", label = "select sample",
                           choices = "select sample",selected = "select sample",
                           multiple = F
