@@ -2487,19 +2487,26 @@ server <- function(input, output, session) {
   observeEvent(input$actionSizeSep,{
     genesep <- floor(input$geneSeparation)
     my_name <- "Complete_filtered"
+    mysub <- "Complete_filtered:"
     if(!is.numeric(genesep) || genesep < 0){
       updateNumericInput(session, "geneSizeMin", value = 0)
       genesep <- 0
+    } else {
+      mysub <- paste(mysub, "gene size >", genesep)
     }
     genesizemin <- floor(input$geneSizeMin)
-    if(!is.numeric(genesizemin) || genesizemin < 0){
+    if(!is.numeric(genesizemin) || genesizemin <= 0){
       updateNumericInput(session, "geneSizeMin", value = 0)
       genesizemin <- 0
+    } else {
+      mysub <- paste(mysub, "gene length >", genesizemin)
     }
     genesizemax <- floor(input$geneSizeMax)
-    if(!is.numeric(genesizemax) || genesizemax < 0){
+    if(!is.numeric(genesizemax) || genesizemax <= 0){
       updateNumericInput(session, "geneSizeMMax", value = 0)
       genesizemax <- 0
+    }  else {
+      mysub <- paste(mysub, "gene length <", genesizemax)
     }
     LIST_DATA$gene_file[[my_name]] <<- NULL
     LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% filter(gene_list != my_name)
@@ -2517,7 +2524,8 @@ server <- function(input, output, session) {
         dplyr::filter(gene_list == "Complete") %>% 
         dplyr::mutate(gene_list = my_name, 
                       count = paste("n =", n_distinct(LD$gene, na.rm = T)),
-                      sub = " ", onoff = "0",
+                      sub = mysub, 
+                      onoff = "0",
                       plot_legend = " ")
       # saves data in list of lists
       LIST_DATA$gene_file[[my_name]]$full <<- distinct(LD)
@@ -4528,9 +4536,10 @@ ui <- dashboardPage(
                 )
               )
             ),
+            helpText("(file1[1]/file1[2])/(file2[1]/file2[2]) or file1[1]/file2[2]"),
             sliderTextInput(
               "sliderRatioBinNorm",
-              label = "Select Bin Range:",
+              label = "Select Bin To Norm first:",
               grid = TRUE,
               choices = c("NA"),
               selected = c("NA")

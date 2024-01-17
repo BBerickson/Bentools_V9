@@ -2071,14 +2071,15 @@ CompareRatios <-
     
     if (n_distinct(upratio$gene) > 0) {
       nick_name1 <-
-        paste("Ratio_Up\nn =", n_distinct(upratio$gene, na.rm = T))
+        paste("Ratio_Up_file1\nn =", n_distinct(upratio$gene, na.rm = T))
       nick_name <- c(nick_name, nick_name1)
       list_data$gene_file[[nick_name1]]$full <- upratio 
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
       paste(
+        "Ratio_Up",
+        ratio2file,
         "fold change cut off >",
         my_num,
-        ratio2file,
         divzerofix,
         "from",
         list_name,
@@ -2109,7 +2110,7 @@ CompareRatios <-
     } 
     if (n_distinct(upratio$gene) > 0) {
       nick_name2 <-
-        paste("Ratio_Down\nn =", n_distinct(upratio$gene, na.rm = T))
+        paste("Ratio_Down_file1\nn =", n_distinct(upratio$gene, na.rm = T))
       nick_name <- c(nick_name, nick_name2)
       list_data$gene_file[[nick_name2]]$full <- upratio
       list_data$gene_file[[nick_name2]]$info <- tibble(loaded_info =
@@ -2318,7 +2319,7 @@ GGplotC <-
       plot_options$set, "\n"
     ))))
     gp <- ggplot(df2, aes(value, color = set)) +
-      stat_ecdf(show.legend = TRUE, size = 1.8) +
+      stat_ecdf(show.legend = TRUE, linewidth = 1.8) +
       scale_color_manual(name = "Sample", values = use_col) +
       ylab("Fraction of genes") +
       ggtitle(use_header) +
