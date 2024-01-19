@@ -1,7 +1,24 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
-source("R_scripts/helpers.R", local = TRUE)
-source("R_scripts/functions.R", local = TRUE)
+# program for loading packages ----
+my_packages <- function(x) {
+  for (i in x) {
+    #  require returns TRUE invisibly if it was able to load package
+    if (!require(i , character.only = TRUE)) {
+      #  If package was not able to be loaded then re-install
+      if(i == "valr"){
+        if (!require("BiocManager", quietly = TRUE))
+          install.packages("BiocManager")
+        
+        BiocManager::install("rtracklayer")
+      }
+      install.packages(i , dependencies = TRUE,)
+      print(paste("installing ", i, " : please wait"))
+    }
+    #  Load package after installing
+    require(i , character.only = TRUE)
+  }
+}
 
 # run load needed packages using my_packages(x) ----
 suppressPackageStartupMessages(my_packages(
@@ -26,6 +43,9 @@ suppressPackageStartupMessages(my_packages(
   )
 ))
 
+source("R_scripts/helpers.R", local = TRUE)
+source("R_scripts/functions.R", local = TRUE)
+
 # By default, the file size limit is 5MB. It can be changed by
 # setting this option. Here we'll raise limit to 500MB. ----
 options(shiny.maxRequestSize = 500 * 1024 ^ 2)
@@ -35,7 +55,7 @@ LIST_DATA <<- list(
   # gene bin score set
   gene_file = NULL,
   # holds $Complete genes from files and $gene file(s)
-  gene_info = NULL,
+  meta_data = NULL,
   # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_legend")]
   ttest = NULL,
   # t.test results $full is for numbers $meta_data for holding plotting options
@@ -1359,10 +1379,12 @@ server <- function(input, output, session) {
     }
     # cluster switch tab ----
     if (input$leftSideTabs == "clustertool"){
-      if(!is.null(input$clusterSamples)){ 
-        if(input$clusterSamples[1] == "select sample"){
+      gl <- input$clusterSamples
+      if(!is.null(gl)){ 
+        if(gl[1] == "select sample"){
           shinyjs::hide("hideclusterplots1")
           shinyjs::hide("hideclustertable")
+          gl <- c(distinct(LIST_DATA$meta_data, set)$set)[1]
         }
       }
       ol <- input$clusterGeneList
@@ -1380,6 +1402,7 @@ server <- function(input, output, session) {
                         ))
       updatePickerInput(session, "clusterSamples",
                         choices = c(distinct(LIST_DATA$meta_data, set)$set),
+                        selected = gl,
                         choicesOpt = list(
                           content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         )
@@ -1394,11 +1417,13 @@ server <- function(input, output, session) {
     
     # Groups switch tab ----
     if (input$leftSideTabs == "groupiestool"){
-      if(!is.null(input$groupiesSamples)){
-        if(input$groupiesSamples[1] == "select sample"){
+      gl <- input$groupiesSamples
+      if(!is.null(gl)){
+        if(gl[1] == "select sample"){
           shinyjs::hide("hidegroupiesplots1")
           shinyjs::hide("hidegroupiestable")
           shinyjs::hide("hidegroupiesplots2")
+          gl <- c(distinct(LIST_DATA$meta_data, set)$set)[1]
         }
       }
       ol <- input$groupiesGeneList
@@ -1416,6 +1441,7 @@ server <- function(input, output, session) {
                         ))
       updatePickerInput(session, "groupiesSamples",
                         choices = c(distinct(LIST_DATA$meta_data, set)$set),
+                        selected = gl,
                         choicesOpt = list(
                           content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         )
