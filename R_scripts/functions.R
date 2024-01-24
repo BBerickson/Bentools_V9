@@ -1766,7 +1766,8 @@ IntersectGeneLists <-
 FindClusters <- function(list_data,
                          list_name,
                          clusterfile,
-                         start_end_bin) {
+                         start_end_bin,
+                         fast_mean) {
   # print("find clusters")
   if (clusterfile == "") {
     showModal(modalDialog(
@@ -1777,13 +1778,22 @@ FindClusters <- function(list_data,
     ))
     return(NULL)
   }
-  df <-
+  db <-
       semi_join(dplyr::filter(list_data$table_file, set == clusterfile), 
-                list_data$gene_file[[list_name]]$full, by = 'gene') 
+                list_data$gene_file[[list_name]]$full, by = 'gene') %>% 
+    filter(bin %in% c(start_end_bin[1]:start_end_bin[2]))
+  
     list_data$clust <- list()
-    list_data$clust$cm <-
-      hclust.vector(as.data.frame(spread(df, bin, score))[, c((start_end_bin[1]:start_end_bin[2]) + 2)], method = "ward")
-  list_data$clust$full <- distinct(df, gene)
+    if(fast_mean){
+      list_data$clust$cm <- 
+        hclust.vector(db %>% group_by(gene) %>% 
+                        summarise(value=mean(score),.groups = "drop") %>% select(value), method = "ward")
+    } else{
+      list_data$clust$cm <-
+        hclust.vector(as.data.frame(spread(db, bin, score))[-c(1:7)], method = "ward")
+    }
+    
+  list_data$clust$full <- distinct(db, gene)
   list_data
 }
 
@@ -1873,11 +1883,11 @@ FindGroups <- function(list_data,
   }
   
   setProgress(1, detail = paste("gathering data"))
-  df <- semi_join(dplyr::filter(list_data$table_file, set == groupiesfile),
+  db <- semi_join(dplyr::filter(list_data$table_file, set == groupiesfile),
                   list_data$gene_file[[list_name]]$full, by = 'gene')
   setProgress(2, detail = "finding groups")
   list_data$groupies <- list()
-  list_data$groupies$full <- group_by(df, gene) %>%
+  list_data$groupies$full <- group_by(db, gene) %>%
     dplyr::filter(bin %in% c(start_end_bin[1]:start_end_bin[2])) %>%
     summarise(cm = sum(score, na.rm = TRUE),.groups="drop")
   list_data
@@ -2011,32 +2021,32 @@ CompareRatios <-
     }
     lc <- 0
     lapply(ratiofile, function(j) {
-      df <-
+      db <-
         semi_join(dplyr::filter(list_data$table_file, set == j), 
                   list_data$gene_file[[list_name]]$full, by = 'gene') 
       if (normlabel != "NA") {
-        df <- group_by(df, gene) %>%
+        db <- group_by(db, gene) %>%
           arrange(bin) %>% 
           dplyr::mutate(score = score / nth(score, normbin))
       }
-      df <- group_by(df, gene) %>%
+      db <- group_by(db, gene) %>%
         summarise(sum1 = sum(score[start1_bin:end1_bin],	na.rm = T),
                   sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
         ungroup()
       # if min/2 find Na's and 0's, and replace
       if(start2_bin == 0){
-        df$sum2 <- 1
+        db$sum2 <- 1
       }
       if (divzerofix) {
-        df$sum2 <- na_if(df$sum2, 0)
+        db$sum2 <- na_if(db$sum2, 0)
         new_min <-
-          min(df$sum2, na.rm = TRUE) / 2
-        df <-
-          replace_na(df, list(sum2 = new_min))
+          min(db$sum2, na.rm = TRUE) / 2
+        db <-
+          replace_na(db, list(sum2 = new_min))
       }
       lc <<- lc + 1
       outlist[[lc]] <<-
-        transmute(df, gene = gene, Ratio = sum1 / sum2) %>%
+        transmute(db, gene = gene, Ratio = sum1 / sum2) %>%
         dplyr::mutate(Ratio = na_if(Ratio,Inf)) %>% dplyr::select(gene, Ratio)
       
       if (lc > 1) {

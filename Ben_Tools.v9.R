@@ -2518,7 +2518,7 @@ server <- function(input, output, session) {
       updateNumericInput(session, "geneSizeMin", value = 0)
       genesep <- 0
     } else {
-      mysub <- paste(mysub, "gene size >", genesep)
+      mysub <- paste(mysub, "gene sep >", genesep)
     }
     genesizemin <- floor(input$geneSizeMin)
     if(!is.numeric(genesizemin) || genesizemin <= 0){
@@ -3109,9 +3109,11 @@ server <- function(input, output, session) {
                        input$clusterGeneList,
                        input$clusterSamples,
                        floor(reactive_values$slider_breaks$mybrakes[
-                         reactive_values$slider_breaks$mylabels %in% input$sliderbincluster])
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbincluster]),
+                       input$checkboxcluster
                      )
                  })
+    reactive_values$clustergroups <- NULL
     if (!is_empty(LD$table_file)) {
       LIST_DATA <<- LD
       if(LIST_DATA$STATE[1] != 0){
@@ -4644,6 +4646,7 @@ ui <- dashboardPage(
              )
            )),
            column(width = 6,
+                  checkboxInput("checkboxcluster","mean bins?"),
            actionButton("actionclustertool", "Get clusters"))
          ),
          div(
