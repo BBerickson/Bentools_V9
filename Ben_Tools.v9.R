@@ -566,7 +566,7 @@ server <- function(input, output, session) {
                        sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
                          reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
                      } else {
-                       sliderplotBinRange <- range(sliderplotBinRange)
+                       sliderplotBinRange <- range(sliderplotBinRange,na.rm = T)
                      }
                      reactive_values$Y_Axis_numbers <-
                        YAxisValues(
@@ -686,7 +686,7 @@ server <- function(input, output, session) {
       sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
         reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
     } else {
-      sliderplotBinRange <- range(sliderplotBinRange)
+      sliderplotBinRange <- range(sliderplotBinRange,na.rm = T)
     }
     reactive_values$Plot_controler <-
       GGplotLineDot(
@@ -2390,10 +2390,10 @@ server <- function(input, output, session) {
       if(length(df$score)==0){
         rr <- c(0,0)
       } else {
-        rr <- round(range(abs(df$score)),digits = 4)
+        rr <- round(range(abs(df$score),na.rm = T),digits = 4)
       }
         
-    updateNumericInput(session, "peakfilternum", value = max(rr))
+    updateNumericInput(session, "peakfilternum", value = max(rr,na.rm = T))
     output$rangeHelptext <- renderUI({helpText(paste("min",min(rr,na.rm = T),"max",max(rr,na.rm = T)))})
   })
   
@@ -3173,7 +3173,7 @@ server <- function(input, output, session) {
                                     Apply_Cluster_Math <- ApplyMath(
                                       list_data_frame,
                                       "mean",
-                                      "none",
+                                      "relative frequency",
                                       0,
                                       0
                                     )
@@ -3182,7 +3182,7 @@ server <- function(input, output, session) {
                                   gp1 <-
                                     ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=gene_list)) +
                                     geom_line() +
-                                    ylab("Mean bin value") +
+                                    ylab("relative frequency") +
                                     theme(legend.position="bottom",
                                           legend.title = element_blank(),
                                           axis.title.x=element_blank())
@@ -3631,7 +3631,7 @@ server <- function(input, output, session) {
       shinyjs::show('plotcdfscatter')
       newname <-
         grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
-      rr <- range(LIST_DATA$gene_file[[newname]]$full$value)
+      rr <- range(LIST_DATA$gene_file[[newname]]$full$value,na.rm = T)
       # force trigger
       updateNumericInput(session,
                          "numericcdfmin",
