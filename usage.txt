@@ -19,42 +19,51 @@ Load Data tab
   save gene
     save selected gene list to txt file
        a commentted section is added of the tool's settings used to make the list
+
+
+Plot tab
+
+  first time 
+    opens box showing deeptools selections prevewing x axix labels 
+      can set TSS TES naming and how many tiks 
+    the first two files are selected to plot auto
+  drop down selection/deselection of samples to plot for the diffrent gene lists
+  menu's for 
+    sliders and selectors for x and y plot axis
+    set math and normalization to data for plotting
+    group ploting means of means
+    color setting
+    x axis bin TSS TES labels tiks 
+      can edit lable and posistion pairs
+   
     
 QC/Options tab      
   
-  select gene list and file
-    select plot line and dot type
-    select color by rgb or hex
-    plot legend label "nickname", to reset leave blank when button is pushed
-    apply normilization factor that is applied as needed and passed on to children lists
-    remove file from all gene lists
+  select a file
+    plot "quadrille" or 
+    "low range percentile" or
+    "braod range percentile" or
+    "% 0's per bin","quadrille"
     
-  
-
 Norm tab
 
   select a file and one to noromalize by
     select divide gene by gene or bin by bin
     select replacing #/0 = Inf with psudo count
-  or to combinde files  
+  to combinde files  
     adds new "data file"
+  To multiply by -1
+  
+  Second box to set groups of data to plot means of means in plot tab
     
-Plot tab
 
-  first time runs plotting functions are run and a plot is produced
-  quick set default plot x axis bin lables
-  drop down selection(s) of data restricted to gene list to be plotted
-  sliders and selectors for x and y plot axis
-  set math and normalization to data for plotting
-  quick color setting
-  cusome set x axis bin lables
-  lines and labels tool helps place proper, can edit lable and posistion pairs
-
-Gene tool
+Compair lists tab
 
   compare gene lists and report intercected, unique, and total 
   
-Sort tool
+Filter tab
+
+  filter origonal gene size and spacing
 
   select gene list and file(s) for that list
   select bin range to work on
@@ -68,7 +77,7 @@ Sort tool
     results are added to gene lists
     action button builds datatable and shows
     
-Ratio tool
+Ratio tab
   
   select gene list and  2 files for that list
   select bin range(s) to work on
@@ -83,7 +92,7 @@ Ratio tool
     
   action button builds datatable and shows
   
-cluster tool
+cluster tab
   
   select gene list and 1 file form that list (must have at least 4 genes)
   select bin range(s) to work on
@@ -94,7 +103,8 @@ cluster tool
     additional filter on fold cut off (0 results don't update)
     results are added to gene lists 
   
-  preforms grouping ...
+group tab
+
     search and sort data table
     additional filter on fold cut off (0 results don't update)
     results are added to gene lists 
@@ -102,7 +112,7 @@ cluster tool
     action button builds datatable and shows
     action button shows plot results for selected file
     
-Cumulative Distribution Function (CDF) tool
+Cumulative Distribution Function (CDF) tab
   
   select files from gene lists (except CDF)
   select bin 5' and 3' ranges
@@ -118,4 +128,7 @@ Cumulative Distribution Function (CDF) tool
     search and sort data table
     results are added to gene list and updates plot
     
+data view tab
+  view gene lists, can search
+  
   
