@@ -174,7 +174,7 @@ server <- function(input, output, session) {
       setProgress(i/length(meta_data$filepath), 
                   detail = paste("Gathering info on",meta_data$nick[i]))
       # check unique nicknames and fix
-      if (!is_empty(LIST_DATA$table_file$set) && meta_data$nick[i] %in% distinct(LIST_DATA$table_file,set)) {
+      if (!is_empty(LIST_DATA$table_file$set) && meta_data$nick[i] %in% distinct(LIST_DATA$table_file,set)$set) {
         meta_data$nick[i] <- paste0(meta_data$nick[i],"_dup")
       }
       # converts color to hex 
