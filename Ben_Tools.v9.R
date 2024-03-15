@@ -208,6 +208,7 @@ server <- function(input, output, session) {
           everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
         }
         LIST_DATA$binning <<- c(bin_colname$binning,everybp)
+        LIST_DATA$landmarks <<- LinesLableLandmarks(c(bin_colname$binning,everybp))
         # for testing if files are loaded later and resetting lines and lables
         LIST_DATA$binning2 <<- LIST_DATA$binning
         LIST_DATA$rnaseq <<- bin_colname$rnaseq
@@ -317,6 +318,7 @@ server <- function(input, output, session) {
       # sets lines and labels
       # tries to guess lines and labels type
       reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
+                                                      LIST_DATA$landmarks,
                                       LIST_DATA$x_plot_range[2],
                                       slider = T)
       reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
@@ -1575,8 +1577,12 @@ server <- function(input, output, session) {
   # action reset button lines and labels ----
   observeEvent(input$resetlineslabels, ignoreInit = TRUE, ignoreNULL = T, {
     # print("action reset lines and labels")
-
-    mynames <- LinesLabelsSetNames(LIST_DATA$binning2[1])
+      if(LIST_DATA$x_plot_range[2] == 2){
+        binning2 <- "PI"
+      } else {
+        binning2 <- LIST_DATA$binning2[1]
+      }
+    mynames <- LinesLabelsSetNames(binning2)
     # if tss or tes location make sure there is text
     updateTextInput(session, "numerictssname", value = mynames[1])
     updateTextInput(session, "numerictesname", value = mynames[2])
@@ -1601,6 +1607,7 @@ server <- function(input, output, session) {
     LIST_DATA$tss_tes <<- c(input$numerictssname,input$numerictesname)
 
     reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
+                                                    LIST_DATA$landmarks,
                                                     LIST_DATA$x_plot_range[2],
                                                     input$numerictssname,
                                                     input$numerictesname,
@@ -1751,6 +1758,7 @@ server <- function(input, output, session) {
   
         LIST_DATA$binning[8] <<- myset
         Lines_Labels_List <- LinesLabelsSet(LIST_DATA$binning,
+                                            LIST_DATA$landmarks,
                              LIST_DATA$x_plot_range[2],
                              input$numerictssname,
                              input$numerictesname)

@@ -154,7 +154,7 @@ tableTestbin <- function(meta_data){
       type <- 543
     }
     # check if PI type
-    if(type == 5 & num_bins == 3){
+    if(type == 543 & num_bins == 8){
       type2 <- 1
     }
       
@@ -708,35 +708,51 @@ LinesLableLandmarks <- function(myinfo){
   # print("LinesLableLandmarks")
   # type, bp/bin, before, after, body, un5, un3, spacing
   # myinfo <- c(543,100,1500,3500,2000,500,500,500)
+  
+  # grab type
   mytype <- myinfo[1]
+  # convert to double
   myinfo <- suppressWarnings(as.double(myinfo))
-  tssbin <- myinfo[3]/myinfo[2]
-  if (sum(myinfo[5:7]) > 0) {
-    body1bin <- tssbin + myinfo[6]/myinfo[2]
-    body2bin <- body1bin + myinfo[5]/myinfo[2]
-  } else{
-    body1bin <- 0
-    body2bin <- 0
+  # TSS landmark
+  if(mytype != 3) {
+    tssbin <- myinfo[3]/myinfo[2]
+  } else {
+    tssbin = 0
   }
+  # TES landmark
   if(mytype != "5" & mytype != "5L"){
     tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
   } else {
     tesbin <- 0
   }
+  # scaled body landmarks
+  if (any(myinfo[5:7] > 0)) {
+    body1bin <- tssbin + myinfo[6]/myinfo[2]
+    body2bin <- body1bin + myinfo[5]/myinfo[2]
+    if(body1bin == tssbin){
+      body1bin <- 0
+    }
+    if(body2bin == tesbin){
+      body2bin <- 0
+    }
+  } else {
+    body1bin <- 0
+    body2bin <- 0
+  }
+  
   floor(c(tssbin, tesbin, body1bin, body2bin, myinfo[8]/myinfo[2]))
 }
 
 # Sets lines and labels
 LinesLabelsSet <- function(myinfo,
+    landmarks,
     totbins = 80,
     tssname = "TSS",
     tesname = "pA",
     slider = F) {
   # print("LinesLabelsSet")
-  # LinesLabelsSet(c(543,100,1500,3500,2000,500,500,500),slider = F)
   lineloc <- c(NA, NA, NA, NA)
   mytype <- myinfo[1]
-  landmarks <- LinesLableLandmarks(myinfo)
   myinfo <- suppressWarnings(as.double(myinfo))
   if (myinfo[8] > 0) {
     if(totbins > 2){
@@ -748,10 +764,11 @@ LinesLabelsSet <- function(myinfo,
         myinfo[3] <- 0
       }
     # y asis locations and labels for 1:before
-    if(landmarks[1] > 0 & landmarks[1] != landmarks[3]){
+    if(landmarks[1] > 0){
       mod <- 0.5
     } else {
       mod <- 1
+      landmarks[1] <- landmarks[2]
     }
     before <- seq(-myinfo[3], 0, by = myinfo[8])
     beforebins <- seq(1,  by = landmarks[5], length.out = length(before))
@@ -778,11 +795,11 @@ LinesLabelsSet <- function(myinfo,
       lineloc[1] <- landmarks[1] + mod
     }
     
-    # any other landmarks
-    if(all(c(landmarks[3],landmarks[4]) > 0)){
-      # test for unscaled5prime and unscaled3prime
-      if(landmarks[3] > landmarks[1] & landmarks[4] > landmarks[3] & all(landmarks%%landmarks[5] == 0)){
-        # landmark1 to unscaled5prime
+    # test for unscaled5prime and unscaled3prime landmarks
+    if(any(c(landmarks[3],landmarks[4]) > 0)){
+      # unscaled5prime
+      if(landmarks[3] > 0){
+        # tss to unscaled5prime
         unscaled5prime <- seq(myinfo[8], (landmarks[3] - landmarks[1]) * myinfo[2], by = myinfo[8])
         unscaled5primebin <- seq(landmarks[1]+landmarks[5], by = landmarks[5], length.out = length(unscaled5prime))
         if(landmarks[1] == 0 & myinfo[8] == 1){
@@ -801,6 +818,12 @@ LinesLabelsSet <- function(myinfo,
                               paste0("scaled_",seq_along((landmarks[3]+1):(landmarks[4]))))
           unscaled5primebin <- c(unscaled5primebin, (landmarks[3]+1):(landmarks[4]))
         }
+      } else {
+        unscaled5prime <- NULL
+        unscaled5primebin <- NULL
+      }
+      
+      if(landmarks[4] > 0){
         # unscaled3prime to last landmark
         unscaled3prime <-  abs(seq((landmarks[4] - landmarks[2]) * myinfo[2], 0, by = myinfo[8]))
         if(landmarks[4] == 1){
@@ -825,9 +848,13 @@ LinesLabelsSet <- function(myinfo,
           unscaled3prime[which(unscaled3prime != tesname)] <- 
             paste0("3'unscale_",unscaled3prime[which(unscaled3prime != tesname)])
         }
+      } else {
+        unscaled3prime <- NULL
+        unscaled3primebin <- NULL
+      }
         before <- c(before,unscaled5prime,unscaled3prime)
         beforebins <- c(beforebins,unscaled5primebin,unscaled3primebin)
-      } 
+    
       tt <- c(myinfo[8], abs(totbins - landmarks[2]) * myinfo[2])
       TESname <- seq(min(tt),max(tt), by = myinfo[8])
       TESloc <-
