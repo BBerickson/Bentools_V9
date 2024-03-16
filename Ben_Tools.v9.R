@@ -209,7 +209,7 @@ server <- function(input, output, session) {
         }
         LIST_DATA$binning <<- c(bin_colname$binning,everybp)
         LIST_DATA$landmarks <<- LinesLableLandmarks(c(bin_colname$binning,everybp))
-        # for testing if files are loaded later and resetting lines and lables
+        # for testing if files are loaded later and resetting lines and labels
         LIST_DATA$binning2 <<- LIST_DATA$binning
         LIST_DATA$rnaseq <<- bin_colname$rnaseq
       } else if (max(bin_colname$num_bins-6) != LIST_DATA$x_plot_range[2] | 
