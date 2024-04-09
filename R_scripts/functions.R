@@ -2271,7 +2271,8 @@ CumulativeDistribution <-
         group_by(gene,set) %>%
         summarise(sum1 = mean(score[startend1_bin[1]:startend1_bin[2]],	na.rm = T),
                   sum2 = mean(score[startend2_bin[1]:startend2_bin[2]],	na.rm = T),.groups="drop") %>%
-        dplyr::mutate(., value = sum1 / sum2) %>%
+        dplyr::mutate(., value = sum1 / sum2) %>% 
+        dplyr::filter(!any(is.na(value))) %>%
         dplyr::mutate(value=log2(value)) %>% 
         dplyr::mutate(value = na_if(value,Inf)) %>% 
         dplyr::mutate(value = na_if(value,-Inf)) %>% 
@@ -2283,7 +2284,7 @@ CumulativeDistribution <-
           gene = gene,
           bin = row_number(),
           set = set,
-          plot_legend = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
+          plot_legend = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
           value = value
         ) %>%
         ungroup()
@@ -2338,7 +2339,7 @@ CumulativeDistribution <-
                                            onoff = "0",
                                            count = paste("n =", outlist %>% dplyr::filter(grepl(list_name,plot_legend)) %>% 
                                                            summarise(n=n_distinct(bin))),
-                                           plot_legend = paste(gsub("(.{20})", "\\1\n",list_name), "-", gsub("(.{20})", "\\1\n", set)),
+                                           plot_legend = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
                                            myheader = use_header)))
     }
     list_data
