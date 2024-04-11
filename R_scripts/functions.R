@@ -746,7 +746,7 @@ LinesLableLandmarks <- function(myinfo){
 # Sets lines and labels
 LinesLabelsSet <- function(myinfo,
     landmarks,
-    totbins = 80,
+    totbins = 105,
     tssname = "TSS",
     tesname = "pA",
     slider = F) {
@@ -796,7 +796,7 @@ LinesLabelsSet <- function(myinfo,
     }
     
     # test for unscaled5prime and unscaled3prime landmarks
-    if(any(c(landmarks[3],landmarks[4]) > 0)){
+    if(any(c(landmarks[3],landmarks[4]) > 0) | mytype == 543){
       # unscaled5prime
       if(landmarks[3] > 0){
         # tss to unscaled5prime
@@ -1333,7 +1333,7 @@ FilterPer <-
       ))
       return(NULL)
     }
-    list_data$table_file <- list_data$table_file %>% mutate(score = abs(score))
+    list_data$table_file <- list_data$table_file 
     p_funs <- map(my_per/100, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
       set_names(paste0("my_p_",seq_along(my_per)))
     gene_list <- list_data$gene_file[[list_name]]$full
