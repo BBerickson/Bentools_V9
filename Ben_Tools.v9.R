@@ -324,6 +324,7 @@ server <- function(input, output, session) {
       reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
       if(LIST_DATA$rnaseq){
         updateAwesomeCheckbox(session,inputId = "checkboxfull",value = TRUE)
+        updateAwesomeRadio(session,inputId = "checkboxbin",selected = "subtract")
       }
       
     } 
