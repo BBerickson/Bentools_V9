@@ -200,7 +200,7 @@ server <- function(input, output, session) {
         # set labels every # bins
         if(LIST_DATA$x_plot_range[2] < 100){
           if(LIST_DATA$x_plot_range[2] < 3 | bin_colname$binning[1] == 0){
-            everybp <- 0
+            everybp <- 1
           }else{
             everybp <- round(as.double(bin_colname$binning[2])*5, -2)
           }
@@ -1752,8 +1752,8 @@ server <- function(input, output, session) {
     {
         # print("observe line and labels")
       myset <- input$numericlabelspaceing
-      if (!is.na(myset) & myset >= LIST_DATA$binning[2] &
-          as.double(myset)%%as.double(LIST_DATA$binning[2]) == 0) {
+      if (!is.na(myset) & (myset >= LIST_DATA$binning[2] &
+          as.double(myset)%%as.double(LIST_DATA$binning[2]) == 0) | myset == 1)  {
         shinyjs::enable("actionlineslabels")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
   

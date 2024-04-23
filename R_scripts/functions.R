@@ -6,10 +6,14 @@ SlidersSetsInfo <- function(slider_breaks, type){
   num_bins <- max(slider_breaks$mybrakes)
   
   if (type == '543') { 
-    setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
-                                           floor(num_bins*.24),
-                                           floor(num_bins*.24)+1,
-                                           floor(num_bins*.59))] 
+    if (num_bins == 2 | type == 'PI') {
+      setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
+    } else {
+      setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
+                                             floor(num_bins*.24),
+                                             floor(num_bins*.24)+1,
+                                             floor(num_bins*.59))] 
+    }
   } else if (type == '5'| type == '5L'| type == "TSS") {
     if (num_bins == 2 | type == 'PI') {
       setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
@@ -154,7 +158,7 @@ tableTestbin <- function(meta_data){
       type <- 543
     }
     # check if PI type
-    if(type == 543 & num_bins == 8){
+    if(num_bins == 8){
       type2 <- 1
     }
       
@@ -755,7 +759,7 @@ LinesLabelsSet <- function(myinfo,
   mytype <- myinfo[1]
   myinfo <- suppressWarnings(as.double(myinfo))
   if (myinfo[8] > 0) {
-    if(totbins > 2){
+    if(totbins > 3){
       if(slider){
         myinfo[8] <- myinfo[2]
         landmarks[5] <- 1
@@ -903,7 +907,7 @@ LinesLabelsSet <- function(myinfo,
       use_plot_breaks_labels <- before
     } else{
       use_plot_breaks <- c(1,2)
-      use_plot_breaks_labels <- c(tssname,tesname)
+      use_plot_breaks_labels <- c(1,2)
     }
   } else {
     # just print bin numbers
