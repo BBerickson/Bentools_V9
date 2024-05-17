@@ -1015,7 +1015,7 @@ server <- function(input, output, session) {
                 selectInput(
                   inputId = 'selecttssline',
                   label = 'TSS line type',
-                  choices = c("dotted", "solid"),
+                  choices = c("dotted", "dashed", "solid"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[1]
                 ),
                 icon = icon("sliders"),
@@ -1079,7 +1079,7 @@ server <- function(input, output, session) {
                 selectInput(
                   inputId = 'selecttesline',
                   label = 'TES line type',
-                  choices = c("dotted", "solid"),
+                  choices = c("dotted", "dashed", "solid"),
                   selected = reactive_values$Lines_Labels_List$myline$use_virtical_line_type[2]
                 ),
                 icon = icon("sliders"),
@@ -3118,8 +3118,7 @@ server <- function(input, output, session) {
                        input$clusterGeneList,
                        input$clusterSamples,
                        floor(reactive_values$slider_breaks$mybrakes[
-                         reactive_values$slider_breaks$mylabels %in% input$sliderbincluster]),
-                       input$checkboxcluster
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbincluster])
                      )
                  })
     reactive_values$clustergroups <- NULL
@@ -4655,7 +4654,6 @@ ui <- dashboardPage(
              )
            )),
            column(width = 6,
-                  checkboxInput("checkboxcluster","mean bins?"),
            actionButton("actionclustertool", "Get clusters"))
          ),
          div(

@@ -1798,7 +1798,7 @@ FindClusters <- function(list_data,
                          list_name,
                          clusterfile,
                          start_end_bin,
-                         fast_mean) {
+                         fast_mean=FALSE) {
   # print("find clusters")
   if (clusterfile == "") {
     showModal(modalDialog(
