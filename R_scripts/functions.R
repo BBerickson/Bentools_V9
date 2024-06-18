@@ -1,129 +1,143 @@
-
-# takes info from file type and number of bins to pre set tools sliders
-SlidersSetsInfo <- function(slider_breaks, type){
-  # 5Min, 5Max, 3Min, 3Max
-  # print("SlidersSetsInfo")
-  num_bins <- max(slider_breaks$mybrakes)
-  
-  if (type == '543') { 
-    if (num_bins == 2 | type == 'PI') {
-      setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
+# basic test for valid rgb color and type and
+# switches hex <--> rgb, able to apply tint colors
+RgbToHex <- function(x, 
+                     convert = "hex", 
+                     tint = FALSE) {
+  if(str_count(x, ",") == 2){
+    # hex <- rgb
+    myhex <- try(rgb(str_split_fixed(x,",",n=3),
+                     maxColorValue = 255), silent = TRUE)
+    if("try-error" %in% class(myhex)){
+      myhex <- "#000000"
+      mygrb <- "0,0,0"
     } else {
-      setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
-                                             floor(num_bins*.24),
-                                             floor(num_bins*.24)+1,
-                                             floor(num_bins*.59))] 
+      myrgb <- x
+      if (is.numeric(tint) & between(tint,0,1)) {
+        myrgb <- as.numeric(str_split_fixed(myrgb,",",n=3))
+        myrgb <-
+          paste(round(myrgb + (255 - myrgb) * tint), collapse = ",")
+        myhex <- rgb(str_split_fixed(myrgb,",",n=3),
+                     maxColorValue = 255)
+      } 
     }
-  } else if (type == '5'| type == '5L'| type == "TSS") {
-    if (num_bins == 2 | type == 'PI') {
-      setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
-    } else {
-      setsliders <- c(slider_breaks$mylabels[c(floor(num_bins*.25)+1,
-                                               floor(num_bins*.75)+1)],
-                      NA,NA)
-    }
-  } else if (type == '3'| type == "TES") {
-    setsliders <- slider_breaks$mylabels[c(1,floor(num_bins/3.2),
-                    floor(num_bins/3.2)+1,num_bins)]
   } else {
-    setsliders <- slider_breaks$mylabels[c(
-      1,
-      floor(num_bins/2),
-      floor(num_bins/2)+1,
-      num_bins)]
+    # rgb <- hex (tint)
+    myrgb <- try(col2rgb(x), silent = TRUE)
+    if("try-error" %in% class(myrgb)){
+      myhex <- "#000000"
+      myrgb <- "0,0,0"
+    } else {
+      if (is.numeric(tint) & between(tint,0,1)) {
+        myrgb <-
+          paste(round(as.numeric(myrgb) + (255 - as.numeric(myrgb)) * tint), collapse = ",")
+        myhex <- rgb(str_split_fixed(myrgb,",",n=3),
+                     maxColorValue = 255)
+        
+      } else {
+        myhex <- x
+        myrgb <- paste(myrgb, collapse = ",")
+      }
+    }
   }
-  setsliders
+  if(convert == "hex"){
+    return(myhex)
+  } else {
+    return(myrgb) 
+  }
+}
+
+# finds first partial match to gene list input 
+MatchGenes <- function(common_list, gene_list){
+  # print("gene match fun")
+  if(str_detect(gene_list$gene[1],"|")){
+    tablefile <-
+      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
+      setNames(gene_list$gene)
+  } else if(str_detect(gene_list$gene[1],"_")){
+    tablefile <-
+      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
+      setNames(gene_list$gene)
+  }else {
+    tablefile <-
+      map(paste0("\\|", gene_list$gene,"$"), str_subset, string = common_list$gene) %>% 
+      setNames(gene_list$gene)
+  }
+  tablefile <- map_df(tablefile, ~as.data.frame(.x), .id="gene") %>% 
+    distinct(gene,.keep_all = T) %>% 
+    full_join(.,gene_list,by="gene") %>% 
+    transmute(org_gene = gene, gene=.x)
+  return(tablefile)
 }
 
 # sort out info on file/url
-PrepMetaFile <-
-  function(file_path,
-           file_name) {
-    # print("PrepMetaFile")
-    # tests if loading a file with a list of address to remote files, requires .url.txt in file name
-    if (str_detect(file_name, ".url.txt")) {
-      num_col <-
-        try(count_fields(
-          file_path,
-          n_max = 1,
-          tokenizer = tokenizer_delim(" ")
-        ),
-        silent = T)
-      if ("try-error" %in% class(num_col)) {
-        showModal(modalDialog(
-          title = "Information message",
-          paste(file_name, "cant find file to load"),
-          size = "s",
-          easyClose = TRUE
-        ))
-        return(NULL)
-      }
-      if (num_col > 1) {
-        col_names <- c("filepath", "type", "nick", "color")
-        col_types <- cols(
-          filepath = col_character(),
-          type = col_character(),
-          nick = col_character(),
-          color = col_character()
-        )
-      } else {
-        col_names <- c("filepath")
-        col_types <- cols(filepath = col_character())
-      }
-      meta_data <-
-        suppressMessages(read_delim(
-          file_path,
-          delim = " ",
-          col_names = col_names,
-          col_types = col_types
-        )) 
-      if (num_col == 1) {
-        meta_data <-
-          meta_data %>% mutate(
-            nick = str_split(filepath, "/", simplify = T) %>%
-              as_tibble(., name_repair =
-                          "unique") %>%
-              select(last_col()) %>% unlist() %>%
-              str_remove(., ".matrix.gz") %>% str_replace("\\.", "_"),
-            type = str_extract(nick, "^(\\d)+") %>%
-              replace_na("none"),
-            color = sample(
-              suppressWarnings(brewer.pal(11, sample(
-                kBrewerList, size = 1
-              ))) %>%
-                grep("#FF", ., value = T, invert = T),
-              size = nrow(meta_data)
-            )
-          )
-      } else {
-        meta_data <-
-          meta_data %>%
-          mutate(nick = str_replace(nick, "\\.", "_"))
-      }
-    } else {
-      meta_data <-  tibble(
-        filepath = file_path,
-        nick = last(str_split(file_name, "/", simplify = T)) %>%
-          str_remove(., ".matrix.gz") %>% str_replace("\\.", "_"),
-        type = str_extract(nick, "^(\\d)+") %>%
-          replace_na("none"),
-        color = sample(
-          suppressWarnings(brewer.pal(11, sample(
-            kBrewerList, size = 1
-          ))) %>%
-            grep("#FF", ., value = T, invert = T),
-          size = 1
-        )
-      )
-    }
-    meta_data
+PrepMetaFile <- function(file_path, file_name) {
+  # print("PrepMetaFile")
+  # tests if loading a file with a list of address to remote files, requires .url.txt in file name
+  if (str_detect(file_name, ".url.txt")) {
+    col_names <- c("filepath", "group", "nick", "color")
+    col_types <- cols(
+      filepath = col_character(),
+      group = col_character(),
+      nick = col_character(),
+      color = col_character()
+    )
+    meta_data <-
+      suppressMessages(read_delim(
+        file_path,
+        delim = " ",
+        col_names = col_names,
+        col_types = col_types
+      )) 
+    
+  } else {
+    meta_data <-  tibble(
+      filepath = file_path
+    ) %>% 
+      mutate(nick = str_split(file_name, "/", simplify = T) %>%
+               as_tibble(., .name_repair = "unique") %>%
+               select(last_col()) %>% unlist() %>%
+               str_remove(., ".matrix.gz") %>% str_replace("\\.", "_")
+      ) 
   }
+  # makes sure needed meta data is there
+  if(! "nick" %in% names(meta_data)){
+    meta_data <- meta_data %>% 
+      mutate(nick = str_split(filepath, "/", simplify = T) %>%
+               as_tibble(., .name_repair = "unique") %>%
+               select(last_col()) %>% unlist() %>%
+               str_remove(., ".matrix.gz") %>% str_replace("\\.", "_")
+      ) 
+  } else {
+    # removes "." in nickname to prevent problems
+    meta_data <- meta_data %>%
+      mutate(nick = str_replace(nick, "\\.", "_")
+      )
+  }
+  if(! "group" %in% names(meta_data)){
+    meta_data <- meta_data %>% mutate(group = nick) 
+  } else if(n_distinct(meta_data$group)==1 ){
+    meta_data <- meta_data %>% mutate(group = nick) 
+  }
+  if(! "color" %in% names(meta_data)){
+    meta_data <- meta_data %>% 
+      mutate(color = sample(
+        suppressWarnings(brewer.pal(11, sample(
+          kBrewerList, size = 1))) %>%
+          grep("#FF", ., value = T, invert = T),
+        size = nrow(meta_data))
+      )
+  } else {
+    # converts color to hex 
+    for(i in seq_along(meta_data$color))
+      meta_data$color[i] <- RgbToHex(meta_data$color[i])
+  }
+  meta_data
+}
 
 # test file is there and what type
 tableTestbin <- function(meta_data){
   # get info on file to help know what type it is
   # print("tableTestbin")
-  type2 <- 0
   rnaseq <- F
   # test if file can be loaded in and has a deeptools .matrix header
   read_test <-
@@ -137,40 +151,52 @@ tableTestbin <- function(meta_data){
     ))
     return()
   }
-    num_bins <-
-      count_fields(meta_data$filepath,
-                   n_max = 1,
-                   skip = 1,
-                   tokenizer = tokenizer_tsv())
-    col_names <- c("chrom", "start", "end","gene", "value", "strand", 1:(num_bins - 6))
-    mylist <- c("bin size","upstream","downstream","body","unscaled 5 prime","unscaled 3 prime")
-    
-    meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F, show_col_types = FALSE)
-    mm <- meta %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>% 
-      str_replace_all(.,fixed('\"'),"") 
-    type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "ref point:", "")
-    
-    if(type == "TSS"){
-      type <- 5
-    } else if(type == "TES") {
-      type <- 3
-    } else{
-      type <- 543
+  num_bins <-
+    count_fields(meta_data$filepath,
+                 n_max = 1,
+                 skip = 1,
+                 tokenizer = tokenizer_tsv())
+  col_names <- c("chrom", "start", "end","gene", "value", "strand", 1:(num_bins - 6))
+  mylist <- c("bin size","upstream","downstream","body","unscaled 5 prime","unscaled 3 prime")
+  
+  meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F, show_col_types = FALSE)
+  mm <- meta %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>% 
+    str_replace_all(.,fixed('\"'),"") 
+  type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "ref point:", "")
+  
+  if(type == "TSS"){
+    type <- 5
+  } else if(type == "TES") {
+    type <- 3
+  } else{
+    type <- 543
+  }
+  # check if PI type
+  if(num_bins == 8){
+    type <- 2
+  }
+  
+  header <- type
+  for(i in mylist){
+    header <- c(header,mm[str_which(mm,i)] %>% 
+                  str_remove(.,i) %>% 
+                  str_replace_all(., "[a-zA-Z: ]", ""))
+  }
+  binning <- header %>% as.numeric()
+  # set labels every # bins
+  if(num_bins < 106){
+    if(type == 2){
+      everybp <- 1
+    } else {
+      everybp <- round(as.double(binning[2])*5, -2)
     }
-    # check if PI type
-    if(num_bins == 8){
-      type2 <- 1
-    }
-      
-    header <- type
-    for(i in mylist){
-      header <- c(header,mm[str_which(mm,i)] %>% 
-                        str_remove(.,i) %>% 
-                        str_replace_all(., "[a-zA-Z: ]", ""))
-    }
-    rnaseq <- mm[str_which(mm,"sample_labels:")] %>% str_detect(.,"_fw|_rev")
-    binning <- header %>% as.numeric()
-  list(num_bins = num_bins, col_names = col_names, binning = binning, type2 = type2, rnaseq = rnaseq)
+  } else {
+    everybp <- round((num_bins-6)/10,-1)*binning[2]
+  }
+  binning <- c(binning,everybp)
+  rnaseq <- mm[str_which(mm,"sample_labels:")] %>% str_detect(.,"_fw|_rev|_pos|_neg")
+  
+  list(num_bins = num_bins, col_names = col_names, binning = binning, rnaseq = rnaseq)
 }
 
 LoadTableFile <-
@@ -178,16 +204,16 @@ LoadTableFile <-
            bin_colname) {
     # print("LoadTableFile")
     tablefile <- suppressMessages(
-        read_tsv(
-          meta_data$filepath,
-          comment = "#",
-          col_names = bin_colname$col_names,
-          skip = 1,
-          show_col_types = FALSE
-        )
-      ) %>%
-        pivot_longer(cols = 7:(bin_colname$num_bins),
-                     names_to = "bin",values_to = "score")
+      read_tsv(
+        meta_data$filepath,
+        comment = "#",
+        col_names = bin_colname$col_names,
+        skip = 1,
+        show_col_types = FALSE
+      )
+    ) %>%
+      pivot_longer(cols = 7:(bin_colname$num_bins),
+                   names_to = "bin",values_to = "score")
     
     tablefile %>%
       dplyr::mutate(bin = as.numeric(bin),
@@ -213,111 +239,461 @@ LoadGeneFile <-
       return()
     }
     legend_nickname <- last(str_split(file_name,"/",simplify = T)) %>% 
-        str_remove(., ".txt") %>% str_replace("\\.","_")
-      # checks if file with same nickname has already been loaded
-      if (legend_nickname %in% names(list_data$gene_file)) {
-        showModal(modalDialog(
+      str_remove(., ".txt") %>% str_replace("\\.","_")
+    # checks if file with same nickname has already been loaded
+    if (legend_nickname %in% names(list_data$gene_file)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste(file_name, "has already been loaded"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return()
+    }
+    # gets number of columns in file, used to guess how to deal with file
+    #  and checks if file exits
+    num_col <-
+      try(count_fields(file_path,
+                       n_max = 1,
+                       skip = 1,
+                       tokenizer = tokenizer_tsv()),silent = T)
+    if ("try-error" %in% class(num_col) & num_col > 0) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste(file_name, "cant find file to load"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return()
+    }
+    if(str_detect(file_path, ".bed")){
+      col_names <- 1:num_col
+      col_names[4] <- "gene"
+    } else {
+      col_names <- FALSE
+    }
+    # reads in file
+    tablefile <-
+      suppressMessages(read_tsv(file_path,
+                                comment = "#",
+                                col_names = col_names,
+                                show_col_types = FALSE)) 
+    if(!"gene" %in% names(tablefile)){
+      names(tablefile)[1] <- "gene"
+    }
+    tablefile <- tablefile %>% 
+      distinct(gene,.keep_all = T) %>% mutate(gene=as.character(gene))
+    # checks gene list is a subset of what has been loaded
+    gene_names <- tablefile %>% select(gene) %>% 
+      semi_join(., list_data$gene_file$Complete$full, by = "gene") %>% distinct(gene)
+    # test data is compatible with already loaded data
+    if (n_distinct(gene_names$gene, na.rm = T) == 0) {
+      showModal(
+        modalDialog(
           title = "Information message",
-          paste(file_name, "has already been loaded"),
+          " couldn't find a exact match, checking for partial match
+            This might take a few minutes",
           size = "s",
-          easyClose = TRUE
-        ))
-        return()
-      }
-      # gets number of columns in file, used to guess how to deal with file
-      #  and checks if file exits
-      num_col <-
-        try(count_fields(file_path,
-                         n_max = 1,
-                         skip = 1,
-                         tokenizer = tokenizer_tsv()),silent = T)
-      if ("try-error" %in% class(num_col) & num_col > 0) {
-        showModal(modalDialog(
-          title = "Information message",
-          paste(file_name, "cant find file to load"),
-          size = "s",
-          easyClose = TRUE
-        ))
-        return()
-      }
-      if(str_detect(file_path, ".bed")){
-        col_names <- 1:num_col
-        col_names[4] <- "gene"
-      } else {
-        col_names <- FALSE
-      }
-      # reads in file
-      tablefile <-
-        suppressMessages(read_tsv(file_path,
-                                  comment = "#",
-                                  col_names = col_names,
-                                  show_col_types = FALSE)) 
-      if(!"gene" %in% names(tablefile)){
-        names(tablefile)[1] <- "gene"
-      }
-      tablefile <- tablefile %>% 
-        distinct(gene,.keep_all = T) %>% mutate(gene=as.character(gene))
-      # checks gene list is a subset of what has been loaded
-      gene_names <- tablefile %>% select(gene) %>% 
-        semi_join(., list_data$gene_file$Complete$full, by = "gene") %>% distinct(gene)
-      # test data is compatible with already loaded data
+          easyClose = T
+        )
+      )
+      # tries to grep lists and find matches
+      gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene))
       if (n_distinct(gene_names$gene, na.rm = T) == 0) {
         showModal(
           modalDialog(
             title = "Information message",
-            " couldn't find a exact match, checking for partial match
-            This might take a few minutes",
+            " No genes found after pattern matching search",
             size = "s",
-            easyClose = T
+            easyClose = TRUE
           )
         )
-        # tries to grep lists and find matches
-        gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene))
-        if (n_distinct(gene_names$gene, na.rm = T) == 0) {
-          showModal(
-            modalDialog(
-              title = "Information message",
-              " No genes found after pattern matching search",
-              size = "s",
-              easyClose = TRUE
-            )
+        return()
+      } else {
+        tablefile <- gene_names
+        showModal(
+          modalDialog(
+            title = "Information message",
+            paste("Found", n_distinct(gene_names$gene, na.rm = T), "genes after pattern matching search"),
+            size = "s",
+            easyClose = TRUE
           )
-          return()
-        } else {
-          tablefile <- gene_names
-          showModal(
-            modalDialog(
-              title = "Information message",
-              paste("Found", n_distinct(gene_names$gene, na.rm = T), "genes after pattern matching search"),
-              size = "s",
-              easyClose = TRUE
-            )
-          )
-        }
+        )
       }
-      # adds full n count to nickname
-      my_name <- legend_nickname
-      # preps meta data
-      meta_data <- list_data$meta_data %>% 
-        dplyr::filter(gene_list == "Complete") %>% 
-        dplyr::mutate(gene_list = my_name, 
-                      count = paste("n =", n_distinct(gene_names$gene, na.rm = T)),
-                      sub = " ", onoff = "0",
-                      plot_legend = " ")
-      # saves data in list of lists
-      list_data$gene_file[[my_name]]$full <- tablefile %>% select(gene) %>% distinct()
-      list_data$gene_file[[my_name]]$info <- tibble(loaded_info =
-                                                      paste("Loaded gene list from file",
-                                                            legend_nickname,
-                                                            Sys.Date()),
-                                                    save_name = gsub(" ", "_", str_squish(paste(legend_nickname,
-                                                                      Sys.Date(), sep ="_"))),
-                                                    col_info = "loaded file"
-                                                    )
-      list_data$meta_data <- bind_rows(list_data$meta_data, meta_data)
-      
+    }
+    # adds full n count to nickname
+    my_name <- legend_nickname
+    # preps meta data
+    meta_data <- list_data$meta_data %>% 
+      dplyr::filter(gene_list == "Complete") %>% 
+      dplyr::mutate(gene_list = my_name, 
+                    count = paste("n =", n_distinct(gene_names$gene, na.rm = T)),
+                    sub = " ", onoff = "0",
+                    plot_legend = " ")
+    # saves data in list of lists
+    list_data$gene_file[[my_name]]$full <- tablefile %>% select(gene) %>% distinct()
+    list_data$gene_file[[my_name]]$info <- tibble(loaded_info =
+                                                    paste("Loaded gene list from file",
+                                                          legend_nickname,
+                                                          Sys.Date()),
+                                                  save_name = gsub(" ", "_", str_squish(paste(legend_nickname,
+                                                                                              Sys.Date(), sep ="_"))),
+                                                  col_info = "loaded file"
+    )
+    list_data$meta_data <- bind_rows(list_data$meta_data, meta_data)
+    
     return(list_data)
   }
+
+# gets y axis label landmarks
+LinesLableLandmarks <- function(myinfo){
+  # print("LinesLableLandmarks")
+  # type, bp/bin, before, after, body, un5, un3, spacing
+  # myinfo <- c(543,100,1500,3500,2000,500,500,500)
+  
+  # grab type
+  mytype <- myinfo[1]
+  # convert to double
+  myinfo <- suppressWarnings(as.double(myinfo))
+  # TSS landmark
+  if(mytype != 3) {
+    tssbin <- myinfo[3]/myinfo[2]
+  } else {
+    tssbin = 0
+  }
+  # TES landmark
+  if(mytype != 5){
+    tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
+  } else {
+    tesbin <- 0
+  }
+  # scaled body landmarks
+  if (any(myinfo[5:7] > 0)) {
+    body1bin <- tssbin + myinfo[6]/myinfo[2]
+    body2bin <- body1bin + myinfo[5]/myinfo[2]
+    if(body1bin == tssbin){
+      body1bin <- 0
+    }
+    if(body2bin == tesbin){
+      body2bin <- 0
+    }
+  } else {
+    body1bin <- 0
+    body2bin <- 0
+  }
+  
+  floor(c(tssbin, tesbin, body1bin, body2bin, myinfo[8]/myinfo[2]))
+}
+
+
+# Sets plot lines and labels colors
+# makes plot ascetics  
+LinesLabelsPlot <-
+  function(myinfo,
+           body1color,
+           body1line,
+           body2color,
+           body2line,
+           tsscolor,
+           tssline,
+           tescolor,
+           tesline,
+           use_plot_breaks_labels,
+           use_plot_breaks,
+           vlinesize,
+           linesize,
+           fontsizex,
+           fontsizey,
+           legendsize,
+           myalpha,
+           lineloc) {
+    # print("lines and labels plot fun")
+    # myinfo <- c(543,100,1500,3500,2000,500,500,500)
+    
+    tssbin <- lineloc[1]
+    tesbin <- lineloc[2]
+    body1bin <- lineloc[3]
+    body2bin <- lineloc[4]
+    binspace <- lineloc[5]
+    binsize <- myinfo[8]
+    if (length(use_plot_breaks_labels) > 0) {
+      mycolors <- rep("black", length(use_plot_breaks))
+      use_virtical_line <- lineloc[1:4]
+      if (!is.na(tssbin) & tssbin > 0) {
+        mycolors[which(use_plot_breaks == tssbin)] <- tsscolor
+        use_virtical_line[1] <- tssbin
+        if (!is.na(body1bin) &
+            !is.na(body2bin) &
+            tssbin < body1bin &
+            body1bin < body2bin &
+            body2bin < tesbin & tesbin <= last(use_plot_breaks)) {
+          use_virtical_line[3:4] <- c(body1bin, body2bin)
+        }
+      }
+      if (!is.na(tesbin) & tesbin > 0) {
+        mycolors[which(use_plot_breaks == tesbin)] <- tescolor
+        use_virtical_line[2] <- tesbin
+      }
+    } else {
+      use_plot_breaks <- 0
+      use_plot_breaks_labels <- "none"
+      use_virtical_line <- c(NA, NA, NA, NA)
+    }
+    # vertical line set up
+    use_virtical_line_color <-
+      c(tsscolor, tescolor, body1color, body2color)
+    use_virtical_line_type <-
+      c(tssline, tesline, body1line, body2line)
+    use_plot_breaks <- na_if(use_plot_breaks, 0.5)
+    use_virtical_line <- na_if(use_virtical_line, 0.5)
+    use_plot_breaks_labels <-
+      use_plot_breaks_labels[!is.na(use_plot_breaks)]
+    use_plot_breaks <- use_plot_breaks[!is.na(use_plot_breaks)]
+    use_virtical_line_type <-
+      use_virtical_line_type[!is.na(use_virtical_line)]
+    use_virtical_line_color <-
+      use_virtical_line_color[!is.na(use_virtical_line)]
+    use_virtical_line <-
+      use_virtical_line[!is.na(use_virtical_line)]
+    list(
+      myline = virtical_line_data_frame <- data.frame(
+        use_virtical_line,
+        use_virtical_line_type,
+        use_virtical_line_color,
+        stringsAsFactors = FALSE
+      ),
+      mycolors = mycolors,
+      mybrakes = use_plot_breaks,
+      mylabels = use_plot_breaks_labels,
+      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, myalpha),
+      myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
+    )
+  }
+
+
+# Sets lines and labels
+LinesLabelsSet <- function(myinfo,
+                           landmarks,
+                           totbins = 105,
+                           tssname = "TSS",
+                           tesname = "pA",
+                           slider = F) {
+  # print("LinesLabelsSet")
+  lineloc <- c(NA, NA, NA, NA)
+  mytype <- myinfo[1]
+  myinfo <- suppressWarnings(as.double(myinfo))
+  if (myinfo[8] > 0) {
+    if(totbins > 3){
+      if(slider){
+        myinfo[8] <- myinfo[2]
+        landmarks[5] <- 1
+      }
+      if(myinfo[3] == 1){
+        myinfo[3] <- 0
+      }
+      # y asis locations and labels for 1:before
+      if(landmarks[1] > 0){
+        mod <- 0.5
+      } else {
+        mod <- 1
+        landmarks[1] <- landmarks[2]
+      }
+      before <- seq(-myinfo[3], 0, by = myinfo[8])
+      beforebins <- seq(1,  by = landmarks[5], length.out = length(before))
+      # landmark1 is 5' end
+      if(mytype == 3){
+        tssname <- tesname
+        before <- abs(before)
+      }
+      # make sure landmark is included properly 
+      myloc <- which(before == 0 | beforebins == landmarks[1])
+      if(!is_empty(myloc)){
+        myloc <- max(myloc)
+      }
+      if (any(before == 0) | any(beforebins == landmarks[1])) {
+        beforebins[myloc] <- landmarks[1] + mod
+        before[myloc] <- tssname
+      } else {
+        beforebins <- sort(c(beforebins, landmarks[1] + mod))
+        before <- append(before, tssname)
+      }
+      if(mytype == 3){
+        lineloc[2] <- landmarks[1] + mod
+      } else {
+        lineloc[1] <- landmarks[1] + mod
+      }
+      
+      # test for unscaled5prime and unscaled3prime landmarks
+      if(any(c(landmarks[3],landmarks[4]) > 0) | mytype == 543){
+        # unscaled5prime
+        if(landmarks[3] > 0){
+          # tss to unscaled5prime
+          unscaled5prime <- seq(myinfo[8], (landmarks[3] - landmarks[1]) * myinfo[2], by = myinfo[8])
+          unscaled5primebin <- seq(landmarks[1]+landmarks[5], by = landmarks[5], length.out = length(unscaled5prime))
+          if(landmarks[1] == 0 & myinfo[8] == 1){
+            unscaled5prime <- unscaled5prime + 1
+            unscaled5primebin <- unscaled5primebin + 1
+          }
+          # make sure body brake is included
+          if (!any(unscaled5primebin == landmarks[3])) {
+            unscaled5prime <- append(unscaled5prime, (landmarks[3] - landmarks[1]) * myinfo[2])
+            unscaled5primebin <- c(unscaled5primebin, landmarks[3])
+          }
+          lineloc[3] <- landmarks[3]
+          # slider body
+          if(slider){
+            unscaled5prime <- c(paste0("5'unscale_",unscaled5prime), 
+                                paste0("scaled_",seq_along((landmarks[3]+1):(landmarks[4]))))
+            unscaled5primebin <- c(unscaled5primebin, (landmarks[3]+1):(landmarks[4]))
+          }
+        } else {
+          unscaled5prime <- NULL
+          unscaled5primebin <- NULL
+        }
+        
+        if(landmarks[4] > 0){
+          # unscaled3prime to last landmark
+          unscaled3prime <-  abs(seq((landmarks[4] - landmarks[2]) * myinfo[2], 0, by = myinfo[8]))
+          if(landmarks[4] == 1){
+            unscaled3prime <- unscaled3prime + myinfo[2]
+          }
+          unscaled3primebin <- seq(landmarks[4]+1, by = landmarks[5], length.out = length(unscaled3prime))
+          lineloc[4] <- landmarks[4]+1
+          # make sure TES is included
+          myloc <- which(unscaled3prime == 0 | unscaled3primebin == landmarks[2]+1)
+          if(!is_empty(myloc)){
+            myloc <- max(myloc)
+          }
+          if (any(unscaled3prime == 0) | any(unscaled3primebin == landmarks[2]+1)) {
+            unscaled3primebin[myloc] <- landmarks[2] + .5
+            unscaled3prime[myloc] <- tesname
+          } else {
+            unscaled3primebin <- sort(c(unscaled3primebin, landmarks[2] + .5))
+            unscaled3prime[which(unscaled3primebin == landmarks[2] + .5)] <- tesname
+          }
+          lineloc[2] <- landmarks[2] + .5
+          if(slider){
+            unscaled3prime[which(unscaled3prime != tesname)] <- 
+              paste0("3'unscale_",unscaled3prime[which(unscaled3prime != tesname)])
+          }
+        } else {
+          unscaled3prime <- NULL
+          unscaled3primebin <- NULL
+        }
+        before <- c(before,unscaled5prime,unscaled3prime)
+        beforebins <- c(beforebins,unscaled5primebin,unscaled3primebin)
+        
+        tt <- c(myinfo[8], abs(totbins - landmarks[2]) * myinfo[2])
+        TESname <- seq(min(tt),max(tt), by = myinfo[8])
+        TESloc <-
+          seq(landmarks[2] + landmarks[5],
+              by = landmarks[5],
+              length.out = length(TESname))
+        # make sure last location is included
+        if (!any(TESloc == totbins)) {
+          TESname <- append(TESname, abs(totbins - landmarks[2]) * myinfo[2])
+          TESloc <- c(TESloc, totbins)
+        }
+        # make sure TES is included
+        if (!any(before == tesname)){
+          before <- c(before,tesname,TESname)
+          beforebins <- c(beforebins,landmarks[2] + .5,TESloc)
+        } else {
+          before <- c(before,TESname)
+          beforebins <- c(beforebins,TESloc)
+        }
+        lineloc[2] <- landmarks[2] + .5
+        # just 5' or 3'
+      } else if(myinfo[8] <= myinfo[4]){
+        landmark  <- trunc(last(beforebins)) + landmarks[5] 
+        TESname <- seq(myinfo[8], myinfo[4], by = myinfo[8])
+        TESloc <-
+          seq(landmark,
+              by = landmarks[5],
+              length.out = length(TESname))
+        # make sure last location is included
+        if (!any(TESloc == totbins)) {
+          TESname <- append(TESname, myinfo[4])
+          TESloc <- c(TESloc, totbins)
+        }
+        if(mytype == 3 & slider){
+          # sliders remove + if connected  
+          TESname <- paste0("+ ", TESname)
+        }
+        before <- c(before,TESname)
+        beforebins <- c(beforebins,TESloc)
+      } else {
+        before <- c(before,NA)
+        beforebins <- c(beforebins,totbins)
+      }
+      # put it all together
+      use_plot_breaks <- beforebins
+      use_plot_breaks_labels <- before
+    } else{
+      use_plot_breaks <- c(1,2)
+      use_plot_breaks_labels <- c(1,2)
+    }
+  } else {
+    # just print bin numbers
+    use_plot_breaks <-
+      seq(1,totbins,by=ceiling(totbins/10))
+    use_plot_breaks_labels <- use_plot_breaks
+  }
+  if(slider){
+    use_plot_breaks_labels <- make.unique(as.character(use_plot_breaks_labels), sep = "_")
+  }
+  use_plot_breaks_labels <- use_plot_breaks_labels[which(use_plot_breaks <= totbins)]
+  use_plot_breaks <- use_plot_breaks[which(use_plot_breaks <= totbins)]
+  lineloc <- c(lineloc, landmarks[5])
+  list(mybrakes = use_plot_breaks,
+       mylabels = use_plot_breaks_labels,
+       lineloc = lineloc)
+}
+
+# takes info from file type and number of bins to pre set tools sliders
+SlidersSetsInfo <- function(slider_breaks, type){
+  # 5Min, 5Max, 3Min, 3Max
+  # print("SlidersSetsInfo")
+  num_bins <- max(slider_breaks$mybrakes)
+  
+  if (type == 2 | num_bins == 2) { 
+    setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
+    
+  } else if(type == 543) {
+    setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
+                                           floor(num_bins*.24),
+                                           floor(num_bins*.24)+1,
+                                           floor(num_bins*.59))] 
+    
+  } else if (type == 5) {
+    setsliders <- c(slider_breaks$mylabels[c(floor(num_bins*.25)+1,
+                                             floor(num_bins*.75)+1)],
+                    NA,NA)
+    
+  } else if (type == 3) {
+    setsliders <- slider_breaks$mylabels[c(1,floor(num_bins/3.2),
+                                           floor(num_bins/3.2)+1,num_bins)]
+  } else {
+    setsliders <- slider_breaks$mylabels[c(
+      1,
+      floor(num_bins/2),
+      floor(num_bins/2)+1,
+      num_bins)]
+  }
+  setsliders
+}
+
+# records check box on/off
+CheckBoxOnOff <- function(check_box, list_data) {
+  if(!all(is.na(names(check_box)))){
+    list_data <- full_join(list_data,check_box,by=c("set","gene_list")) %>%
+      dplyr::filter(!is.na(set)) %>% 
+      dplyr::mutate(onoff=if_else(is.na(onoff.y),"0",set)) %>% 
+      dplyr::select(-onoff.y,-onoff.x) %>%
+      distinct()
+  }
+  list_data
+}
 
 # input data list, output filtered and bound data with plot legend column
 Active_list_data <-
@@ -427,88 +803,174 @@ ApplyMath <-
         select(-value2)
     }
     # finish making file ready for ggplot
-    if(group == "groups only"){
+    if(group == "groups"){
       list_data <- select(list_data, -plot_legend) %>% 
         right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
-                                select(group, plot_legend, gene_list),by=c("group","gene_list")) %>% 
+                     select(group, plot_legend, gene_list),by=c("group","gene_list")) %>% 
         separate(plot_legend,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
         dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_legend)) %>%
         transmute(set = plot_legend,plot_legend=group,bin=bin,value=value) %>% 
-         group_by(set, bin,plot_legend) %>% 
+        group_by(set, bin,plot_legend) %>% 
         summarise(min=min(value),max=max(value),
                   value = mean(value), .groups = "drop") 
-      } else if (group == "groups and single"){
-        list_data2 <- select(list_data, -plot_legend) %>% 
-          right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
-                       select(group, plot_legend, gene_list),by=c("group","gene_list")) %>% 
-          separate(plot_legend,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
-          dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_legend)) %>%
-          transmute(set = plot_legend,plot_legend=group,bin=bin,value=value) %>% 
-          group_by(set, bin,plot_legend) %>% 
-          summarise(min=min(value),max=max(value),
-                    value = mean(value), .groups = "drop") 
-        list_data <- list_data %>% 
-          mutate(set=plot_legend,min=value,max=value) %>% 
-            bind_rows(.,list_data2)
-      } else {
-        list_data <- list_data %>% 
-          mutate(set=plot_legend,min=value,max=value)
-      }
+    } else {
+      list_data <- list_data %>% 
+        mutate(set=plot_legend,min=value,max=value)
+    }
     return(list_data)
   }
 
-# get min and max from apply math data set
-YAxisValues <-
-  function(apply_math,
-           xBinRange,
-           log_2 = F,
-           yBinRange = c(0, 100)) {
-    tt <- group_by(apply_math, set) %>%
-      dplyr::filter(bin %in% xBinRange[1]:xBinRange[2]) %>%
-      ungroup() %>%
-      summarise(min(min, na.rm = T), max(max, na.rm = T),.groups="drop") %>%
-      unlist(., use.names = FALSE)
-    tt <-
-      c(tt[1] + (tt[1] * (yBinRange[1] / 100)), tt[2] + (tt[2] * ((yBinRange[2] -
-                                                                     100) / 100)))
-    if (log_2) {
-      tt <- log2((abs(tt))^(sign(tt)))
-    }
-    tt <- c(round(min(tt), 4),round(max(tt), 4))
-    tt
+# YaxisValuetTest gathers values
+YaxisValuetTest <- function(ttest, hlinettest, selectttestlog ){
+  mm <- round(extendrange(range(ttest$p.value, na.rm = T,finite=T),f = .1),digits = 2)
+  p_cutoff <- hlinettest
+  if(selectttestlog == "-log"){
+    p_cutoff <- -log(hlinettest)
+  } else if(selectttestlog == "-log10"){
+    p_cutoff <- -log10(hlinettest)
+  }
+  if(mm[1] > 0){
+    mm[1] <- 0
+  }
+  if(mm[2] < p_cutoff){
+    mm[2] <- p_cutoff
+  }
+  mm <- c(round(min(mm), 4),round(max(mm), 4))
+  return(mm)
+}
+
+# applys t.test to active data
+ApplyTtest <-
+  function(list_data,
+           switchttest,
+           use_tmath,
+           switchttesttype,
+           padjust,
+           my_alt, 
+           my_exact, 
+           my_paired,
+           group = "none") {
+    # t.test comparing files in same gene list
+    ttest <- NULL
+    if(switchttest != "none"){
+      if(group == "groups only"){
+        list_data <- list_data %>% 
+          dplyr::mutate(set= gsub("\n", "", group)) 
+      }
+      if(switchttest == "by lists" & n_distinct(list_data$gene_list, na.rm = T) > 1){
+        list_data <- list_data %>% 
+          rename(set=gene_list,gene_list=set)
+      }
+      n_test <- list_data %>% group_by(gene_list) %>% 
+        summarise(n=n_distinct(set), .groups= "drop")
+      
+      for(i in n_test$gene_list){
+        if(n_test %>% dplyr::filter(gene_list == i) %>% dplyr::select(n) > 1){
+          ttest[[i]] <- bind_rows(try_t_test(list_data %>% dplyr::filter(gene_list == i), i,
+                                             use_tmath,switchttesttype,padjust,
+                                             my_alt, noquote(my_exact), noquote(my_paired))) %>% 
+            dplyr::mutate(myline = 1,
+                          mycol = "#000000" )
+        } 
+      }
+    } 
+    bind_rows(ttest)
   }
 
-# Sets y label fix
-YAxisLabel <-
-  function(use_math = "mean",
-           relative_frequency = "none",
-           norm_bin = "NA",
-           smoothed = F,
-           log_2 = F) {
-    use_y_label <- paste(use_math, "of bin counts")
-    if (relative_frequency == "rel gene frequency") {
-      use_y_label <- paste("RF per gene :", use_y_label)
-    } else if (relative_frequency == "relative frequency") {
-      use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
-                           "bins : RF")
-    }
-    if (norm_bin != "NA") {
-      if (relative_frequency == "rel gene frequency") {
-        use_y_label <- paste(use_y_label, " : Norm ", norm_bin)
-      } else {
-        use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
-                             "bins : Normalize to ",
-                             norm_bin)
-      }
-    }
-    if (log_2) {
-      use_y_label <- paste0("log2(", use_y_label, ")")
-    }
-    if (smoothed) {
-      use_y_label <- paste0("smoothed(", use_y_label, ")")
-    }
-    use_y_label
+# makes sure t test wont crash on an error
+try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
+                       alternative="two.sided", exact=FALSE, paired=FALSE){
+  # print("try t.test")
+  exact <- if_else(exact=="TRUE",TRUE,FALSE)
+  paired <- if_else(paired=="TRUE",TRUE,FALSE)
+  combn(unique(db$set),2) -> my_comparisons
+  my_comparisons2 <- list()
+  db_out <- list()
+  for(cc in 1:ncol(my_comparisons)){
+    my_comparisons2[[cc]] <- (c(my_comparisons[1,cc],my_comparisons[2,cc]))
   }
+  db <- spread(db,set,score) 
+  for(i in my_comparisons2){
+    db2 <- dplyr::select(db, gene,bin,all_of(i)) %>% 
+      rename(score.x=all_of(names(.)[3]), score.y=all_of(names(.)[4])) 
+    
+    myTtest <- tibble(bin=NA,p.value=NA)
+    
+    for(t in unique(db2$bin)){
+      x.score <- dplyr::filter(db2, bin ==t)
+      y.score <- dplyr::filter(db2, bin ==t)
+      kk <- try(get(my_test)(x.score$score.x,y.score$score.y,
+                             alternative = alternative, 
+                             exact=exact, 
+                             paired=paired)$p.value)
+      if("try-error" %in% class(kk) | !is.numeric(kk)){
+        kk <-1
+      }
+      myTtest <- myTtest %>% add_row(bin = t, p.value=kk)
+    }
+    myTtest <- myTtest %>% dplyr::filter(!is.na(bin))
+    if(padjust != "NO"){
+      myTtest <- myTtest %>% dplyr::mutate(p.value=p.adjust(p.value,method = padjust))
+    }
+    if(my_math =="-log"){
+      myTtest <- myTtest %>% dplyr::mutate(p.value=if_else(p.value==0,2.2e-16,p.value)) %>% dplyr::mutate(p.value=-log(p.value))
+    } else if(my_math =="-log10"){
+      myTtest <- myTtest %>% dplyr::mutate(p.value=if_else(p.value==0,2.2e-16,p.value)) %>% dplyr::mutate(p.value=-log10(p.value))
+    }
+    db_out[[str_c(i,collapse = "-")]] <- myTtest %>% 
+      dplyr::mutate(., set = paste(
+        paste0(gsub("(.{20})", "\\1\n", 
+                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,1]),
+               gsub("(.{20})", "\\1\n", 
+                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,2])),
+        gsub("(.{20})", "\\1\n", 
+             str_split_fixed(my_set, "\n", n=2)[,1]),
+        str_split_fixed(my_set, "\n", n=2)[,2],
+        sep = '\n'
+      ))
+    
+  }
+  
+  db_out
+}
+
+# gather relevant plot option data
+MakePlotOptionttest <- function(list_data, Y_Axis_TT,my_ttest_log,hlineTT,pajust,ttype) {
+  if(is_empty(list_data)){
+    return(NULL)
+  }
+  # print("plot options ttest fun")
+  out_options <- list_data %>% select(-bin, -p.value) %>% distinct(set,myline,mycol)
+  list_data_frame <- NULL
+  
+  ldf <- duplicated(out_options$mycol)
+  for (i in seq_along(out_options$mycol)) {
+    if (ldf[i]) {
+      out_options$mycol[i] <-
+        RgbToHex(out_options$mycol[i], convert = "hex", tint = log(i,10))
+    }
+  }
+  
+  list_data_frame$options_main_tt <- out_options
+  list_data_frame$ylimTT <- Y_Axis_TT
+  if(pajust != "none"){
+    pp <- paste0("p.adjust:", pajust)
+  } else{
+    pp <- "p.value"
+  }
+  if(my_ttest_log == "-log"){
+    list_data_frame$hlineTT <- -log(hlineTT)
+    list_data_frame$ylabTT <- paste0(my_ttest_log,"(",pp,")"," ",ttype)
+  } else if(my_ttest_log == "-log10"){
+    list_data_frame$hlineTT <- -log10(hlineTT)
+    list_data_frame$ylabTT <- paste0(my_ttest_log,"(",pp,")"," ",ttype)
+  } else{
+    list_data_frame$hlineTT <- hlineTT
+    list_data_frame$ylabTT <- paste0(pp," ",ttype)
+  }
+  
+  return(list_data_frame)
+}
 
 # gather relevant plot options from meta_data, outputs for ggplot
 MakePlotOptionFrame <- function(meta_data) {
@@ -707,472 +1169,58 @@ GGplotLineDot <-
     }
   }
 
-# gets y axis label landmarks
-LinesLableLandmarks <- function(myinfo){
-  # print("LinesLableLandmarks")
-  # type, bp/bin, before, after, body, un5, un3, spacing
-  # myinfo <- c(543,100,1500,3500,2000,500,500,500)
-  
-  # grab type
-  mytype <- myinfo[1]
-  # convert to double
-  myinfo <- suppressWarnings(as.double(myinfo))
-  # TSS landmark
-  if(mytype != 3) {
-    tssbin <- myinfo[3]/myinfo[2]
-  } else {
-    tssbin = 0
-  }
-  # TES landmark
-  if(mytype != "5" & mytype != "5L"){
-    tesbin <- sum(myinfo[c(3,5:7)])/myinfo[2]
-  } else {
-    tesbin <- 0
-  }
-  # scaled body landmarks
-  if (any(myinfo[5:7] > 0)) {
-    body1bin <- tssbin + myinfo[6]/myinfo[2]
-    body2bin <- body1bin + myinfo[5]/myinfo[2]
-    if(body1bin == tssbin){
-      body1bin <- 0
+# get min and max from apply math data set
+YAxisValues <-
+  function(apply_math,
+           xBinRange,
+           log_2 = F,
+           yBinRange = c(0, 100)) {
+    tt <- group_by(apply_math, set) %>%
+      dplyr::filter(bin %in% xBinRange[1]:xBinRange[2]) %>%
+      ungroup() %>%
+      summarise(min(min, na.rm = T), max(max, na.rm = T),.groups="drop") %>%
+      unlist(., use.names = FALSE)
+    tt <-
+      c(tt[1] + (tt[1] * (yBinRange[1] / 100)), tt[2] + (tt[2] * ((yBinRange[2] -
+                                                                     100) / 100)))
+    if (log_2) {
+      tt <- log2((abs(tt))^(sign(tt)))
     }
-    if(body2bin == tesbin){
-      body2bin <- 0
-    }
-  } else {
-    body1bin <- 0
-    body2bin <- 0
+    tt <- c(round(min(tt), 4),round(max(tt), 4))
+    tt
   }
-  
-  floor(c(tssbin, tesbin, body1bin, body2bin, myinfo[8]/myinfo[2]))
-}
 
-# Sets lines and labels
-LinesLabelsSet <- function(myinfo,
-    landmarks,
-    totbins = 105,
-    tssname = "TSS",
-    tesname = "pA",
-    slider = F) {
-  # print("LinesLabelsSet")
-  lineloc <- c(NA, NA, NA, NA)
-  mytype <- myinfo[1]
-  myinfo <- suppressWarnings(as.double(myinfo))
-  if (myinfo[8] > 0) {
-    if(totbins > 3){
-      if(slider){
-        myinfo[8] <- myinfo[2]
-        landmarks[5] <- 1
-      }
-      if(myinfo[3] == 1){
-        myinfo[3] <- 0
-      }
-    # y asis locations and labels for 1:before
-    if(landmarks[1] > 0){
-      mod <- 0.5
-    } else {
-      mod <- 1
-      landmarks[1] <- landmarks[2]
+# Sets y label fix
+YAxisLabel <-
+  function(use_math = "mean",
+           relative_frequency = "none",
+           norm_bin = "NA",
+           smoothed = F,
+           log_2 = F) {
+    use_y_label <- paste(use_math, "of bin counts")
+    if (relative_frequency == "rel gene frequency") {
+      use_y_label <- paste("RF per gene :", use_y_label)
+    } else if (relative_frequency == "relative frequency") {
+      use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
+                           "bins : RF")
     }
-    before <- seq(-myinfo[3], 0, by = myinfo[8])
-    beforebins <- seq(1,  by = landmarks[5], length.out = length(before))
-    # landmark1 is 5' end
-    if(str_detect(mytype, "^3|TES")){
-      tssname <- tesname
-      before <- abs(before)
-    }
-    # make sure landmark is included properly 
-    myloc <- which(before == 0 | beforebins == landmarks[1])
-    if(!is_empty(myloc)){
-      myloc <- max(myloc)
-    }
-    if (any(before == 0) | any(beforebins == landmarks[1])) {
-      beforebins[myloc] <- landmarks[1] + mod
-      before[myloc] <- tssname
-    } else {
-      beforebins <- sort(c(beforebins, landmarks[1] + mod))
-      before <- append(before, tssname)
-    }
-    if(str_detect(mytype, "^3|TES")){
-      lineloc[2] <- landmarks[1] + mod
-    } else {
-      lineloc[1] <- landmarks[1] + mod
-    }
-    
-    # test for unscaled5prime and unscaled3prime landmarks
-    if(any(c(landmarks[3],landmarks[4]) > 0) | mytype == 543){
-      # unscaled5prime
-      if(landmarks[3] > 0){
-        # tss to unscaled5prime
-        unscaled5prime <- seq(myinfo[8], (landmarks[3] - landmarks[1]) * myinfo[2], by = myinfo[8])
-        unscaled5primebin <- seq(landmarks[1]+landmarks[5], by = landmarks[5], length.out = length(unscaled5prime))
-        if(landmarks[1] == 0 & myinfo[8] == 1){
-          unscaled5prime <- unscaled5prime + 1
-          unscaled5primebin <- unscaled5primebin + 1
-        }
-        # make sure body brake is included
-        if (!any(unscaled5primebin == landmarks[3])) {
-          unscaled5prime <- append(unscaled5prime, (landmarks[3] - landmarks[1]) * myinfo[2])
-          unscaled5primebin <- c(unscaled5primebin, landmarks[3])
-        }
-        lineloc[3] <- landmarks[3]
-        # slider body
-        if(slider){
-          unscaled5prime <- c(paste0("5'unscale_",unscaled5prime), 
-                              paste0("scaled_",seq_along((landmarks[3]+1):(landmarks[4]))))
-          unscaled5primebin <- c(unscaled5primebin, (landmarks[3]+1):(landmarks[4]))
-        }
+    if (norm_bin != "NA") {
+      if (relative_frequency == "rel gene frequency") {
+        use_y_label <- paste(use_y_label, " : Norm ", norm_bin)
       } else {
-        unscaled5prime <- NULL
-        unscaled5primebin <- NULL
+        use_y_label <- paste(strsplit(use_y_label, split = " ")[[1]][1],
+                             "bins : Normalize to ",
+                             norm_bin)
       }
-      
-      if(landmarks[4] > 0){
-        # unscaled3prime to last landmark
-        unscaled3prime <-  abs(seq((landmarks[4] - landmarks[2]) * myinfo[2], 0, by = myinfo[8]))
-        if(landmarks[4] == 1){
-          unscaled3prime <- unscaled3prime + myinfo[2]
-        }
-        unscaled3primebin <- seq(landmarks[4]+1, by = landmarks[5], length.out = length(unscaled3prime))
-        lineloc[4] <- landmarks[4]+1
-        # make sure TES is included
-        myloc <- which(unscaled3prime == 0 | unscaled3primebin == landmarks[2]+1)
-        if(!is_empty(myloc)){
-          myloc <- max(myloc)
-        }
-        if (any(unscaled3prime == 0) | any(unscaled3primebin == landmarks[2]+1)) {
-          unscaled3primebin[myloc] <- landmarks[2] + .5
-          unscaled3prime[myloc] <- tesname
-        } else {
-          unscaled3primebin <- sort(c(unscaled3primebin, landmarks[2] + .5))
-          unscaled3prime[which(unscaled3primebin == landmarks[2] + .5)] <- tesname
-        }
-        lineloc[2] <- landmarks[2] + .5
-        if(slider){
-          unscaled3prime[which(unscaled3prime != tesname)] <- 
-            paste0("3'unscale_",unscaled3prime[which(unscaled3prime != tesname)])
-        }
-      } else {
-        unscaled3prime <- NULL
-        unscaled3primebin <- NULL
-      }
-        before <- c(before,unscaled5prime,unscaled3prime)
-        beforebins <- c(beforebins,unscaled5primebin,unscaled3primebin)
-    
-      tt <- c(myinfo[8], abs(totbins - landmarks[2]) * myinfo[2])
-      TESname <- seq(min(tt),max(tt), by = myinfo[8])
-      TESloc <-
-        seq(landmarks[2] + landmarks[5],
-            by = landmarks[5],
-            length.out = length(TESname))
-      # make sure last location is included
-      if (!any(TESloc == totbins)) {
-        TESname <- append(TESname, abs(totbins - landmarks[2]) * myinfo[2])
-        TESloc <- c(TESloc, totbins)
-      }
-      # make sure TES is included
-      if (!any(before == tesname)){
-        before <- c(before,tesname,TESname)
-        beforebins <- c(beforebins,landmarks[2] + .5,TESloc)
-      } else {
-        before <- c(before,TESname)
-        beforebins <- c(beforebins,TESloc)
-      }
-      lineloc[2] <- landmarks[2] + .5
-      # just 5' or 3'
-    } else if(myinfo[8] <= myinfo[4]){
-      landmark  <- trunc(last(beforebins)) + landmarks[5] 
-      TESname <- seq(myinfo[8], myinfo[4], by = myinfo[8])
-      TESloc <-
-        seq(landmark,
-            by = landmarks[5],
-            length.out = length(TESname))
-      # make sure last location is included
-      if (!any(TESloc == totbins)) {
-        TESname <- append(TESname, myinfo[4])
-        TESloc <- c(TESloc, totbins)
-      }
-      if(str_detect(mytype, "^3|TES") & slider){
-        # sliders remove + if connected  
-        TESname <- paste0("+ ", TESname)
-      }
-      before <- c(before,TESname)
-      beforebins <- c(beforebins,TESloc)
-    } else {
-      before <- c(before,NA)
-      beforebins <- c(beforebins,totbins)
     }
-    # put it all together
-    use_plot_breaks <- beforebins
-      use_plot_breaks_labels <- before
-    } else{
-      use_plot_breaks <- c(1,2)
-      use_plot_breaks_labels <- c(1,2)
+    if (log_2) {
+      use_y_label <- paste0("log2(", use_y_label, ")")
     }
-  } else {
-    # just print bin numbers
-    use_plot_breaks <-
-      seq(1,totbins,by=ceiling(totbins/10))
-    use_plot_breaks_labels <- use_plot_breaks
-  }
-  if(slider){
-    use_plot_breaks_labels <- make.unique(as.character(use_plot_breaks_labels), sep = "_")
-  }
-  use_plot_breaks_labels <- use_plot_breaks_labels[which(use_plot_breaks <= totbins)]
-  use_plot_breaks <- use_plot_breaks[which(use_plot_breaks <= totbins)]
-  lineloc <- c(lineloc, landmarks[5])
-  list(mybrakes = use_plot_breaks,
-       mylabels = use_plot_breaks_labels,
-       lineloc = lineloc)
-}
-
-# Sets plot lines and labels colors
-# makes plot ascetics  
-LinesLabelsPlot <-
-  function(myinfo,
-           body1color,
-           body1line,
-           body2color,
-           body2line,
-           tsscolor,
-           tssline,
-           tescolor,
-           tesline,
-           use_plot_breaks_labels,
-           use_plot_breaks,
-           vlinesize,
-           linesize,
-           fontsizex,
-           fontsizey,
-           legendsize,
-           myalpha,
-           lineloc) {
-    # print("lines and labels plot fun")
-    # myinfo <- c(543,100,1500,3500,2000,500,500,500)
-    
-    tssbin <- lineloc[1]
-    tesbin <- lineloc[2]
-    body1bin <- lineloc[3]
-    body2bin <- lineloc[4]
-    binspace <- lineloc[5]
-    binsize <- myinfo[8]
-    if (length(use_plot_breaks_labels) > 0) {
-      mycolors <- rep("black", length(use_plot_breaks))
-      use_virtical_line <- lineloc[1:4]
-      if (!is.na(tssbin) & tssbin > 0) {
-        mycolors[which(use_plot_breaks == tssbin)] <- tsscolor
-        use_virtical_line[1] <- tssbin
-        if (!is.na(body1bin) &
-            !is.na(body2bin) &
-          tssbin < body1bin &
-            body1bin < body2bin &
-            body2bin < tesbin & tesbin <= last(use_plot_breaks)) {
-          use_virtical_line[3:4] <- c(body1bin, body2bin)
-        }
-      }
-      if (!is.na(tesbin) & tesbin > 0) {
-        mycolors[which(use_plot_breaks == tesbin)] <- tescolor
-        use_virtical_line[2] <- tesbin
-      }
-    } else {
-      use_plot_breaks <- 0
-      use_plot_breaks_labels <- "none"
-      use_virtical_line <- c(NA, NA, NA, NA)
+    if (smoothed) {
+      use_y_label <- paste0("smoothed(", use_y_label, ")")
     }
-    # vertical line set up
-    use_virtical_line_color <-
-      c(tsscolor, tescolor, body1color, body2color)
-    use_virtical_line_type <-
-      c(tssline, tesline, body1line, body2line)
-    use_plot_breaks <- na_if(use_plot_breaks, 0.5)
-    use_virtical_line <- na_if(use_virtical_line, 0.5)
-    use_plot_breaks_labels <-
-      use_plot_breaks_labels[!is.na(use_plot_breaks)]
-    use_plot_breaks <- use_plot_breaks[!is.na(use_plot_breaks)]
-    use_virtical_line_type <-
-      use_virtical_line_type[!is.na(use_virtical_line)]
-    use_virtical_line_color <-
-      use_virtical_line_color[!is.na(use_virtical_line)]
-    use_virtical_line <-
-      use_virtical_line[!is.na(use_virtical_line)]
-    list(
-      myline = virtical_line_data_frame <- data.frame(
-        use_virtical_line,
-        use_virtical_line_type,
-        use_virtical_line_color,
-        stringsAsFactors = FALSE
-      ),
-      mycolors = mycolors,
-      mybrakes = use_plot_breaks,
-      mylabels = use_plot_breaks_labels,
-      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, myalpha),
-      myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
-    )
+    use_y_label
   }
-
-# records check box on/off
-CheckBoxOnOff <- function(check_box, list_data) {
-  if(!all(is.na(names(check_box)))){
-    list_data <- full_join(list_data,check_box,by=c("set","gene_list")) %>%
-      dplyr::filter(!is.na(set)) %>% 
-      dplyr::mutate(onoff=if_else(is.na(onoff.y),"0",set)) %>% 
-      dplyr::select(-onoff.y,-onoff.x) %>%
-      distinct()
-  }
-  list_data
-}
-
-# applys t.test to active data
-ApplyTtest <-
-  function(list_data,
-           switchttest,
-           use_tmath,
-           switchttesttype,
-           padjust,
-           my_alt, 
-           my_exact, 
-           my_paired,
-           group = "none") {
-    # t.test comparing files in same gene list
-    ttest <- NULL
-    if(switchttest != "none"){
-      if(group == "groups only"){
-        list_data <- list_data %>% 
-          dplyr::mutate(set= gsub("\n", "", group)) 
-      }
-      if(switchttest == "by lists" & n_distinct(list_data$gene_list, na.rm = T) > 1){
-        list_data <- list_data %>% 
-          rename(set=gene_list,gene_list=set)
-      }
-      n_test <- list_data %>% group_by(gene_list) %>% 
-      summarise(n=n_distinct(set), .groups= "drop")
-    
-      for(i in n_test$gene_list){
-        if(n_test %>% dplyr::filter(gene_list == i) %>% dplyr::select(n) > 1){
-          ttest[[i]] <- bind_rows(try_t_test(list_data %>% dplyr::filter(gene_list == i), i,
-                                             use_tmath,switchttesttype,padjust,
-                                             my_alt, noquote(my_exact), noquote(my_paired))) %>% 
-            dplyr::mutate(myline = 1,
-                          mycol = "#000000" )
-        } 
-      }
-    } 
-    bind_rows(ttest)
-  }
-
-# makes sure t test wont crash on an error
-try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
-                       alternative="two.sided", exact=FALSE, paired=FALSE){
-  # print("try t.test")
-  exact <- if_else(exact=="TRUE",TRUE,FALSE)
-  paired <- if_else(paired=="TRUE",TRUE,FALSE)
-  combn(unique(db$set),2) -> my_comparisons
-  my_comparisons2 <- list()
-  db_out <- list()
-  for(cc in 1:ncol(my_comparisons)){
-    my_comparisons2[[cc]] <- (c(my_comparisons[1,cc],my_comparisons[2,cc]))
-  }
-  db <- spread(db,set,score) 
-  for(i in my_comparisons2){
-    db2 <- dplyr::select(db, gene,bin,all_of(i)) %>% 
-      rename(score.x=all_of(names(.)[3]), score.y=all_of(names(.)[4])) 
-    
-    myTtest <- tibble(bin=NA,p.value=NA)
-    
-    for(t in unique(db2$bin)){
-      x.score <- dplyr::filter(db2, bin ==t)
-      y.score <- dplyr::filter(db2, bin ==t)
-      kk <- try(get(my_test)(x.score$score.x,y.score$score.y,
-                             alternative = alternative, 
-                             exact=exact, 
-                             paired=paired)$p.value)
-      if("try-error" %in% class(kk) | !is.numeric(kk)){
-        kk <-1
-      }
-      myTtest <- myTtest %>% add_row(bin = t, p.value=kk)
-    }
-    myTtest <- myTtest %>% dplyr::filter(!is.na(bin))
-    if(padjust != "NO"){
-      myTtest <- myTtest %>% dplyr::mutate(p.value=p.adjust(p.value,method = padjust))
-    }
-    if(my_math =="-log"){
-      myTtest <- myTtest %>% dplyr::mutate(p.value=if_else(p.value==0,2.2e-16,p.value)) %>% dplyr::mutate(p.value=-log(p.value))
-    } else if(my_math =="-log10"){
-      myTtest <- myTtest %>% dplyr::mutate(p.value=if_else(p.value==0,2.2e-16,p.value)) %>% dplyr::mutate(p.value=-log10(p.value))
-    }
-    db_out[[str_c(i,collapse = "-")]] <- myTtest %>% 
-      dplyr::mutate(., set = paste(
-        paste0(gsub("(.{20})", "\\1\n", 
-                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,1]),
-               gsub("(.{20})", "\\1\n", 
-                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,2])),
-        gsub("(.{20})", "\\1\n", 
-             str_split_fixed(my_set, "\n", n=2)[,1]),
-        str_split_fixed(my_set, "\n", n=2)[,2],
-        sep = '\n'
-      ))
-    
-  }
-  
-  db_out
-}
-
-# gather relevant plot option data
-MakePlotOptionttest <- function(list_data, Y_Axis_TT,my_ttest_log,hlineTT,pajust,ttype) {
-  if(is_empty(list_data)){
-    return(NULL)
-  }
-  # print("plot options ttest fun")
-  out_options <- list_data %>% select(-bin, -p.value) %>% distinct(set,myline,mycol)
-  list_data_frame <- NULL
-  
-  ldf <- duplicated(out_options$mycol)
-  for (i in seq_along(out_options$mycol)) {
-    if (ldf[i]) {
-      out_options$mycol[i] <-
-        RgbToHex(out_options$mycol[i], convert = "hex", tint = log(i,10))
-    }
-  }
-  
-  list_data_frame$options_main_tt <- out_options
-  list_data_frame$ylimTT <- Y_Axis_TT
-  if(pajust != "none"){
-    pp <- paste0("p.adjust:", pajust)
-  } else{
-    pp <- "p.value"
-  }
-  if(my_ttest_log == "-log"){
-    list_data_frame$hlineTT <- -log(hlineTT)
-    list_data_frame$ylabTT <- paste0(my_ttest_log,"(",pp,")"," ",ttype)
-  } else if(my_ttest_log == "-log10"){
-    list_data_frame$hlineTT <- -log10(hlineTT)
-    list_data_frame$ylabTT <- paste0(my_ttest_log,"(",pp,")"," ",ttype)
-  } else{
-    list_data_frame$hlineTT <- hlineTT
-    list_data_frame$ylabTT <- paste0(pp," ",ttype)
-  }
-  
-  return(list_data_frame)
-}
-
-# YaxisValuetTest gathers values
-YaxisValuetTest <- function(ttest, hlinettest, selectttestlog ){
-  mm <- round(extendrange(range(ttest$p.value, na.rm = T,finite=T),f = .1),digits = 2)
-  p_cutoff <- hlinettest
-    if(selectttestlog == "-log"){
-      p_cutoff <- -log(hlinettest)
-    } else if(selectttestlog == "-log10"){
-      p_cutoff <- -log10(hlinettest)
-    }
-    if(mm[1] > 0){
-      mm[1] <- 0
-    }
-    if(mm[2] < p_cutoff){
-      mm[2] <- p_cutoff
-    }
-  mm <- c(round(min(mm), 4),round(max(mm), 4))
-  return(mm)
-}
 
 # filters based on gene size and separation
 FilterSepSize <-
@@ -1288,21 +1336,21 @@ FilterTop <-
                    paste0("Filter ",topbottom2, "\nn = ", n_distinct(outlist$gene, na.rm = T))), 33)
     list_data$gene_file[[nick_name]]$full <- outlist
     list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
-      paste(
-        "Filter",
-        topbottom2,
-        start_end_label[1],
-        "to",
-        start_end_label[2],
-        "from",
-        list_name,
-        paste(file_names, collapse = " "),
-        Sys.Date(),
-        list_data$gene_file[[list_name]]$info
-      ),
-      save_name = gsub(" ", "_", paste("filter",str_remove(topbottom,"%"), Sys.Date(), sep = "_")),
-      col_info = "gene [ % rank(s) ]"
-      )
+                                                      paste(
+                                                        "Filter",
+                                                        topbottom2,
+                                                        start_end_label[1],
+                                                        "to",
+                                                        start_end_label[2],
+                                                        "from",
+                                                        list_name,
+                                                        paste(file_names, collapse = " "),
+                                                        Sys.Date(),
+                                                        list_data$gene_file[[list_name]]$info
+                                                      ),
+                                                    save_name = gsub(" ", "_", paste("filter",str_remove(topbottom,"%"), Sys.Date(), sep = "_")),
+                                                    col_info = "gene [ % rank(s) ]"
+    )
     list_data$meta_data <- 
       distinct(bind_rows(list_data$meta_data,
                          list_data$meta_data %>% 
@@ -1377,21 +1425,21 @@ FilterPer <-
     }
     if(my_type == "min%"){
       out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene) %>% dplyr::filter(all(score >= my_p_1)) %>%
+        group_by(gene) %>% dplyr::filter(all(score >= my_p_1)) %>%
         filter(n_distinct(set)==length(file_names)) %>%
-          ungroup() %>% distinct(gene)
+        ungroup() %>% distinct(gene)
       topbottom2 <- paste(str_remove(my_type,"%"), paste0(my_per[1], "%"))
     } else if(my_type == "max%"){
       out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene) %>% dplyr::filter(all(score <= my_p_2)) %>%
+        group_by(gene) %>% dplyr::filter(all(score <= my_p_2)) %>%
         filter(n_distinct(set)==length(file_names)) %>%
-          ungroup() %>% distinct(gene)
+        ungroup() %>% distinct(gene)
       topbottom2 <- paste(str_remove(my_type,"%"), paste0(my_per[2], "%"))
     } else {
       out_list <- full_join(out_list,out_per,by=c("bin","set")) %>%
-          group_by(gene) %>% dplyr::filter(all(score >= my_p_1 & score <= my_p_2)) %>% 
+        group_by(gene) %>% dplyr::filter(all(score >= my_p_1 & score <= my_p_2)) %>% 
         filter(n_distinct(set)==length(file_names)) %>%
-          ungroup() %>% distinct(gene)
+        ungroup() %>% distinct(gene)
       topbottom2 <- paste(paste(str_remove(my_type,"%"), paste0(my_per[1], "%")),paste0(my_per[2], "%"),collapse = " and ")
     }
     if (length(out_list$gene) == 0) {
@@ -1446,21 +1494,21 @@ FilterPer <-
     list_data$gene_file[[nick_name]]$full <- out_list %>% dplyr::mutate(min=my_per[1],max=my_per[2])
     list_data$sortplot <- out_list1 %>% dplyr::mutate(set = gsub("(.{15})", "\\1\n", set))
     list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
-      paste(
-        "Filter Prob:",
-        topbottom2,
-        start_end_label[1],
-        "to",
-        start_end_label[2],
-        "from",
-        list_name,
-        paste(file_names, collapse = " "),
-        Sys.Date(),
-        list_data$gene_file[[list_name]]$info
-      ),
-      save_name = gsub(" ", "_", paste("filter",str_remove(topbottom2,"%"), Sys.Date(), sep = "_")),
-      col_info = "gene"
-      )
+                                                      paste(
+                                                        "Filter Prob:",
+                                                        topbottom2,
+                                                        start_end_label[1],
+                                                        "to",
+                                                        start_end_label[2],
+                                                        "from",
+                                                        list_name,
+                                                        paste(file_names, collapse = " "),
+                                                        Sys.Date(),
+                                                        list_data$gene_file[[list_name]]$info
+                                                      ),
+                                                    save_name = gsub(" ", "_", paste("filter",str_remove(topbottom2,"%"), Sys.Date(), sep = "_")),
+                                                    col_info = "gene"
+    )
     list_data$meta_data <-
       distinct(bind_rows(list_data$meta_data,
                          list_data$meta_data %>%
@@ -1495,22 +1543,22 @@ FilterPeak <-
       dplyr::filter(set %in% file_names) %>% 
       semi_join(.,gene_list,by="gene") %>% 
       mutate(score=abs(score)) 
-      
+    
     out_list <- out_list %>% 
       dplyr::filter(bin %in% start_end_bin_peak[1]:start_end_bin_peak[2]) 
-      
+    
     if(my_type == "peak"){
       out_gene <- out_list %>% 
-          group_by(gene) %>% 
-          filter(n_distinct(set)==length(file_names)) %>% 
-          dplyr::filter(all(score<=peak_filter_num)) %>% 
-          ungroup() %>% distinct(gene)
+        group_by(gene) %>% 
+        filter(n_distinct(set)==length(file_names)) %>% 
+        dplyr::filter(all(score<=peak_filter_num)) %>% 
+        ungroup() %>% distinct(gene)
     } else {
       out_gene <- out_list %>% 
-          group_by(gene) %>%
-          filter(n_distinct(set)==length(file_names)) %>%
-          dplyr::filter(!all(score<=peak_filter_num)) %>%
-          ungroup() %>% distinct(gene)
+        group_by(gene) %>%
+        filter(n_distinct(set)==length(file_names)) %>%
+        dplyr::filter(!all(score<=peak_filter_num)) %>%
+        ungroup() %>% distinct(gene)
     }
     if (length(out_gene$gene) == 0) {
       return(NULL)
@@ -1547,7 +1595,7 @@ FilterPeak <-
                                                       ),
                                                     save_name = gsub(" ", "_", paste("filter", my_type, Sys.Date(), sep = "_")),
                                                     col_info = "gene"
-                                                    )
+    )
     list_data$meta_data <-
       distinct(bind_rows(list_data$meta_data,
                          list_data$meta_data %>%
@@ -1681,13 +1729,13 @@ MakeNormFile <-
       list_data$meta_data <- dplyr::filter(list_data$meta_data, set != legend_nickname)
       list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
       list_data$meta_data <- distinct(bind_rows(list_data$meta_data,
-                           list_data$meta_data %>%
-                             dplyr::filter(set == nom) %>%
-                             dplyr::mutate(set = legend_nickname,
-                                           group = legend_nickname,
-                                           onoff = "0",
-                                           sub = " ",
-                                           plot_legend = " ")))
+                                                list_data$meta_data %>%
+                                                  dplyr::filter(set == nom) %>%
+                                                  dplyr::mutate(set = legend_nickname,
+                                                                group = legend_nickname,
+                                                                onoff = "0",
+                                                                sub = " ",
+                                                                plot_legend = " ")))
     } else {
       list_data$table_file <- list_data$table_file %>%
         replace_na(., list(score = 0)) %>%
@@ -1724,13 +1772,13 @@ IntersectGeneLists <-
       # record for info
       list_data$gene_file[[nick_name1]]$full <- distinct(outlist,gene)
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
-        paste("Gene_List_Total",
-              "from",
-              paste(list_name, collapse = " and "),
-              Sys.Date()),
-        save_name = gsub(" ", "_", paste("gene_list_total_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
-        col_info = "gene"
-        )
+                                                         paste("Gene_List_Total",
+                                                               "from",
+                                                               paste(list_name, collapse = " and "),
+                                                               Sys.Date()),
+                                                       save_name = gsub(" ", "_", paste("gene_list_total_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
+                                                       col_info = "gene"
+      )
       list_data$meta_data <- 
         distinct(bind_rows(list_data$meta_data,
                            list_data$meta_data %>% 
@@ -1749,13 +1797,13 @@ IntersectGeneLists <-
       # record for info
       list_data$gene_file[[nick_name1]]$full <- innerjoined
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
-        paste("Gene_List_innerjoin",
-              "from",
-              paste(list_name, collapse = " and "),
-              Sys.Date()),
-        save_name = gsub(" ", "_", paste("gene_list_innerjoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
-        col_info = "gene"
-        )
+                                                         paste("Gene_List_innerjoin",
+                                                               "from",
+                                                               paste(list_name, collapse = " and "),
+                                                               Sys.Date()),
+                                                       save_name = gsub(" ", "_", paste("gene_list_innerjoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
+                                                       col_info = "gene"
+      )
       list_data$meta_data <- 
         distinct(bind_rows(list_data$meta_data,
                            list_data$meta_data %>% 
@@ -1773,13 +1821,13 @@ IntersectGeneLists <-
       # record for info
       list_data$gene_file[[nick_name1]]$full <- antijoin
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
-        paste("Gene_List_antijoin",
-              "from",
-              paste(list_name, collapse = " and "),
-              Sys.Date()),
-        save_name = gsub(" ", "_", paste("gene_list_antijoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
-        col_info = "gene"
-        )
+                                                         paste("Gene_List_antijoin",
+                                                               "from",
+                                                               paste(list_name, collapse = " and "),
+                                                               Sys.Date()),
+                                                       save_name = gsub(" ", "_", paste("gene_list_antijoin_n=", n_distinct(outlist$gene, na.rm = T), Sys.Date(), sep = "_")),
+                                                       col_info = "gene"
+      )
       list_data$meta_data <- 
         distinct(bind_rows(list_data$meta_data,
                            list_data$meta_data %>% 
@@ -1810,20 +1858,20 @@ FindClusters <- function(list_data,
     return(NULL)
   }
   db <-
-      semi_join(dplyr::filter(list_data$table_file, set == clusterfile), 
-                list_data$gene_file[[list_name]]$full, by = 'gene') %>% 
+    semi_join(dplyr::filter(list_data$table_file, set == clusterfile), 
+              list_data$gene_file[[list_name]]$full, by = 'gene') %>% 
     filter(bin %in% c(start_end_bin[1]:start_end_bin[2]))
   
-    list_data$clust <- list()
-    if(fast_mean){
-      list_data$clust$cm <- 
-        hclust.vector(db %>% group_by(gene) %>% 
-                        summarise(value=mean(score),.groups = "drop") %>% select(value), method = "ward")
-    } else{
-      list_data$clust$cm <-
-        hclust.vector(as.data.frame(spread(db, bin, score))[-c(1:7)], method = "ward")
-    }
-    
+  list_data$clust <- list()
+  if(fast_mean){
+    list_data$clust$cm <- 
+      hclust.vector(db %>% group_by(gene) %>% 
+                      summarise(value=mean(score),.groups = "drop") %>% select(value), method = "ward")
+  } else{
+    list_data$clust$cm <-
+      hclust.vector(as.data.frame(spread(db, bin, score))[-c(1:7)], method = "ward")
+  }
+  
   list_data$clust$full <- distinct(db, gene)
   list_data
 }
@@ -1856,29 +1904,29 @@ ClusterNumList <- function(list_data,
   list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Cluster_")]
   list_data$meta_data <- list_data$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Cluster_"))
   gene_list <-
-      dplyr::mutate(list_data$clust$full, cm = cutree(list_data$clust$cm, my_num))
+    dplyr::mutate(list_data$clust$full, cm = cutree(list_data$clust$cm, my_num))
   for (nn in 1:my_num) {
     outlist <- dplyr::filter(gene_list, cm == nn)
     nick_name <-
       paste(paste0("Cluster_", nn, "\nn ="), n_distinct(outlist$gene, na.rm = T))
     list_data$gene_file[[nick_name]]$full <- dplyr::select(outlist, gene)
     list_data$gene_file[[nick_name]]$info <- tibble(loaded_info =
-      paste(
-        nick_name,
-        start_end_label[1],
-        "to",
-        start_end_label[2],
-        "from",
-        list_name,
-        clusterfile,
-        my_num,
-        "Cluster_",
-        "total",
-        Sys.Date()
-      ),
-      save_name = gsub(" ", "_", paste("cluster", nn, "of", my_num, Sys.Date(), sep = "_")),
-      col_info = "gene"
-      )
+                                                      paste(
+                                                        nick_name,
+                                                        start_end_label[1],
+                                                        "to",
+                                                        start_end_label[2],
+                                                        "from",
+                                                        list_name,
+                                                        clusterfile,
+                                                        my_num,
+                                                        "Cluster_",
+                                                        "total",
+                                                        Sys.Date()
+                                                      ),
+                                                    save_name = gsub(" ", "_", paste("cluster", nn, "of", my_num, Sys.Date(), sep = "_")),
+                                                    col_info = "gene"
+    )
     list_data$meta_data <- 
       distinct(bind_rows(list_data$meta_data,
                          list_data$meta_data %>% 
@@ -1926,10 +1974,10 @@ FindGroups <- function(list_data,
 
 # Pull out the number of groups 
 GroupsNumList <- function(list_data,
-                           list_name,
-                           groupiesfile,
-                           start_end_label,
-                           my_num) {
+                          list_name,
+                          groupiesfile,
+                          start_end_label,
+                          my_num) {
   # print("ntile")
   if (is_empty(list_data$groupies) | groupiesfile == "") {
     showModal(modalDialog(
@@ -2037,18 +2085,18 @@ CompareRatios <-
       }
       ratiofile <- ratio1file
       ratio2file <- paste0(ratio1file,
-      "[", startend1_label[1], ":", startend1_label[2],
-      "]/[", startend2_label[1], ":", startend2_label[2], "]")
+                           "[", startend1_label[1], ":", startend1_label[2],
+                           "]/[", startend2_label[1], ":", startend2_label[2], "]")
       ratiosub <- paste0("\n",ratio2file)
     } else {
       ratiosub <- paste0("\n",ratio1file," / \n", ratio2file)
       ratiofile <- c(ratio1file, ratio2file)
       ratio2file <- paste0(ratio1file,
-             "[", startend1_label[1], ":", startend1_label[2],
-             "]/[", startend2_label[1], ":", startend2_label[2], "]/",
-             ratio2file,
-             "[", startend1_label[1], ":", startend1_label[2],
-             "]/[", startend2_label[1], ":", startend2_label[2], "]")
+                           "[", startend1_label[1], ":", startend1_label[2],
+                           "]/[", startend2_label[1], ":", startend2_label[2], "]/",
+                           ratio2file,
+                           "[", startend1_label[1], ":", startend1_label[2],
+                           "]/[", startend2_label[1], ":", startend2_label[2], "]")
     }
     lc <- 0
     lapply(ratiofile, function(j) {
@@ -2116,19 +2164,19 @@ CompareRatios <-
       nick_name <- c(nick_name, nick_name1)
       list_data$gene_file[[nick_name1]]$full <- upratio 
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
-      paste(
-        "Ratio_Up",
-        ratio2file,
-        "fold change cut off >",
-        my_num,
-        divzerofix,
-        "from",
-        list_name,
-        "gene list",
-        Sys.Date()
-      ),
-      save_name = gsub(" ", "_", paste("ratios_greater_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
-      col_info = "gene file1/file2"
+                                                         paste(
+                                                           "Ratio_Up",
+                                                           ratio2file,
+                                                           "fold change cut off >",
+                                                           my_num,
+                                                           divzerofix,
+                                                           "from",
+                                                           list_name,
+                                                           "gene list",
+                                                           Sys.Date()
+                                                         ),
+                                                       save_name = gsub(" ", "_", paste("ratios_greater_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+                                                       col_info = "gene file1/file2"
       )
       list_data$meta_data <- 
         distinct(bind_rows(list_data$meta_data,
@@ -2155,20 +2203,20 @@ CompareRatios <-
       nick_name <- c(nick_name, nick_name2)
       list_data$gene_file[[nick_name2]]$full <- upratio
       list_data$gene_file[[nick_name2]]$info <- tibble(loaded_info =
-        paste(
-          "Ratio_Down",
-          ratio2file,
-          "fold change cut off",
-          my_num,
-          divzerofix,
-          "from",
-          list_name,
-          "gene list",
-          Sys.Date()
-        ),
-        save_name = gsub(" ", "_", paste("ratios_less_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
-        col_info = "gene file1/file2"
-        )
+                                                         paste(
+                                                           "Ratio_Down",
+                                                           ratio2file,
+                                                           "fold change cut off",
+                                                           my_num,
+                                                           divzerofix,
+                                                           "from",
+                                                           list_name,
+                                                           "gene list",
+                                                           Sys.Date()
+                                                         ),
+                                                       save_name = gsub(" ", "_", paste("ratios_less_than_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+                                                       col_info = "gene file1/file2"
+      )
       list_data$meta_data <- 
         distinct(bind_rows(list_data$meta_data,
                            list_data$meta_data %>% 
@@ -2197,20 +2245,20 @@ CompareRatios <-
       nick_name <- c(nick_name, nick_name3)
       list_data$gene_file[[nick_name3]]$full <- upratio
       list_data$gene_file[[nick_name3]]$info <- tibble(loaded_info =
-        paste(
-          "Ratio_No_Diff",
-          ratio2file,
-          "fold change cut off",
-          my_num,
-          divzerofix,
-          "from",
-          list_name,
-          "gene list",
-          Sys.Date()
-        ),
-        save_name = gsub(" ", "_", paste("ratio_No_Diff_fold_cut_off", my_num, Sys.Date(), sep = "_")),
-        col_info = "gene file2/file1"
-        )
+                                                         paste(
+                                                           "Ratio_No_Diff",
+                                                           ratio2file,
+                                                           "fold change cut off",
+                                                           my_num,
+                                                           divzerofix,
+                                                           "from",
+                                                           list_name,
+                                                           "gene list",
+                                                           Sys.Date()
+                                                         ),
+                                                       save_name = gsub(" ", "_", paste("ratio_No_Diff_fold_cut_off", my_num, Sys.Date(), sep = "_")),
+                                                       col_info = "gene file2/file1"
+      )
       list_data$meta_data <- 
         distinct(bind_rows(list_data$meta_data,
                            list_data$meta_data %>% 
@@ -2306,25 +2354,25 @@ CumulativeDistribution <-
       nick_name1 <- paste0("CDF ", use_header)
       list_data$gene_file[[nick_name1]]$full <- outlist
       list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
-        paste(
-          use_header,
-          "CDF",
-          startend1_label[1],
-          "to",
-          startend1_label[2],
-          "/",
-          startend2_label[1],
-          "to",
-          startend2_label[2],
-          "from",
-          names(onoffs),
-          "gene list(s)",
-          paste(distinct(outlist, plot_legend), collapse = " "),
-          Sys.Date()
-        ),
-        save_name = gsub(" ", "_", paste("genelist_CDF", Sys.Date(), sep = "_")),
-        col_info = "gene Rank_order sample, plot_legend, PI/EI"
-        )
+                                                         paste(
+                                                           use_header,
+                                                           "CDF",
+                                                           startend1_label[1],
+                                                           "to",
+                                                           startend1_label[2],
+                                                           "/",
+                                                           startend2_label[1],
+                                                           "to",
+                                                           startend2_label[2],
+                                                           "from",
+                                                           names(onoffs),
+                                                           "gene list(s)",
+                                                           paste(distinct(outlist, plot_legend), collapse = " "),
+                                                           Sys.Date()
+                                                         ),
+                                                       save_name = gsub(" ", "_", paste("genelist_CDF", Sys.Date(), sep = "_")),
+                                                       col_info = "gene Rank_order sample, plot_legend, PI/EI"
+      )
     } else {
       nick_name1 <- paste("CDF n = 0")
     }

@@ -43,12 +43,14 @@ suppressPackageStartupMessages(my_packages(
   )
 ))
 
-source("R_scripts/helpers.R", local = TRUE)
 source("R_scripts/functions.R", local = TRUE)
 
 # By default, the file size limit is 5MB. It can be changed by
 # setting this option. Here we'll raise limit to 500MB. ----
 options(shiny.maxRequestSize = 500 * 1024 ^ 2)
+
+# Brewer color sets to be available ----
+kBrewerList <- c("Set1","Paired","Dark2","Spectral")
 
 LIST_DATA <<- list(
   table_file = NULL,
@@ -59,20 +61,21 @@ LIST_DATA <<- list(
   # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_legend")]
   ttest = NULL,
   # t.test results $full is for numbers $meta_data for holding plotting options
-  clust = NULL,
-  groupies = NULL,
-  # Cluster holder
-  x_plot_range = c(0, 0),
-  # tss tes
-  tss_tes = c("TSS", "pA"),
-  # flow control
-  STATE = c(0, 0, 5) 
+  meta_data_plot = list(
+    binning = c(543,100,1500,3500,2000,500,500,500), # type, bp/bin, before, after, body, un5, un3, spacing
+    binning2 = c(543,100,1500,3500,2000,500,500,500), # save for reset
+    rnaseq = FALSE, # T/F rnaseq data type?
+    landmarks = c(15, 45, 20, 40,  5), # tssbin, tesbin, body1bin, body2bin, bin spacing
+    tss_tes = c("TSS", "pA"), # tss and tes labels
+    x_plot_range = c(0, 0) # number of bins
+  ),
+  # info of matrix and lines and lables settings
+  STATE = c(0, 0) # flow control
   # [1] 1 = at least one file has been loaded and lets reactive fill in info
   #
   # [2] 0 = first time switching tab auto plotting
   #     1 = hidden plot button, reactive for plot enabled
   #     2 = on/off reactive picker changed, shows plot button, reactive for plot disabled
-  # [3] line and label type i.e. 5, 4, 3, 543
 )
 
 # server ----
@@ -136,12 +139,13 @@ server <- function(input, output, session) {
   
   output$user <- renderUser({
     dashboardUser(
-      name = "BenTools V9.c",
+      name = "BenTools V9.m",
       image = "ben head.jpg",
       title = "Benjamin Erickson",
       subtitle = "BBErickson@gmail.com"
     )
   })
+  
   # disables tabs on start ----
   addCssClass(selector = "a[data-value='mainplot']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='qcOptions']", class = "inactiveLink")
@@ -156,177 +160,174 @@ server <- function(input, output, session) {
   
   # loads data file(s) ----
   observeEvent(input$filetable, {
-     # print("load file")
+    # print("load file")
     shinyjs::disable("startoff")
     shinyjs::disable("startoff2")
     shinyjs::show("hidespiners")
     output$loadedfilestotaltable <- DT::renderDataTable(datatable())
-    withProgress(message = 'Calculation in progress',
-                 detail = 'This may take a while...',
+    withProgress(message = 'loading file(s) in progress',
+                 detail = 'This may take a sec...',
                  value = 0,
                  {
-    # checks to see if meta data is provided, type, nickname,  rgb/hex plot color
-    # if not creates it
-    meta_data <- PrepMetaFile(input$filetable$datapath,
-                              input$filetable$name)
-    if (!is_empty(meta_data)) {
-    for (i in seq_along(meta_data$filepath)) {
-      setProgress(i/length(meta_data$filepath), 
-                  detail = paste("Gathering info on",meta_data$nick[i]))
-      # check unique nicknames and fix
-      if (!is_empty(LIST_DATA$table_file$set) && meta_data$nick[i] %in% distinct(LIST_DATA$table_file,set)$set) {
-        meta_data$nick[i] <- paste0(meta_data$nick[i],"_dup")
-      }
-      # converts color to hex 
-      meta_data$color[i] <- RgbToHex(meta_data$color[i])
-      # check file can be accessed and has is a matrix file
-      bin_colname <- tableTestbin(meta_data[i, ])
-      if(is_empty(bin_colname)){
-        showModal(
-          modalDialog(
-            title = "Information message",
-            paste("File", meta_data$nick[i], "not there, or wrong file type"),
-            size = "s",
-            easyClose = TRUE
-          )
-        )
-        next()
-      }
-      # if first file save info else test file compatibility 
-      setProgress(i/length(meta_data$filepath), 
-                  detail = paste("Testing compatiblity",meta_data$nick[i]))
-      if (LIST_DATA$x_plot_range[2] == 0) {
-        LIST_DATA$x_plot_range <<- c(1,bin_colname$num_bins-6)
-        # set labels every # bins
-        if(LIST_DATA$x_plot_range[2] < 100){
-          if(LIST_DATA$x_plot_range[2] < 3 | bin_colname$binning[1] == 0){
-            everybp <- 1
-          }else{
-            everybp <- round(as.double(bin_colname$binning[2])*5, -2)
-          }
-        } else {
-          everybp <- round(LIST_DATA$x_plot_range[2]/10,-1)*bin_colname$binning[2]
-        }
-        LIST_DATA$binning <<- c(bin_colname$binning,everybp)
-        LIST_DATA$landmarks <<- LinesLableLandmarks(c(bin_colname$binning,everybp))
-        # for testing if files are loaded later and resetting lines and labels
-        LIST_DATA$binning2 <<- LIST_DATA$binning
-        LIST_DATA$rnaseq <<- bin_colname$rnaseq
-      } else if (max(bin_colname$num_bins-6) != LIST_DATA$x_plot_range[2] | 
-                 all(c(bin_colname$binning) != LIST_DATA$binning2[-8])) {
-        showModal(
-          modalDialog(
-            title = "Information message",
-            "Can't load file, different number of bins or bin sizes",
-            size = "s",
-            easyClose = TRUE
-          )
-        )
-        next()
-      }
-      shinyjs::reset("filetable")
-      setProgress(i/length(meta_data$filepath), 
-                  detail = paste("Loading file",meta_data$nick[i]))
-      LD <- LoadTableFile(meta_data[i, ], bin_colname)
-      if(is.na(distinct(LD,set))){
-        next()
-      }
-      
-    if (!is_empty(LIST_DATA$gene_file)){
-    gene_names <-
-      semi_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>% distinct(gene)
-        if (n_distinct(gene_names$gene) == 0) {
-          showModal(
-            modalDialog(
-              title = "Information message",
-              " No genes in common ",
-              size = "s",
-              easyClose = TRUE
-            )
-          )
-        }
-    setProgress(i/length(meta_data$filepath), 
-                detail = paste("Finishing up",meta_data$nick[i]))
-          # make complete gene list
-          LIST_DATA$gene_file$Complete$full <<-
-            full_join(LD, LIST_DATA$gene_file$Complete$full, by = c("gene","chrom", "start", "end","strand")) %>%
-            distinct(gene, chrom, start, end, strand)
-          LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
-            dplyr::mutate(count = if_else(gene_list == "Complete",
-                                          paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)), count))
-    
-        } else {
-          LIST_DATA$gene_file$Complete$full <<- distinct(LD, gene, chrom, start, end, strand)
-        }
-        if (LIST_DATA$STATE[2] == 0 &
-            n_distinct(LIST_DATA$table_file$set) < 2) {
-          oo <- meta_data$nick[i]
-        } else {
-          oo <- "0"
-        }
-        LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD)) %>% filter(!is.na(set))
-        LIST_DATA$gene_file$Complete$info <<- tibble(loaded_info = paste("all loaded genes",
-                                                                             Sys.Date()))
-        LIST_DATA$meta_data <<- distinct(bind_rows(LIST_DATA$meta_data,tibble(
-          gene_list = "Complete",
-          count = paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)),
-          set = meta_data$nick[i],
-          mycol = meta_data$color[i],
-          onoff = oo,
-          sub = " ",
-          plot_legend = " ",
-          group = meta_data$nick[i]
-        )))
-        ### check if grep of gene has occurred
-        for(gg in seq_along(LIST_DATA$gene_file)[-1]){
-          if("org_gene" %in% LIST_DATA$gene_file[[gg]]$full){
-            setProgress(i/length(meta_data$filepath), 
-                        detail = paste("re-matching gene list",meta_data$nick[i]))
-            new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full,
-                                         LIST_DATA$gene_file[[gg]]$full %>% select(org_gene) %>%
-                                           dplyr::rename(gene = org_gene))
-            if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
-              # fix name, fix info
-              listname <- names(LIST_DATA$gene_file)[gg]
-              LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
-                dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)),
-                                            count))
-            }
-          }
-          setProgress(i/length(meta_data$filepath), 
-                      detail = paste("Updating gene lists",meta_data$nick[i]))
-          # add missing data
-          LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
-            dplyr::filter(gene_list == names(LIST_DATA$gene_file)[gg]) %>%
-            dplyr::mutate(set = meta_data$nick[i],
-                          count = count[i],
-                          mycol = meta_data$color[i],
-                          onoff = "0",
-                          sub = " ",
-                          plot_legend = " ") %>%
-            bind_rows(LIST_DATA$meta_data, .)
-        }
-    }
-    } else {
-      return()
-      }
-  })
+                   # preps/makes meta data: group, nickname,  rgb/hex plot color
+                   meta_data <- PrepMetaFile(input$filetable$datapath,
+                                             input$filetable$name)
+                   if (!is_empty(meta_data)) {
+                     for (i in seq_along(meta_data$filepath)) {
+                       setProgress(i/length(meta_data$filepath), 
+                                   detail = paste("Gathering info on",meta_data$nick[i]))
+                       # check unique nicknames and fix
+                       if (!is_empty(LIST_DATA$table_file$set) && meta_data$nick[i] %in% distinct(LIST_DATA$table_file,set)$set) {
+                         meta_data$nick[i] <- paste0(meta_data$nick[i],"_dup")
+                       }
+                       # check file can be accessed and has is a matrix file
+                       bin_colname <- tableTestbin(meta_data[i, ])
+                       if(is_empty(bin_colname)){
+                         showModal(
+                           modalDialog(
+                             title = "Information message",
+                             paste("File", meta_data$nick[i], "not there, or wrong file type"),
+                             size = "s",
+                             easyClose = TRUE
+                           )
+                         )
+                         if(i == length(meta_data$filepath)){
+                           return()
+                         } else {
+                           next()
+                         }
+                       }
+                       
+                       setProgress(i/length(meta_data$filepath), 
+                                   detail = paste("Testing compatiblity",meta_data$nick[i]))
+                       # if first file loaded, save info else test file compatibility 
+                       if (LIST_DATA$meta_data_plot$x_plot_range[2] == 0) {
+                         LIST_DATA$meta_data_plot$x_plot_range <<- c(1,bin_colname$num_bins-6)
+                         # for testing if files are loaded later and resetting lines and labels
+                         LIST_DATA$meta_data_plot$binning <<- bin_colname$binning
+                         LIST_DATA$meta_data_plot$binning2 <<- bin_colname$binning
+                         LIST_DATA$meta_data_plot$rnaseq <<- bin_colname$rnaseq
+                       } else if (max(bin_colname$num_bins-6) != LIST_DATA$meta_data_plot$x_plot_range[2] | 
+                                  all(c(bin_colname$binning) != LIST_DATA$meta_data_plot$binning2)) {
+                         showModal(
+                           modalDialog(
+                             title = "Information message",
+                             "Can't load file, different number of bins or bin sizes",
+                             size = "s",
+                             easyClose = TRUE
+                           )
+                         )
+                         if(i == length(meta_data$filepath)){
+                           return()
+                         } else {
+                           next()
+                         }
+                       }
+                       shinyjs::reset("filetable")
+                       setProgress(i/length(meta_data$filepath), 
+                                   detail = paste("Loading file",meta_data$nick[i]))
+                       LD <- LoadTableFile(meta_data[i, ], bin_colname)
+                       if(is.na(distinct(LD,set))){
+                         if(i == length(meta_data$filepath)){
+                           return()
+                         } else {
+                           next()
+                         }
+                       }
+                       if (!is_empty(LIST_DATA$gene_file)){
+                         gene_names <-
+                           semi_join(LD, LIST_DATA$gene_file$Complete$full, by = "gene") %>% distinct(gene)
+                         if (n_distinct(gene_names$gene) == 0) {
+                           showModal(
+                             modalDialog(
+                               title = "Information message",
+                               " No genes in common ",
+                               size = "s",
+                               easyClose = TRUE
+                             )
+                           )
+                         }
+                         setProgress(i/length(meta_data$filepath), 
+                                     detail = paste("Finishing up",meta_data$nick[i]))
+                         # make complete gene list
+                         LIST_DATA$gene_file$Complete$full <<-
+                           full_join(LD, LIST_DATA$gene_file$Complete$full, by = c("gene","chrom", "start", "end","strand")) %>%
+                           distinct(gene, chrom, start, end, strand)
+                         LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
+                           dplyr::mutate(count = if_else(gene_list == "Complete",
+                                                         paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)), count))
+                         
+                       } else {
+                         LIST_DATA$gene_file$Complete$full <<- distinct(LD, gene, chrom, start, end, strand)
+                       }
+                       if (LIST_DATA$STATE[2] == 0 &
+                           n_distinct(LIST_DATA$table_file$set) < 2) {
+                         oo <- meta_data$nick[i]
+                       } else {
+                         oo <- "0"
+                       }
+                       LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD)) %>% filter(!is.na(set))
+                       LIST_DATA$gene_file$Complete$info <<- tibble(loaded_info = paste("all loaded genes",
+                                                                                        Sys.Date()))
+                       LIST_DATA$meta_data <<- distinct(bind_rows(LIST_DATA$meta_data,tibble(
+                         gene_list = "Complete",
+                         count = paste("n =", n_distinct(LIST_DATA$gene_file$Complete$full$gene, na.rm = T)),
+                         set = meta_data$nick[i],
+                         mycol = meta_data$color[i],
+                         onoff = oo,
+                         sub = " ",
+                         plot_legend = " ",
+                         group = meta_data$group[i]
+                       )))
+                       ### check if grep of gene has occurred
+                       for(gg in seq_along(LIST_DATA$gene_file)[-1]){
+                         if("org_gene" %in% LIST_DATA$gene_file[[gg]]$full){
+                           setProgress(i/length(meta_data$filepath), 
+                                       detail = paste("re-matching gene list",meta_data$nick[i]))
+                           new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full,
+                                                        LIST_DATA$gene_file[[gg]]$full %>% select(org_gene) %>%
+                                                          dplyr::rename(gene = org_gene))
+                           if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
+                             # fix name, fix info
+                             listname <- names(LIST_DATA$gene_file)[gg]
+                             LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
+                               dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)),
+                                                           count))
+                           }
+                         }
+                         setProgress(i/length(meta_data$filepath), 
+                                     detail = paste("Updating gene lists",meta_data$nick[i]))
+                         # add missing data
+                         LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
+                           dplyr::filter(gene_list == names(LIST_DATA$gene_file)[gg]) %>%
+                           dplyr::mutate(set = meta_data$nick[i],
+                                         count = count[i],
+                                         mycol = meta_data$color[i],
+                                         onoff = "0",
+                                         sub = " ",
+                                         plot_legend = " ") %>%
+                           bind_rows(LIST_DATA$meta_data, .)
+                       }
+                     }
+                   } else {
+                     return()
+                   }
+                 })
     # first time starting
     if (LIST_DATA$STATE[1] == 0) {
       shinyjs::show("startoff")
       shinyjs::show("startoff2")
       # sets lines and labels
       # tries to guess lines and labels type
-      reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
-                                                      LIST_DATA$landmarks,
-                                      LIST_DATA$x_plot_range[2],
-                                      slider = T)
-      reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
-      if(LIST_DATA$rnaseq){
+      reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$meta_data_plot$binning,
+                                                      LIST_DATA$meta_data_plot$landmarks,
+                                                      LIST_DATA$meta_data_plot$x_plot_range[2],
+                                                      slider = T)
+      reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$meta_data_plot$binning[1])
+      if(LIST_DATA$meta_data_plot$rnaseq){
         updateAwesomeCheckbox(session,inputId = "checkboxfull",value = TRUE)
         updateAwesomeRadio(session,inputId = "checkboxbin",selected = "subtract")
       }
-      
     } 
     # enables tabs after loading file
     shinyjs::enable("startoff")
@@ -444,7 +445,7 @@ server <- function(input, output, session) {
   
   # loads gene list file ----
   observeEvent(input$filegene1, {
-     # print("load gene file")
+    # print("load gene file")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -521,10 +522,10 @@ server <- function(input, output, session) {
         )))
       new_comments <-
         c(new_comments, paste("#", 
-          paste(LIST_DATA$gene_file[[input$selectsave]]$info$col_info)
+                              paste(LIST_DATA$gene_file[[input$selectsave]]$info$col_info)
         ))
       new_comments2 <-
-          LIST_DATA$gene_file[[input$selectsave]]$full
+        LIST_DATA$gene_file[[input$selectsave]]$full
       if(input$selectsave == "CDF Log2 PI Cumulative plot"){
         new_comments2 <- new_comments2 %>% 
           select(-plot_legend, -bin) %>% 
@@ -541,7 +542,7 @@ server <- function(input, output, session) {
   
   # observe actionmyplot, Lines_Labels_List, myplot update apply_Math ----
   observeEvent(c(input$actionmyplot, reactive_values$Lines_Labels_List, reactive_values$myplot), ignoreInit = TRUE, {
-     # print("plot button")
+    # print("plot button")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -585,17 +586,17 @@ server <- function(input, output, session) {
                          updatePickerInput(session, "switchttest", selected = "none")
                        }
                        if (input$switchttest != "none"){ 
-                       LIST_DATA$ttest <<- ApplyTtest(list_data_frame,
-                                                      input$switchttest,
-                                                      input$selectttestlog,
-                                                      input$switchttesttype,
-                                                      input$padjust,
-                                                      input$selectttestalt,
-                                                      input$selectttestexact,
-                                                      input$selectttestpaired,
-                                                      input$mygroup)
+                         LIST_DATA$ttest <<- ApplyTtest(list_data_frame,
+                                                        input$switchttest,
+                                                        input$selectttestlog,
+                                                        input$switchttesttype,
+                                                        input$padjust,
+                                                        input$selectttestalt,
+                                                        input$selectttestexact,
+                                                        input$selectttestpaired,
+                                                        input$mygroup)
                        } else {
-                       LIST_DATA$ttest <<- NULL
+                         LIST_DATA$ttest <<- NULL
                        }
                      }
                      reactive_values$Plot_Options <- NULL
@@ -622,7 +623,7 @@ server <- function(input, output, session) {
   
   # updates mymath plot ----
   observeEvent(input$actionMathUpDatePlot, ignoreInit = T, {
-     # print("actionMathUpDatePlot")
+    # print("actionMathUpDatePlot")
     mymath <- c(input$myMath,
                 input$selectplotnrom,
                 input$selectplotBinNorm,
@@ -651,7 +652,7 @@ server <- function(input, output, session) {
   
   # reactive Apply_Math, sets Y axis min max ----
   observeEvent(reactive_values$Y_Axis_numbers_set, ignoreInit = T, ignoreNULL = T, {
-     # print("updates reactive_values$Y_Axis_numbers")
+    # print("updates reactive_values$Y_Axis_numbers")
     my_step <-
       (max(reactive_values$Y_Axis_numbers) - min(reactive_values$Y_Axis_numbers)) /
       20
@@ -667,11 +668,11 @@ server <- function(input, output, session) {
   
   # reactive Plot_Options, triggers plot ----
   observeEvent(reactive_values$Plot_Options, ignoreInit = T, ignoreNULL = T, {
-     # print("plot")
+    # print("plot")
     if(!is.null(LIST_DATA$ttest)){
       mm <- reactive_values$ttest_options[1:2]
       Plot_Options_ttest <- MakePlotOptionttest(LIST_DATA$ttest, as.numeric(mm),
-                                                 input$selectttestlog,input$hlinettest,input$padjust,input$switchttesttype)
+                                                input$selectttestlog,input$hlinettest,input$padjust,input$switchttesttype)
     }
     Y_Axis_Label <- YAxisLabel(input$myMath,
                                input$selectplotnrom,
@@ -711,7 +712,7 @@ server <- function(input, output, session) {
   # checks that number of names == position ----
   observeEvent(c(input$landlnames, input$landlposition), ignoreInit = TRUE, {
     if(LIST_DATA$STATE[2] > 0){
-       # print("names == position")
+      # print("names == position")
       my_pos <-
         suppressWarnings(as.numeric(unlist(
           strsplit(input$landlposition, split = "\\s+")
@@ -730,7 +731,7 @@ server <- function(input, output, session) {
   
   # dropcolor opens color select dialog box ----
   observeEvent(c(input$dropcolor), ignoreInit = T, {
-     # print("dropcolor")
+    # print("dropcolor")
     showModal(modalDialog(
       title = "Information message",
       " Update Nickname and color of samples",
@@ -787,12 +788,12 @@ server <- function(input, output, session) {
       )
     ))
   })
-
+  
   # CDF color select dialog box ----
   observeEvent(c(input$actioncdfcolor), ignoreInit = T, {
     gene_info <- LIST_DATA$meta_data %>% 
       dplyr::filter(str_detect(gene_list,"^CDF"))
-     # print("actioncdfcolor")
+    # print("actioncdfcolor")
     showModal(modalDialog(
       title = "Information message",
       " Update color of samples",
@@ -835,10 +836,10 @@ server <- function(input, output, session) {
                         choicesOpt = list(
                           content = gsub("\\n", "\\1<br>", distinct(gene_info,plot_legend)$plot_legend)
                         ))
-        ),
-        modalButton("Close")
-      )
-    )))
+          ),
+          modalButton("Close")
+        )
+      )))
   })
   
   # update display selected item info ----
@@ -859,13 +860,13 @@ server <- function(input, output, session) {
   
   # update color based on rgb text input ----
   observeEvent(input$actionmyrgb, {
-     # print("color rgb")
+    # print("color rgb")
     updateColourInput(session, "colourhex", value = RgbToHex(input$textrgbtohex, convert = "hex"))
   })
   
   # save color selected and update plot ----
   observeEvent(input$colourhex, ignoreInit = TRUE, {
-     # print("update text color")
+    # print("update text color")
     updateTextInput(session,
                     "textrgbtohex",
                     value = RgbToHex(x = input$colourhex, convert = "rgb"))
@@ -875,11 +876,11 @@ server <- function(input, output, session) {
         dplyr::filter(gene_list == input$selectgenelistoptions & 
                         set == input$selectdataoption | plot_legend == input$selectdataoption)
       ploton <- if_else(input$selectgenelistoptions == "Complete", T,
-              if_else(any(LIST_DATA$meta_data$gene_list == input$selectgenelistoptions & 
-                        LIST_DATA$meta_data$onoff !=0), T, F))
-
+                        if_else(any(LIST_DATA$meta_data$gene_list == input$selectgenelistoptions & 
+                                      LIST_DATA$meta_data$onoff !=0), T, F))
+      
       if (input$colourhex != my_sel$mycol) {
-         # print("color new")
+        # print("color new")
         LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
           dplyr::mutate(mycol=if_else((gene_list == input$selectgenelistoptions | 
                                          input$selectgenelistoptions == "Complete" |
@@ -908,7 +909,7 @@ server <- function(input, output, session) {
                       "textnickname",
                       value = paste(input$selectdataoption))
     } else if (input$textnickname != input$selectdataoption) {
-       # print("new nickname")
+      # print("new nickname")
       if (any(input$textnickname == distinct(LIST_DATA$meta_data, set)$set)) {
         updateTextInput(session,
                         "textnickname",
@@ -921,7 +922,7 @@ server <- function(input, output, session) {
         dplyr::mutate(onoff = if_else(onoff == input$selectdataoption,
                                       input$textnickname, onoff)) %>% 
         dplyr::mutate(plot_legend = str_replace(LIST_DATA$meta_data$plot_legend,
-                                             paste0("^",input$selectdataoption),input$textnickname)) %>% 
+                                                paste0("^",input$selectdataoption),input$textnickname)) %>% 
         dplyr::mutate(group = str_replace(LIST_DATA$meta_data$group,
                                           input$selectdataoption,input$textnickname))
       
@@ -944,8 +945,8 @@ server <- function(input, output, session) {
   
   # droplinesandlabels ----
   observeEvent(c(input$droplinesandlabels, reactive_values$droplinesandlabels), ignoreInit = T, ignoreNULL = T, {
-     # print("droplinesandlabels")
-    mynames <- LIST_DATA$tss_tes
+    # print("droplinesandlabels")
+    mynames <- LIST_DATA$meta_data_plot$tss_tes
     showModal(modalDialog(
       title = "Information message",
       " Set Lines and Labels for plot ",
@@ -959,19 +960,19 @@ server <- function(input, output, session) {
           collapsed = FALSE,
           column(12,
                  div(
-                   helpText(paste("Upstream bp:",LIST_DATA$binning[3]))
+                   helpText(paste("Upstream bp:",LIST_DATA$meta_data_plot$binning[3]))
                  ),
                  div(
-                   helpText(paste("unscaled 5prime:",LIST_DATA$binning[6]))
+                   helpText(paste("unscaled 5prime:",LIST_DATA$meta_data_plot$binning[6]))
                  ),
                  div(
-                   helpText(paste("unscaled 3prime:",LIST_DATA$binning[7]))
+                   helpText(paste("unscaled 3prime:",LIST_DATA$meta_data_plot$binning[7]))
                  ),
                  div(
-                   helpText(paste("Downstream bp:",LIST_DATA$binning[4]))
+                   helpText(paste("Downstream bp:",LIST_DATA$meta_data_plot$binning[4]))
                  ),
                  div(
-                   helpText(paste("bin size:",LIST_DATA$binning[2]))
+                   helpText(paste("bin size:",LIST_DATA$meta_data_plot$binning[2]))
                  ),
           ),
           column(12,
@@ -988,7 +989,7 @@ server <- function(input, output, session) {
                    numericInput(
                      "numericlabelspaceing",
                      "label spacing",
-                     value = LIST_DATA$binning[8],
+                     value = LIST_DATA$meta_data_plot$binning[8],
                      min = 0,
                      max = 1000
                    )
@@ -1165,7 +1166,7 @@ server <- function(input, output, session) {
   
   # observe switching tabs ----
   observeEvent(input$leftSideTabs, ignoreInit = TRUE, {
-     # print("switch tab")
+    # print("switch tab")
     # load files tab ----
     if (input$leftSideTabs == "loaddata"){
       if(length(names(LIST_DATA$gene_file))>1){
@@ -1178,23 +1179,28 @@ server <- function(input, output, session) {
     }
     # main plot tab ----
     if (input$leftSideTabs == "mainplot") {
-      reactive_values$Picker_controler <- 
+      reactive_values$Picker_controler <-
         c(names(LIST_DATA$gene_file), distinct(LIST_DATA$meta_data, set)$set)
       if(LIST_DATA$STATE[1] == 0){
         LIST_DATA$STATE[1] <<- 1
         LIST_DATA$STATE[2] <<- -10
         shinyjs::hide("actionmyplotshow")
         updateSliderTextInput(session,"sliderplotBinRange",
-                          choices = reactive_values$slider_breaks$mylabels,
-                          selected = c(first(reactive_values$slider_breaks$mylabels),
-                                       last(reactive_values$slider_breaks$mylabels))
-                          
-                            )
+                              choices = reactive_values$slider_breaks$mylabels,
+                              selected = c(first(reactive_values$slider_breaks$mylabels),
+                                           last(reactive_values$slider_breaks$mylabels))
+                              
+        )
         updateSelectInput(session,"selectplotBinNorm",
                           choices = c("NA","min",
                                       reactive_values$slider_breaks$mylabels)
-                            )
+        )
         reactive_values$droplinesandlabels <- 1
+      }
+      if(all(LIST_DATA$meta_data$group == "self")){
+        shinyjs::hide("hideplotgroup")
+      } else {
+        shinyjs::show("hideplotgroup")
       }
     }
     # sort/filter tab ----
@@ -1218,7 +1224,7 @@ server <- function(input, output, session) {
                         choicesOpt = list(
                           content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         )
-                        )
+      )
       output$valueboxsort <- renderValueBox({
         valueBox(0,
                  "Gene List Filter",
@@ -1240,7 +1246,7 @@ server <- function(input, output, session) {
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
           content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
-          )
+        )
       )
       updatePickerInput(
         session,
@@ -1251,7 +1257,7 @@ server <- function(input, output, session) {
                         gene_list == names(LIST_DATA$gene_file)[1]),
           mycol)$mycol, sep = ":"),
           content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"))
-          )
+        )
       )
       updatePickerInput(
         session,
@@ -1307,13 +1313,13 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "genelists") {
       shinyjs::hide('actiongenelistsdatatable')
       updatePickerInput(
-          session,
-          "pickergenelists",
-          choices = names(LIST_DATA$gene_file),
-          choicesOpt = list(
-            content = gsub("(.{55})", "\\1<br>", names(LIST_DATA$gene_file))
-          )
+        session,
+        "pickergenelists",
+        choices = names(LIST_DATA$gene_file),
+        choicesOpt = list(
+          content = gsub("(.{55})", "\\1<br>", names(LIST_DATA$gene_file))
         )
+      )
       output$valueboxgene1 <- renderValueBox({
         valueBox(0,
                  "Gene List innerjoin",
@@ -1409,7 +1415,7 @@ server <- function(input, output, session) {
                         choicesOpt = list(
                           content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
                         )
-                        )
+      )
       output$valueboxsort <- renderValueBox({
         valueBox(0,
                  "Gene List Filter",
@@ -1435,7 +1441,7 @@ server <- function(input, output, session) {
           ol <- "Complete"
         }
       }
-
+      
       updatePickerInput(session, "groupiesGeneList",
                         choices = names(LIST_DATA$gene_file),
                         selected = ol,
@@ -1459,92 +1465,92 @@ server <- function(input, output, session) {
     
     # CDF switch tab ----
     if(input$leftSideTabs == "cdftool"){
-    shinyjs::hide('plotcdf')
-    shinyjs::hide('plotcdfscatter')
-    shinyjs::disable('actioncdfcolor')
-    pickercdf <- list()
-    for (i in names(LIST_DATA$gene_file)) {
-      pickercdf[[i]] <-
-        list(div(
-          style = "margin-bottom: -10px;",
-          pickerInput(
-            inputId = paste0("-cdfspace3-", 
-                           gsub(" ", "-cdfspace2-", 
-                                gsub("\n", "-cdfspace1-", i))),
-            label = i,
-            width = "99%",
-            choices = distinct(LIST_DATA$meta_data, set)$set,
-            multiple = T,
-            options = list(
-              `actions-box` = TRUE,
-              `selected-text-format` = "count > 0"
-            ),
-            choicesOpt = list(style = paste("color", dplyr::select(
-              dplyr::filter(LIST_DATA$meta_data,
-                            gene_list == names(LIST_DATA$gene_file)[1]),
-              mycol)$mycol, sep = ":"),
-              content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set))
-          )
-        ))
-    }
-    if(any(str_detect(names(LIST_DATA$gene_file),"^Filter"))){
-      output$DynamicCDFPicker_sort <- renderUI({
-        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Filter")]
-      })
-      shinyjs::show("showpickersort_cdf")
-    } else {
-      shinyjs::hide("showpickersort_cdf")
-    }
-    if(any(str_detect(names(LIST_DATA$gene_file),"^Gene_List_"))){
-      output$DynamicCDFPicker_comparisons <- renderUI({
-        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Gene_List_")]
-      })
-      shinyjs::show("showpickercomparisons_cdf")
-    } else {
-      shinyjs::hide("showpickercomparisons_cdf")
-    }
-    if(any(str_detect(names(LIST_DATA$gene_file),"^Ratio_"))){
-      output$DynamicCDFPicker_ratio <- renderUI({
-        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Ratio_")]
-      })
-      shinyjs::show("showpickerratio_cdf")
-    } else {
-      shinyjs::hide("showpickerratio_cdf")
-    }
-    if(any(str_detect(names(LIST_DATA$gene_file),"^Cluster_"))){
-      output$DynamicCDFPicker_clusters <- renderUI({
-        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Cluster_")]
-      })
-      shinyjs::show("showpickercluster_cdf")
-    } else {
-      shinyjs::hide("showpickercluster_cdf")
-    }
-    if(any(str_detect(names(LIST_DATA$gene_file),"^Groups_"))){
-      output$DynamicCDFPicker_groupies <- renderUI({
-        pickercdf[str_detect(names(LIST_DATA$gene_file),"^Groups_")]
-      })
-      shinyjs::show("showpickergroupies_cdf")
-    } else {
-      shinyjs::hide("showpickergroupies_cdf")
-    }
-    output$DynamicCDFPicker_main <- renderUI({
-      pickercdf[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")]
-    })
-    if (sum(grepl("CDF ", names(LIST_DATA$gene_file))) == 0) {
-      output$plotcdf <- renderPlot({
-        NULL
-      })
-      output$plotcdfscatter <- renderPlot({
-        NULL
-      })
       shinyjs::hide('plotcdf')
       shinyjs::hide('plotcdfscatter')
-      shinyjs::hide('actioncdfdatatable')
-      my_count <- 0
-    } else {
-      my_count <-
-        n_distinct(LIST_DATA$gene_file[[grep("CDF ", names(LIST_DATA$gene_file))]]$full$gene, na.rm = T)
-    }
+      shinyjs::disable('actioncdfcolor')
+      pickercdf <- list()
+      for (i in names(LIST_DATA$gene_file)) {
+        pickercdf[[i]] <-
+          list(div(
+            style = "margin-bottom: -10px;",
+            pickerInput(
+              inputId = paste0("-cdfspace3-", 
+                               gsub(" ", "-cdfspace2-", 
+                                    gsub("\n", "-cdfspace1-", i))),
+              label = i,
+              width = "99%",
+              choices = distinct(LIST_DATA$meta_data, set)$set,
+              multiple = T,
+              options = list(
+                `actions-box` = TRUE,
+                `selected-text-format` = "count > 0"
+              ),
+              choicesOpt = list(style = paste("color", dplyr::select(
+                dplyr::filter(LIST_DATA$meta_data,
+                              gene_list == names(LIST_DATA$gene_file)[1]),
+                mycol)$mycol, sep = ":"),
+                content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set))
+            )
+          ))
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Filter"))){
+        output$DynamicCDFPicker_sort <- renderUI({
+          pickercdf[str_detect(names(LIST_DATA$gene_file),"^Filter")]
+        })
+        shinyjs::show("showpickersort_cdf")
+      } else {
+        shinyjs::hide("showpickersort_cdf")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Gene_List_"))){
+        output$DynamicCDFPicker_comparisons <- renderUI({
+          pickercdf[str_detect(names(LIST_DATA$gene_file),"^Gene_List_")]
+        })
+        shinyjs::show("showpickercomparisons_cdf")
+      } else {
+        shinyjs::hide("showpickercomparisons_cdf")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Ratio_"))){
+        output$DynamicCDFPicker_ratio <- renderUI({
+          pickercdf[str_detect(names(LIST_DATA$gene_file),"^Ratio_")]
+        })
+        shinyjs::show("showpickerratio_cdf")
+      } else {
+        shinyjs::hide("showpickerratio_cdf")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Cluster_"))){
+        output$DynamicCDFPicker_clusters <- renderUI({
+          pickercdf[str_detect(names(LIST_DATA$gene_file),"^Cluster_")]
+        })
+        shinyjs::show("showpickercluster_cdf")
+      } else {
+        shinyjs::hide("showpickercluster_cdf")
+      }
+      if(any(str_detect(names(LIST_DATA$gene_file),"^Groups_"))){
+        output$DynamicCDFPicker_groupies <- renderUI({
+          pickercdf[str_detect(names(LIST_DATA$gene_file),"^Groups_")]
+        })
+        shinyjs::show("showpickergroupies_cdf")
+      } else {
+        shinyjs::hide("showpickergroupies_cdf")
+      }
+      output$DynamicCDFPicker_main <- renderUI({
+        pickercdf[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")]
+      })
+      if (sum(grepl("CDF ", names(LIST_DATA$gene_file))) == 0) {
+        output$plotcdf <- renderPlot({
+          NULL
+        })
+        output$plotcdfscatter <- renderPlot({
+          NULL
+        })
+        shinyjs::hide('plotcdf')
+        shinyjs::hide('plotcdfscatter')
+        shinyjs::hide('actioncdfdatatable')
+        my_count <- 0
+      } else {
+        my_count <-
+          n_distinct(LIST_DATA$gene_file[[grep("CDF ", names(LIST_DATA$gene_file))]]$full$gene, na.rm = T)
+      }
     }
     # DataTable tab ----
     if(input$leftSideTabs == "DataTableTool"){
@@ -1572,29 +1578,23 @@ server <- function(input, output, session) {
                           content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set))
                         ))
     }
-    
   })
   
   # action reset button lines and labels ----
   observeEvent(input$resetlineslabels, ignoreInit = TRUE, ignoreNULL = T, {
     # print("action reset lines and labels")
-      if(LIST_DATA$x_plot_range[2] == 2){
-        binning2 <- "PI"
-      } else {
-        binning2 <- LIST_DATA$binning2[1]
-      }
-    mynames <- LinesLabelsSetNames(binning2)
+    mynames <- LIST_DATA$meta_data_plot$tss_tes
     # if tss or tes location make sure there is text
     updateTextInput(session, "numerictssname", value = mynames[1])
     updateTextInput(session, "numerictesname", value = mynames[2])
     updateNumericInput(session,"numericlabelspaceing", value = input$numericlabelspaceing+1)
-    updateNumericInput(session,"numericlabelspaceing", value = LIST_DATA$binning2[8])
+    updateNumericInput(session,"numericlabelspaceing", value = LIST_DATA$meta_data_plot$binning2[8])
     
   })
   
   # action button update lines and labels ----
   observeEvent(input$actionlineslabels, ignoreInit = TRUE, ignoreNULL = T, {
-     # print("action lines and labels")
+    # print("action lines and labels")
     my_pos <-
       suppressWarnings(as.numeric(unlist(
         strsplit(input$landlposition, split = "\\s+")
@@ -1602,22 +1602,22 @@ server <- function(input, output, session) {
     my_label <- unlist(strsplit(input$landlnames, split = "\\s+"))
     if (length(my_pos) == 0) {
       my_label <- "none"
-      my_pos <- LIST_DATA$x_plot_range[2] * 2
+      my_pos <- LIST_DATA$meta_data_plot$x_plot_range[2] * 2
     }
     
-    LIST_DATA$tss_tes <<- c(input$numerictssname,input$numerictesname)
-
-    reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$binning,
-                                                    LIST_DATA$landmarks,
-                                                    LIST_DATA$x_plot_range[2],
+    LIST_DATA$meta_data_plot$tss_tes <<- c(input$numerictssname,input$numerictesname)
+    
+    reactive_values$slider_breaks <- LinesLabelsSet(LIST_DATA$meta_data_plot$binning,
+                                                    LIST_DATA$meta_data_plot$landmarks,
+                                                    LIST_DATA$meta_data_plot$x_plot_range[2],
                                                     input$numerictssname,
                                                     input$numerictesname,
                                                     slider = T)
     
-    reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$binning[1])
-
+    reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$meta_data_plot$binning[1])
+    
     reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
-                                              last(reactive_values$slider_breaks$mylabels))
+                                                 last(reactive_values$slider_breaks$mylabels))
     updateSliderTextInput(session,"sliderplotBinRange",
                           choices = reactive_values$slider_breaks$mylabels,
                           selected = c(first(reactive_values$slider_breaks$mylabels),
@@ -1630,10 +1630,10 @@ server <- function(input, output, session) {
                                   reactive_values$slider_breaks$mylabels),
                       selected = "NA"
     )
-
+    
     reactive_values$Lines_Labels_List <-
       LinesLabelsPlot(
-        LIST_DATA$binning,
+        LIST_DATA$meta_data_plot$binning,
         input$selectbody1color,
         input$selectbody1line,
         input$selectbody2color,
@@ -1716,7 +1716,7 @@ server <- function(input, output, session) {
     ignoreInit = TRUE,
     {
       if(LIST_DATA$STATE[2] > 0){
-         # print("keep bin positions in bounds > 0")
+        # print("keep bin positions in bounds > 0")
         mynum <- c(2, 2.5, 13, 13, 10, 0.8)
         myset <- c(
           input$selectvlinesize,
@@ -1750,20 +1750,20 @@ server <- function(input, output, session) {
     ignoreInit = TRUE,
     ignoreNULL = TRUE,
     {
-        # print("observe line and labels")
+      # print("observe line and labels")
       myset <- input$numericlabelspaceing
-      if (!is.na(myset) & (myset >= LIST_DATA$binning[2] &
-          as.double(myset)%%as.double(LIST_DATA$binning[2]) == 0) | myset == 1)  {
+      if (!is.na(myset) & (myset >= LIST_DATA$meta_data_plot$binning[2] &
+                           as.double(myset)%%as.double(LIST_DATA$meta_data_plot$binning[2]) == 0) | myset == 1)  {
         shinyjs::enable("actionlineslabels")
         updateActionButton(session, "actionlineslabels", label = "SET and Plot")
-  
-        LIST_DATA$binning[8] <<- myset
-        LIST_DATA$landmarks <<- LinesLableLandmarks(LIST_DATA$binning)
-        Lines_Labels_List <- LinesLabelsSet(LIST_DATA$binning,
-                                            LIST_DATA$landmarks,
-                             LIST_DATA$x_plot_range[2],
-                             input$numerictssname,
-                             input$numerictesname)
+        
+        LIST_DATA$meta_data_plot$binning[8] <<- myset
+        LIST_DATA$meta_data_plot$landmarks <<- LinesLableLandmarks(LIST_DATA$meta_data_plot$binning)
+        Lines_Labels_List <- LinesLabelsSet(LIST_DATA$meta_data_plot$binning,
+                                            LIST_DATA$meta_data_plot$landmarks,
+                                            LIST_DATA$meta_data_plot$x_plot_range[2],
+                                            input$numerictssname,
+                                            input$numerictesname)
         
         # set label and position numbers
         updateTextInput(session,
@@ -1772,9 +1772,9 @@ server <- function(input, output, session) {
         updateTextInput(session,
                         "landlposition",
                         value = paste(Lines_Labels_List$mybrakes , collapse = " "))
-      if(LIST_DATA$STATE[2] > 0) {
-        LIST_DATA$STATE[2] <<- 1
-      }
+        if(LIST_DATA$STATE[2] > 0) {
+          LIST_DATA$STATE[2] <<- 1
+        }
       } else {
         updateActionButton(session, "actionlineslabels", label = "bin size must be multiple of and not > other values")
         shinyjs::disable("actionlineslabels")
@@ -1888,30 +1888,30 @@ server <- function(input, output, session) {
                               step = .5)
           )
         ),
-      box(
-        collapsed = F,
-        collapsible = F,
-        width = 12,
-        status = "navy",
-        solidHeader = T,
-        title = "t.test sample colors",
-        pickerInput(inputId = "selectttestitem",
-                           label = "Select to modify color",
-                           choices = ttest_list,
-                           selected = reactive_values$ttest_options[4]),
-        colourInput("selectcolorttest", "Select color")
-      ),
+        box(
+          collapsed = F,
+          collapsible = F,
+          width = 12,
+          status = "navy",
+          solidHeader = T,
+          title = "t.test sample colors",
+          pickerInput(inputId = "selectttestitem",
+                      label = "Select to modify color",
+                      choices = ttest_list,
+                      selected = reactive_values$ttest_options[4]),
+          colourInput("selectcolorttest", "Select color")
+        ),
         actionButton("actionttest","Apply"),
-      helpText("does not currently deal with grouped data using 'groups and single' option")
+        helpText("does not currently deal with grouped data using 'groups and single' option")
       )
     ))
   })
-
+  
   # t.test gets line colors ----
   observeEvent(input$selectttestitem, ignoreInit = T,{
     if(!is.null(LIST_DATA$ttest)){
       if(input$selectttestitem != reactive_values$ttest_options[4]){
-         # print("t.test gets line colors")
+        # print("t.test gets line colors")
         mycol <- LIST_DATA$ttest %>% dplyr::filter(set == input$selectttestitem) %>% distinct(mycol)
         updateColourInput(session, "selectcolorttest", value = paste(mycol))
       }
@@ -1921,7 +1921,7 @@ server <- function(input, output, session) {
   # t.test updates line colors ----
   observeEvent(input$selectcolorttest,ignoreInit = T,{
     if(!is.null(LIST_DATA$ttest)){
-       # print("t.test updates line colors")
+      # print("t.test updates line colors")
       LIST_DATA$ttest <<- LIST_DATA$ttest %>% dplyr::mutate(.,mycol = ifelse(set == input$selectttestitem, input$selectcolorttest, mycol))
       updatePickerInput(session, "selectttestitem", reactive_values$ttest_options[4])
     }
@@ -1933,10 +1933,10 @@ server <- function(input, output, session) {
                       input$selectttestpaired, input$selectttestexact, input$selectttestlog, 
                       input$padjust)
     reactive_values$ttest_options <- c(input$numericYRangeLowpval, input$numericYRangeHighpval, input$sliderplotOccupancy, 
-         input$selectttestitem, input$hlinettest)
+                                       input$selectttestitem, input$hlinettest)
     
     if (LIST_DATA$STATE[2] != 2){
-       # print("t.test button")
+      # print("t.test button")
       list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull)
       if (!is_empty(list_data_frame)) {
         if (sum(ttest_values == reactive_values$ttest_values) != 7){
@@ -2039,7 +2039,7 @@ server <- function(input, output, session) {
                {
                  # needed for controlling flow of first time auto plot
                  if (LIST_DATA$STATE[1] > .9) {
-                    # print("checkbox on/off")
+                   # print("checkbox on/off")
                    ttt <- reactive_values$picker
                    checkboxonoff <- list()
                    for(i in names(ttt)){
@@ -2077,7 +2077,7 @@ server <- function(input, output, session) {
     ignoreNULL = FALSE,
     ignoreInit = TRUE,
     {
-       # print("Dynamic pickers update")
+      # print("Dynamic pickers update")
       
       pickerlist <- list()
       for (i in names(LIST_DATA$gene_file)) {
@@ -2157,10 +2157,9 @@ server <- function(input, output, session) {
       })
       
     })
-  
   # filter sum tool action ----
   observeEvent(input$actionsorttool, {
-     # print("sort tool")
+    # print("sort tool")
     if (input$slidersortpercent < 50 &
         input$selectsorttop == "Middle%") {
       updateSliderInput(session, "slidersortpercent", value = 50)
@@ -2195,27 +2194,27 @@ server <- function(input, output, session) {
                      detail = 'This may take a while...',
                      value = 0,
                      {
-        Apply_Cluster_Math <-
-          ApplyMath(
-            list_data_frame,
-            "mean",
-            "none",
-            0,
-            0
-          )
-        reactive_values$Plot_controler_sort_min <- ggplot()
-        reactive_values$Plot_controler_sort_max <- ggplot()
-        gp1 <-
-          ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=set)) +
-          geom_line() +
-          ylab("Mean bin value") +
-          theme(legend.position="bottom",
-                legend.title = element_blank(),
-                axis.title.x=element_blank())
-        print(gp1)
-        reactive_values$Plot_controler_sort_min <- gp1
-        shinyjs::show("hidesortplots1")
-        shinyjs::hide("hidesortplots2")
+                       Apply_Cluster_Math <-
+                         ApplyMath(
+                           list_data_frame,
+                           "mean",
+                           "none",
+                           0,
+                           0
+                         )
+                       reactive_values$Plot_controler_sort_min <- ggplot()
+                       reactive_values$Plot_controler_sort_max <- ggplot()
+                       gp1 <-
+                         ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=set)) +
+                         geom_line() +
+                         ylab("Mean bin value") +
+                         theme(legend.position="bottom",
+                               legend.title = element_blank(),
+                               axis.title.x=element_blank())
+                       print(gp1)
+                       reactive_values$Plot_controler_sort_min <- gp1
+                       shinyjs::show("hidesortplots1")
+                       shinyjs::hide("hidesortplots2")
                      })
       }
       if (any(grep("^Filter", names(LIST_DATA$gene_file)) > 0)) {
@@ -2261,6 +2260,7 @@ server <- function(input, output, session) {
     }
   })
   
+  
   # filter % numeric controller ----
   observeEvent(c(input$numericsortmin,input$numericsortmax, input$selectsortper), ignoreInit = TRUE, ignoreNULL = TRUE, {
     if (!is.numeric(input$numericsortmin)) {
@@ -2289,21 +2289,21 @@ server <- function(input, output, session) {
   
   # filter min max between % tool action ----
   observeEvent(input$actionsortper, ignoreInit = TRUE, {
-     # print("sort % tool")
+    # print("sort % tool")
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a bit ...',
                  value = 0,
                  {
                    shinyjs::show("hidesortplots1")
-    reactive_values$Plot_controler_sort_min <- ggplot()
-    sortmin <- FilterPer(LIST_DATA, 
-                         input$sortGeneList,
-                         input$sortSamples,
-                         floor(reactive_values$slider_breaks$mybrakes[
-                           reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
-                         c(input$numericsortmin,input$numericsortmax),
-                         input$selectsortper,
-                         input$slidersortbinrange)
+                   reactive_values$Plot_controler_sort_min <- ggplot()
+                   sortmin <- FilterPer(LIST_DATA, 
+                                        input$sortGeneList,
+                                        input$sortSamples,
+                                        floor(reactive_values$slider_breaks$mybrakes[
+                                          reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
+                                        c(input$numericsortmin,input$numericsortmax),
+                                        input$selectsortper,
+                                        input$slidersortbinrange)
                  })
     
     if(!is_empty(sortmin$sortplot)){
@@ -2346,13 +2346,13 @@ server <- function(input, output, session) {
       reactive_values$Plot_controler_sort_min <- gp1
       reactive_values$Plot_controler_sort_max <- gp2
       output$valueboxsort <- renderValueBox({
-          valueBox(
-            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
-            "Gene List Filter",
-            icon = icon("list"),
-            color = "green"
-          )
-        })
+        valueBox(
+          n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
+          "Gene List Filter",
+          icon = icon("list"),
+          color = "green"
+        )
+      })
       ol <- input$sortGeneList
       if(!is.null(ol)){
         if (!ol %in% names(LIST_DATA$gene_file)) {
@@ -2394,22 +2394,22 @@ server <- function(input, output, session) {
       start_end_bin <- c(start_end_bin,start_end_bin)
     }
     
-      df <- LIST_DATA$table_file %>% 
-        dplyr::filter(set %in% input$sortSamples) %>% 
-        dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2])
-      if(length(df$score)==0){
-        rr <- c(0,0)
-      } else {
-        rr <- round(range(abs(df$score),na.rm = T),digits = 4)
-      }
-        
+    df <- LIST_DATA$table_file %>% 
+      dplyr::filter(set %in% input$sortSamples) %>% 
+      dplyr::filter(bin %in% start_end_bin[1]:start_end_bin[2])
+    if(length(df$score)==0){
+      rr <- c(0,0)
+    } else {
+      rr <- round(range(abs(df$score),na.rm = T),digits = 4)
+    }
+    
     updateNumericInput(session, "peakfilternum", value = max(rr,na.rm = T))
     output$rangeHelptext <- renderUI({helpText(paste("min",min(rr,na.rm = T),"max",max(rr,na.rm = T)))})
   })
   
   # filter peak tool action ----
   observeEvent(input$actionsortpeak, ignoreInit = TRUE, {
-     # print("sort Peak")
+    # print("sort Peak")
     shinyjs::show("hidesortplots1")
     reactive_values$Plot_controler_sort_min <- ggplot()
     shinyjs::hide("hidesortplots2")
@@ -2423,7 +2423,7 @@ server <- function(input, output, session) {
       return()
     }
     if(!is.numeric(input$peakfilternum)){
-        updateNumericInput(session, "peakfilternum", value = 1)
+      updateNumericInput(session, "peakfilternum", value = 1)
       showModal(modalDialog(
         title = "Information message",
         paste("please set score to filter on"),
@@ -2436,14 +2436,14 @@ server <- function(input, output, session) {
                  detail = 'This may take a bit ...',
                  value = 0,
                  {
-    sortmin <- FilterPeak(LIST_DATA, 
-                         input$sortGeneList,
-                         input$sortSamples,
-                         floor(reactive_values$slider_breaks$mybrakes[
-                           reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
-                         input$selectsortpeak,
-                         input$slidersortbinrange,
-                         input$peakfilternum)
+                   sortmin <- FilterPeak(LIST_DATA, 
+                                         input$sortGeneList,
+                                         input$sortSamples,
+                                         floor(reactive_values$slider_breaks$mybrakes[
+                                           reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
+                                         input$selectsortpeak,
+                                         input$slidersortbinrange,
+                                         input$peakfilternum)
                  })
     
     if(!is.null(sortmin)){
@@ -2469,36 +2469,36 @@ server <- function(input, output, session) {
                            0
                          )
                      })
-      gp1 <-
-        ggplot(Apply_Math ,aes(as.numeric(bin),value,color=set)) +
+        gp1 <-
+          ggplot(Apply_Math ,aes(as.numeric(bin),value,color=set)) +
           geom_line() +
           ylab("Filtered") +
           theme(legend.position="bottom",
                 legend.title = element_blank(),
                 axis.title.x=element_blank())
-      print(gp1)
-      reactive_values$Plot_controler_sort_min <- gp1
-      shinyjs::show("hidesortplots1")
-      output$valueboxsort <- renderValueBox({
-        valueBox(
-          n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
-          "Gene List Filter",
-          icon = icon("list"),
-          color = "green"
-        )
-      })
-      ol <- input$sortGeneList
-      if(!is.null(ol)){
-        if (!ol %in% names(LIST_DATA$gene_file)) {
-          ol <- "Complete"
-        } 
-      }
-      updatePickerInput(session, "sortGeneList",
-                        choices = names(LIST_DATA$gene_file),
-                        selected = ol,
-                        choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
-                        ))
+        print(gp1)
+        reactive_values$Plot_controler_sort_min <- gp1
+        shinyjs::show("hidesortplots1")
+        output$valueboxsort <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
+            "Gene List Filter",
+            icon = icon("list"),
+            color = "green"
+          )
+        })
+        ol <- input$sortGeneList
+        if(!is.null(ol)){
+          if (!ol %in% names(LIST_DATA$gene_file)) {
+            ol <- "Complete"
+          } 
+        }
+        updatePickerInput(session, "sortGeneList",
+                          choices = names(LIST_DATA$gene_file),
+                          selected = ol,
+                          choicesOpt = list(
+                            content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                          ))
         if(LIST_DATA$STATE[1] != 0 ){
           LIST_DATA$STATE[1] <<- 0.75
         }
@@ -2566,12 +2566,12 @@ server <- function(input, output, session) {
       # saves data in list of lists
       LIST_DATA$gene_file[[my_name]]$full <<- distinct(LD)
       LIST_DATA$gene_file[[my_name]]$info <<- tibble(loaded_info =
-                                                      paste("Loaded gene list from file",
-                                                            my_name,
-                                                            Sys.Date()),
-                                                    save_name = gsub(" ", "_", str_squish(paste(my_name,
-                                                                                                Sys.Date(), sep ="_"))),
-                                                    col_info = "loaded file"
+                                                       paste("Loaded gene list from file",
+                                                             my_name,
+                                                             Sys.Date()),
+                                                     save_name = gsub(" ", "_", str_squish(paste(my_name,
+                                                                                                 Sys.Date(), sep ="_"))),
+                                                     col_info = "loaded file"
       )
       LIST_DATA$meta_data <<- bind_rows(LIST_DATA$meta_data, gene_info)
       output$valueboxsort <- renderValueBox({
@@ -2593,23 +2593,23 @@ server <- function(input, output, session) {
       })
     }
     
-                    
-      ol <- input$sortGeneList
-      if(!is.null(ol)){
-        if (!ol %in% names(LIST_DATA$gene_file)) {
-          ol <- "Complete"
-        } 
-      }
-      updatePickerInput(session, "sortGeneList",
-                        choices = names(LIST_DATA$gene_file),
-                        selected = ol,
-                        choicesOpt = list(
-                          content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
-                        ))
-      if(LIST_DATA$STATE[1] != 0 ){
-        LIST_DATA$STATE[1] <<- 0.75
-      }
-      
+    
+    ol <- input$sortGeneList
+    if(!is.null(ol)){
+      if (!ol %in% names(LIST_DATA$gene_file)) {
+        ol <- "Complete"
+      } 
+    }
+    updatePickerInput(session, "sortGeneList",
+                      choices = names(LIST_DATA$gene_file),
+                      selected = ol,
+                      choicesOpt = list(
+                        content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                      ))
+    if(LIST_DATA$STATE[1] != 0 ){
+      LIST_DATA$STATE[1] <<- 0.75
+    }
+    
   })
   
   # observe norm gene pickers ----
@@ -2617,11 +2617,11 @@ server <- function(input, output, session) {
                  input$pickerdenominator), {
                    if (input$pickernumerator != "") {
                      if(input$pickerdenominator != "Multiply by -1"){
-                     updateTextInput(session, "textnromname",value = paste(input$pickernumerator, input$adddata,
-                                                                           input$pickerdenominator))
+                       updateTextInput(session, "textnromname",value = paste(input$pickernumerator, input$adddata,
+                                                                             input$pickerdenominator))
                      } else {
                        updateTextInput(session, "textnromname",value = paste0(input$pickernumerator))
-                       }
+                     }
                      output$valueboxnormfile <- renderValueBox({
                        valueBox("0%",
                                 "Done",
@@ -2661,7 +2661,7 @@ server <- function(input, output, session) {
                                                           mycol)$mycol, 
                                                         sep = ":"),
                                           content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
-                                          ))
+                        ))
       updatePickerInput(session,
                         "pickerdenominator", selected = "",
                         choices = c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"),
@@ -2673,7 +2673,7 @@ server <- function(input, output, session) {
                                                           mycol)$mycol, 
                                                         sep = ":"),
                                           content = gsub("(.{35})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"))
-                                          ))
+                        ))
       updatePickerInput(
         session,
         "pickergroupsample",
@@ -2743,17 +2743,17 @@ server <- function(input, output, session) {
   
   # observe norm gene pickers ----
   observeEvent(input$pickergroupsample, ignoreNULL = T,ignoreInit = T,{
-                     updateTextInput(session, "textgroupname",
-                                     value = input$pickergroupsample)
-                 })
+    updateTextInput(session, "textgroupname",
+                    value = input$pickergroupsample)
+  })
   
   # create groups file ----
   observeEvent(input$actiongroup, ignoreInit = TRUE, {
     if (!is.null(input$pickergroupsample)) {
-    LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
-      mutate(group = if_else(set %in% input$pickergroupsample,
-                             gsub("(.{20})", "\\1\n",
-                                  gsub(",",":",input$textgroupname)), group))
+      LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
+        mutate(group = if_else(set %in% input$pickergroupsample,
+                               gsub("(.{20})", "\\1\n",
+                                    gsub(",",":",input$textgroupname)), group))
       updatePickerInput(session,
                         "pickergroupsample", selected = "",
                         options = list(title = "Select at least 2 files"))
@@ -2799,7 +2799,7 @@ server <- function(input, output, session) {
   
   # Gene action ----
   observeEvent(input$actiongenelists, {
-     # print("gene lists action")
+    # print("gene lists action")
     shinyjs::hide('actiongenelistsdatatable')
     shinyjs::hide('genelists1table')
     shinyjs::hide('genelists2table')
@@ -2908,7 +2908,7 @@ server <- function(input, output, session) {
   
   # Gene lists DT show gene list ----
   observeEvent(input$actiongenelistsdatatable, ignoreInit = TRUE, {
-     # print("generate gene lists table")
+    # print("generate gene lists table")
     shinyjs::hide('actiongenelistsdatatable')
     if (any(grep("Gene_List_innerjoin\nn =", names(LIST_DATA$gene_file)) >
             0)) {
@@ -3097,7 +3097,7 @@ server <- function(input, output, session) {
   
   # Cluster tool action ----
   observeEvent(input$actionclustertool, ignoreInit = TRUE, {
-     # print("cluster tool action")
+    # print("cluster tool action")
     shinyjs::hide('plot1cluster')
     if (n_distinct(LIST_DATA$gene_file[[input$clusterGeneList]]$full, na.rm = T) < as.numeric(input$selectclusternumber) |
         is.null(input$clusterSamples)) {
@@ -3138,7 +3138,7 @@ server <- function(input, output, session) {
   observeEvent(c(input$selectclusternumber, reactive_values$clustergroups),
                ignoreInit = TRUE, ignoreNULL = TRUE,
                {
-                  # print("cluster tool number")
+                 # print("cluster tool number")
                  if (is.null(reactive_values$clustergroups)) {
                    return()
                  }
@@ -3239,10 +3239,10 @@ server <- function(input, output, session) {
   # Cluster reset controller ----
   observeEvent(c(input$clusterGeneList,
                  input$clusterSamples), ignoreNULL = TRUE, ignoreInit = TRUE, {
-    reactive_values$clustergroups <- NULL
-    shinyjs::hide("hideclusterplots1")
-    shinyjs::hide("hideclustertable")
-  })
+                   reactive_values$clustergroups <- NULL
+                   shinyjs::hide("hideclusterplots1")
+                   shinyjs::hide("hideclustertable")
+                 })
   
   # groupies tool action ----
   observeEvent(input$actiongroupiestool, ignoreInit = TRUE, {
@@ -3282,7 +3282,7 @@ server <- function(input, output, session) {
       return()
     }
   })
-
+  
   # Plots groupies based on number selected ----
   observeEvent(c(input$selectgroupiesnumber, reactive_values$groupiesgroups),
                ignoreInit = TRUE, ignoreNULL = TRUE,
@@ -3328,7 +3328,7 @@ server <- function(input, output, session) {
                                 {
                                   list_data_frame <- Active_list_data(LD, input$checkboxfull)
                                   if (!is_empty(list_data_frame)) {
-
+                                    
                                     Apply_groupies_Math <- ApplyMath(
                                       list_data_frame,
                                       "mean",
@@ -3386,7 +3386,7 @@ server <- function(input, output, session) {
                    return()
                  }
                })
-
+  
   # groupies reset controller ----
   observeEvent(c(input$groupiesGeneList,
                  input$groupiesSamples), ignoreNULL = TRUE, ignoreInit = TRUE, {
@@ -3395,10 +3395,10 @@ server <- function(input, output, session) {
                    shinyjs::hide("hidegroupiestable")
                    shinyjs::hide("hidegroupiesplots2")
                  })
-
+  
   # Ratio tool action ----
   observeEvent(input$actionratiotool, ignoreInit = TRUE, {
-     # print("ratio tool action")
+    # print("ratio tool action")
     shinyjs::hide('ratio1table')
     shinyjs::hide('ratio2table')
     shinyjs::hide('ratio3table')
@@ -3414,8 +3414,8 @@ server <- function(input, output, session) {
     }
     if (any(is.na(input$sliderbinratio2))) {
       updateSliderTextInput(session,
-                        "sliderbinratio2",
-                        selected = c("NA","NA"))
+                            "sliderbinratio2",
+                            selected = c("NA","NA"))
     }
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
@@ -3542,21 +3542,21 @@ server <- function(input, output, session) {
   
   # update Ratio violinplot ----
   observeEvent(c(input$textboxmaxratio, input$textboxminratio),ignoreInit = TRUE, ignoreNULL = TRUE,{
-                   if(!is.null(LIST_DATA$boxRatio)){
-                     my_range <- c(floor(input$textboxminratio), ceiling(input$textboxmaxratio)) 
-                     gb <- ggviolin(LIST_DATA$boxRatio, x= "set", y = "Ratio", fill="set",
-                                       color="set",add = "boxplot", add.params = list(fill = "white"),xlab = "") + 
-                         theme(legend.position = 'none') +
-                       coord_cartesian(ylim = my_range)
-                     print(gb)
-                     reactive_values$Plot_controler_ratio <- gb 
-                   } 
-                   
-                 })
+    if(!is.null(LIST_DATA$boxRatio)){
+      my_range <- c(floor(input$textboxminratio), ceiling(input$textboxmaxratio)) 
+      gb <- ggviolin(LIST_DATA$boxRatio, x= "set", y = "Ratio", fill="set",
+                     color="set",add = "boxplot", add.params = list(fill = "white"),xlab = "") + 
+        theme(legend.position = 'none') +
+        coord_cartesian(ylim = my_range)
+      print(gb)
+      reactive_values$Plot_controler_ratio <- gb 
+    } 
+    
+  })
   
   # CDF tool action ----
   observeEvent(input$actioncdftool, ignoreInit = TRUE, {
-     # print("CDF tool action")
+    # print("CDF tool action")
     shinyjs::hide('plotcdf')
     shinyjs::hide('plotcdfscatter')
     if (any(between(
@@ -3598,8 +3598,8 @@ server <- function(input, output, session) {
     }
     ttt <-
       reactiveValuesToList(input)[paste0("-cdfspace3-", 
-                                       gsub(" ", "-cdfspace2-", 
-                                            gsub("\n", "-cdfspace1-", names(LIST_DATA$gene_file))))]
+                                         gsub(" ", "-cdfspace2-", 
+                                              gsub("\n", "-cdfspace1-", names(LIST_DATA$gene_file))))]
     checkboxonoff <- list()
     for (i in names(ttt)) {
       for (tt in ttt[i]) {
@@ -3663,53 +3663,53 @@ server <- function(input, output, session) {
   # CDF x plot range ----
   observeEvent(c(input$numericcdfmin, input$numericcdfmax, 
                  reactive_values$df_options), ignoreInit = TRUE, {
-     # print("cdf plot observe range")
-    newname <-
-      grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
-    if(is_empty(newname)){
-      return()
-    }
-    df_options <-
-      LIST_DATA$meta_data %>%
-      dplyr::filter(gene_list ==  newname) %>%
-      dplyr::mutate(set = paste(
-        count,
-        sub(" - ","\n", plot_legend),sep = "\n")
-      )
-    df <- LIST_DATA$gene_file[[newname]]$full %>%
-      full_join(.,df_options %>% select(set,plot_legend),by="plot_legend") %>%
-      dplyr::mutate(set=set.y) %>% select(-set.x,-set.y)
-    
-    use_header <- pull(distinct(df_options, myheader))
-    if (n_groups(group_by(df_options, set)) == 2 &
-        n_distinct(df$gene, na.rm = T) > 1) {
-      tt_name <- pull(distinct(df_options, set))
-      tt <-
-        suppressWarnings(ks.test(pull(dplyr::filter(
-          df, set == tt_name[1]
-        ), value),
-        pull(dplyr::filter(
-          df, set == tt_name[2]
-        ), value)))
-      if (tt[[2]] == 0) {
-        use_header <- paste(use_header, "  p-value < 2.2e-16 ")
-      } else {
-        use_header <-
-          paste(use_header, paste("  p-value = ", format(tt[[2]], scientific = TRUE)))
-      }
-    }
-    mycdf <- GGplotC(df, df_options, use_header,as.numeric(c(input$numericcdfmin, input$numericcdfmax)))
-    output$plotcdf <- renderPlot({
-      mycdf
-    })
-    output$plotcdfscatter <- renderPlot({
-      ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_legend",
-                alpha=.8, palette = df_options$mycol,
-                ylim = as.numeric(c(input$numericcdfmin, input$numericcdfmax))) + 
-        rremove("x.text") + rremove("legend")
-    })
-    shinyjs::enable('actioncdfcolor')
-  })
+                   # print("cdf plot observe range")
+                   newname <-
+                     grep("CDF ", names(LIST_DATA$gene_file), value = TRUE)
+                   if(is_empty(newname)){
+                     return()
+                   }
+                   df_options <-
+                     LIST_DATA$meta_data %>%
+                     dplyr::filter(gene_list ==  newname) %>%
+                     dplyr::mutate(set = paste(
+                       count,
+                       sub(" - ","\n", plot_legend),sep = "\n")
+                     )
+                   df <- LIST_DATA$gene_file[[newname]]$full %>%
+                     full_join(.,df_options %>% select(set,plot_legend),by="plot_legend") %>%
+                     dplyr::mutate(set=set.y) %>% select(-set.x,-set.y)
+                   
+                   use_header <- pull(distinct(df_options, myheader))
+                   if (n_groups(group_by(df_options, set)) == 2 &
+                       n_distinct(df$gene, na.rm = T) > 1) {
+                     tt_name <- pull(distinct(df_options, set))
+                     tt <-
+                       suppressWarnings(ks.test(pull(dplyr::filter(
+                         df, set == tt_name[1]
+                       ), value),
+                       pull(dplyr::filter(
+                         df, set == tt_name[2]
+                       ), value)))
+                     if (tt[[2]] == 0) {
+                       use_header <- paste(use_header, "  p-value < 2.2e-16 ")
+                     } else {
+                       use_header <-
+                         paste(use_header, paste("  p-value = ", format(tt[[2]], scientific = TRUE)))
+                     }
+                   }
+                   mycdf <- GGplotC(df, df_options, use_header,as.numeric(c(input$numericcdfmin, input$numericcdfmax)))
+                   output$plotcdf <- renderPlot({
+                     mycdf
+                   })
+                   output$plotcdfscatter <- renderPlot({
+                     ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_legend",
+                               alpha=.8, palette = df_options$mycol,
+                               ylim = as.numeric(c(input$numericcdfmin, input$numericcdfmax))) + 
+                       rremove("x.text") + rremove("legend")
+                   })
+                   shinyjs::enable('actioncdfcolor')
+                 })
   
   # show DataTable ----
   observeEvent(input$pickerDT, ignoreNULL = TRUE, ignoreInit = TRUE,{
@@ -3752,7 +3752,7 @@ server <- function(input, output, session) {
   
   # QC action ----
   observeEvent(input$buttonFilterzero, ignoreInit = TRUE, {
-     # print("QC % tool") 
+    # print("QC % tool") 
     out_list <- LIST_DATA$table_file %>% 
       dplyr::filter(set == input$QCsample)
     if(input$QCpickerplot == "% 0's per bin"){
@@ -3776,29 +3776,29 @@ server <- function(input, output, session) {
       } else {
         my_per <- c(0.1, 0.25, 0.5, 0.75, 0.9, 1)
       }
-        p_funs <- map(my_per, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
-          set_names(my_per)
-        sortmin <- out_list %>%
-          group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
-          dplyr::mutate(across(where(is.double),as.character)) %>% 
-          gather(.,key = set,value = "value",-bin,-set) %>% 
-          dplyr::mutate(value=as.double(value))
-        ylab = "value"
+      p_funs <- map(my_per, ~partial(quantile, probs = .x, na.rm = TRUE)) %>% 
+        set_names(my_per)
+      sortmin <- out_list %>%
+        group_by(set,bin) %>% summarize_at(vars(score), p_funs) %>% ungroup() %>% 
+        dplyr::mutate(across(where(is.double),as.character)) %>% 
+        gather(.,key = set,value = "value",-bin,-set) %>% 
+        dplyr::mutate(value=as.double(value))
+      ylab = "value"
     }
     if(!is.null(sortmin)){
       gp1 <-
-          ggplot(sortmin, aes(as.numeric(bin), value, color=set)) + 
-          geom_line() + 
-          ylab(ylab) +
-          theme(legend.position="bottom", 
-                legend.title = element_blank(),
-                axis.title.x=element_blank())
-      } else{
-        gp1 <- ggplot()
-      }
-      shinyjs::show("hidespinersQC")
-      output$plotQC <- renderPlot({gp1})
-      print(gp1)
+        ggplot(sortmin, aes(as.numeric(bin), value, color=set)) + 
+        geom_line() + 
+        ylab(ylab) +
+        theme(legend.position="bottom", 
+              legend.title = element_blank(),
+              axis.title.x=element_blank())
+    } else{
+      gp1 <- ggplot()
+    }
+    shinyjs::show("hidespinersQC")
+    output$plotQC <- renderPlot({gp1})
+    print(gp1)
   })
   
 }
@@ -3825,7 +3825,7 @@ ui <- dashboardPage(
                          color: purple;
                          font-size: 20px;
                          font-style: italic;}"
-                 )
+      )
     ),
     # disables tabs on start
     sidebarMenu(
@@ -3944,7 +3944,8 @@ ui <- dashboardPage(
                   "selectplotnrom",
                   label = "Y Normalization",
                   choices = c("none", "relative frequency", "rel gene frequency"),
-                  selected = "none"
+                  selected = "none",
+                  selectize = FALSE
                 )),
               column(
                 3,
@@ -3958,13 +3959,13 @@ ui <- dashboardPage(
                 3,
                 awesomeCheckbox("checkboxsmooth", label = "smooth"),
                 awesomeRadio("checkboxbin",label = "norm bin",choices = c("divide","subtract"),selected = "divide",inline = T)
-                ),
+              ),
               column(
                 2,
                 awesomeCheckbox("checkboxlog2", label = "log2"),
-              awesomeCheckbox("checkboxauc", label = "AUC"),
-              awesomeCheckbox("checkboxabs", label = "abs"),
-              awesomeCheckbox("checkboxfull", label = "Inc0")
+                awesomeCheckbox("checkboxauc", label = "AUC"),
+                awesomeCheckbox("checkboxabs", label = "abs"),
+                awesomeCheckbox("checkboxfull", label = "Inc0")
               ),
               column(
                 3,
@@ -3975,13 +3976,13 @@ ui <- dashboardPage(
                 numericInput("numericYRangeHigh", label = "Plot Y max:", value = 0)
               ),
               hidden(div(id = "hideplotgroup",
-                column(
-                  4,
-                  selectInput("mygroup",
-                              label = "plot group",
-                              choices = c("none", "groups only", "groups and single"),
-                              selected = "none"
-                  ))
+                         column(
+                           4,
+                           selectInput("mygroup",
+                                       label = "plot group",
+                                       choices = c("none", "groups"),
+                                       selected = "none"
+                           ))
               )),
               column(
                 11,
@@ -4118,125 +4119,125 @@ ui <- dashboardPage(
           title = "QC Options",
           solidHeader = T,
           hidden(div(id = "hidespinersQC", shinycssloaders::withSpinner(plotOutput("plotQC"), type = 4)))
-          ),
+        ),
         box(width = 12,
             status = "primary",
             title = "QC Options",
             solidHeader = T,
-          pickerInput("QCsample",
-                      label = "select file",
-                      width = "60%",
-                      choices = "Load data file",
-                      multiple = F,
-                      options = list(title = "Select file")),
-          pickerInput("QCpickerplot",
-                      label = "select plot type",
-                      width = "60%",
-                      choices = c("low range percentile", "braod range percentile",
-                                  "% 0's per bin","quadrille"),
-                      selected = "quadrille",
-                      multiple = F,
-                      options = list(title = "Select file")),
-          actionButton("buttonFilterzero",label = "Plot")
+            pickerInput("QCsample",
+                        label = "select file",
+                        width = "60%",
+                        choices = "Load data file",
+                        multiple = F,
+                        options = list(title = "Select file")),
+            pickerInput("QCpickerplot",
+                        label = "select plot type",
+                        width = "60%",
+                        choices = c("low range percentile", "braod range percentile",
+                                    "% 0's per bin","quadrille"),
+                        selected = "quadrille",
+                        multiple = F,
+                        options = list(title = "Select file")),
+            actionButton("buttonFilterzero",label = "Plot")
         )
       ),
       tabItem(
         # filenorm ----
         tabName = "filenorm",
         div(
-        box(
-          title = "Select files for normalization",
-          width = 12,
-          status = "primary",
-          solidHeader = T,
-          collapsible = T,
-          div(style = "padding-left: 15%;",
-              fluidRow(
-                pickerInput(
-                  "pickernumerator",
-                  label = "numerator",
-                  width = "90%",
-                  choices = "Load data file",
-                  multiple = F,
-                  options = list(title = "Select first file")
-                )
-              )),
-          div(style = "padding-left: 15%;",
-              fluidRow(
-                column(
-                  3,
-                  radioGroupButtons(
-                    "adddata",
-                    label = "",
-                    status = "primary",
-                    choices = c("/", "+", "-"),
-                    selected = "/"
+          box(
+            title = "Select files for normalization",
+            width = 12,
+            status = "primary",
+            solidHeader = T,
+            collapsible = T,
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  pickerInput(
+                    "pickernumerator",
+                    label = "numerator",
+                    width = "90%",
+                    choices = "Load data file",
+                    multiple = F,
+                    options = list(title = "Select first file")
+                  )
+                )),
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  column(
+                    3,
+                    radioGroupButtons(
+                      "adddata",
+                      label = "",
+                      status = "primary",
+                      choices = c("/", "+", "-"),
+                      selected = "/"
+                    )
+                  ),
+                  column(4, style = "padding-top: 4%;",
+                         actionButton("actionnorm", label = "create file"))
+                )),
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  pickerInput(
+                    "pickerdenominator",
+                    label = "denominator",
+                    width = "90%",
+                    choices = "Load data file",
+                    multiple = F,
+                    options = list(title = "Select second file")
                   )
                 ),
+                fluidRow(
+                  textInput("textnromname", "Norm file name",
+                            width = "90%",))
+            ),
+            awesomeRadio(
+              "radiogenebygene",
+              label = "",
+              choices = c("bin by bin", "mean of bins by mean of bins"),
+              selected = "bin by bin"
+            ),
+            awesomeCheckbox(
+              "checkboxnormzero",
+              label = "replace denom 0's with min/2",value = FALSE),
+            awesomeCheckbox(
+              "checkboxnormzero2",
+              label = "replace all 0's with min/2",value = FALSE),
+            valueBoxOutput("valueboxnormfile")
+          ),
+          box(
+            title = "Select files for group mean",
+            width = 12,
+            status = "primary",
+            solidHeader = T,
+            collapsible = T,
+            collapsed = T,
+            align = "center",
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  pickerInput(
+                    "pickergroupsample",
+                    label = "Pick group samples",
+                    width = "90%",
+                    choices = "Load data file",
+                    multiple = T,
+                    options = list(title = "Select at least 2 files",
+                                   `selected-text-format` = "count > 0"
+                    )
+                  ),
+                  DT::dataTableOutput('loadedfilestable2')
+                )),
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  textInput("textgroupname", "group file name",
+                            width = "90%",)),
                 column(4, style = "padding-top: 4%;",
-                       actionButton("actionnorm", label = "create file"))
-              )),
-          div(style = "padding-left: 15%;",
-              fluidRow(
-                pickerInput(
-                  "pickerdenominator",
-                  label = "denominator",
-                  width = "90%",
-                  choices = "Load data file",
-                  multiple = F,
-                  options = list(title = "Select second file")
-                )
-              ),
-              fluidRow(
-                textInput("textnromname", "Norm file name",
-                          width = "90%",))
-          ),
-          awesomeRadio(
-            "radiogenebygene",
-            label = "",
-            choices = c("bin by bin", "mean of bins by mean of bins"),
-            selected = "bin by bin"
-          ),
-          awesomeCheckbox(
-            "checkboxnormzero",
-            label = "replace denom 0's with min/2",value = FALSE),
-          awesomeCheckbox(
-            "checkboxnormzero2",
-            label = "replace all 0's with min/2",value = FALSE),
-          valueBoxOutput("valueboxnormfile")
-        ),
-        box(
-          title = "Select files for group mean",
-          width = 12,
-          status = "primary",
-          solidHeader = T,
-          collapsible = T,
-          collapsed = T,
-          align = "center",
-          div(style = "padding-left: 15%;",
-              fluidRow(
-                pickerInput(
-                  "pickergroupsample",
-                  label = "Pick group samples",
-                  width = "90%",
-                  choices = "Load data file",
-                  multiple = T,
-                  options = list(title = "Select at least 2 files",
-                                 `selected-text-format` = "count > 0"
-                                 )
-                ),
-                DT::dataTableOutput('loadedfilestable2')
-              )),
-          div(style = "padding-left: 15%;",
-              fluidRow(
-                textInput("textgroupname", "group file name",
-                          width = "90%",)),
-              column(4, style = "padding-top: 4%;",
-                     actionButton("actiongroup", label = "create group"),
-                     helpText("will have the same color as the top sample in the group"))
+                       actionButton("actiongroup", label = "create group"),
+                       helpText("will have the same color as the top sample in the group"))
+            )
           )
         )
-      )
       ),
       tabItem(
         # genelists ----
@@ -4249,13 +4250,13 @@ ui <- dashboardPage(
             solidHeader = T,
             width = 12,
             fluidRow(column(width = 4,
-            pickerInput(
-              inputId = "pickergenelists",
-              label = "Select Gene lists",
-              choices = "Load data file",
-              multiple = T,
-              options = list(`selected-text-format` = "count > 1")
-            )
+                            pickerInput(
+                              inputId = "pickergenelists",
+                              label = "Select Gene lists",
+                              choices = "Load data file",
+                              multiple = T,
+                              options = list(`selected-text-format` = "count > 1")
+                            )
             )
             ),
             actionButton("actiongenelists", "Compare Gene lists"),
@@ -4309,42 +4310,42 @@ ui <- dashboardPage(
             collapsed = T,
             title = "Size and Separation filter",
             column(3,
-              numericInput(
-                "geneSeparation",
-                label = "gene separated by bp",
-                value = 0,
-                step = 100,
-                min = 0,
-                max = 1e7
-                ),
-              awesomeCheckbox("checkboxStranded","stranded?"),
-              helpText("0 = no filter")
+                   numericInput(
+                     "geneSeparation",
+                     label = "gene separated by bp",
+                     value = 0,
+                     step = 100,
+                     min = 0,
+                     max = 1e7
+                   ),
+                   awesomeCheckbox("checkboxStranded","stranded?"),
+                   helpText("0 = no filter")
             ),
             column(3,
-              numericInput(
-                "geneSizeMin",
-                label = "Min gene size bp",
-                value = 0,
-                step = 100,
-                min = 0,
-                max = 1e7
-              ),
-              helpText("0/empty = no filter")
+                   numericInput(
+                     "geneSizeMin",
+                     label = "Min gene size bp",
+                     value = 0,
+                     step = 100,
+                     min = 0,
+                     max = 1e7
+                   ),
+                   helpText("0/empty = no filter")
             ),
             column(3,
-              numericInput(
-                "geneSizeMax",
-                label = "Max gene size bp",
-                value = 0,
-                step = 100,
-                min = 0,
-                max = 1e7
-              ),
-              helpText("0/empty = no filter")
+                   numericInput(
+                     "geneSizeMax",
+                     label = "Max gene size bp",
+                     value = 0,
+                     step = 100,
+                     min = 0,
+                     max = 1e7
+                   ),
+                   helpText("0/empty = no filter")
             ),
             column(3,
-              helpText("filters on separation then size"),
-              actionButton("actionSizeSep", "filter")
+                   helpText("filters on separation then size"),
+                   actionButton("actionSizeSep", "filter")
             )
           ),
           box(
@@ -4395,14 +4396,14 @@ ui <- dashboardPage(
             ),
             fluidRow(align="center",
                      column(
-              6,
-              pickerInput(
-                "selectsorttop",
-                "Filter to keep",
-                choices = c("Top%", "Middle%", "Bottom%"),
-                selected = "Middle%"
-              )
-            )),
+                       6,
+                       pickerInput(
+                         "selectsorttop",
+                         "Filter to keep",
+                         choices = c("Top%", "Middle%", "Bottom%"),
+                         selected = "Middle%"
+                       )
+                     )),
             fluidRow(align="center",
                      actionButton("actionsorttool", "filter sum")
             )
@@ -4420,8 +4421,8 @@ ui <- dashboardPage(
                                "signal hight", 
                                value = "1",
                                step = ".25"
-            ),
-            uiOutput('rangeHelptext'),
+              ),
+              uiOutput('rangeHelptext'),
             )),
             fluidRow(align="center",
                      column(6,
@@ -4436,58 +4437,58 @@ ui <- dashboardPage(
                      actionButton("actionsortpeak", "filter")
             )
           ),
-        box(
-          title = "filter by percentile distribution",
-          solidHeader = T,
-          width = 6,
-          status = "navy",
-          collapsible = T,
-          fluidRow(column(
-            6,
-            numericInputIcon("numericsortmin",
-                             "min", 
-                             value = "1",
-                             max = "100", min="1",
-                             step = ".25",
-                             icon = icon("percent")
+          box(
+            title = "filter by percentile distribution",
+            solidHeader = T,
+            width = 6,
+            status = "navy",
+            collapsible = T,
+            fluidRow(column(
+              6,
+              numericInputIcon("numericsortmin",
+                               "min", 
+                               value = "1",
+                               max = "100", min="1",
+                               step = ".25",
+                               icon = icon("percent")
+              )
+            ),
+            column(
+              6,
+              numericInputIcon("numericsortmax",
+                               "max", 
+                               value = "99.5",
+                               max = "100", min="1",
+                               step = ".25",
+                               icon = icon("percent")
+              )
             )
+            ),
+            fluidRow(align="center",column(6,
+                                           pickerInput(
+                                             "selectsortper",
+                                             "Filter Option",
+                                             choices = c("min%", "between%", "max%"),
+                                             selected = "min%"
+                                           )
+            )),
+            fluidRow(align="center",
+                     actionButton("actionsortper", "filter percentile")
+            ),
+            helpText("Hint: use 1 file to display a range of %'s")
           ),
-          column(
-            6,
-            numericInputIcon("numericsortmax",
-                             "max", 
-                             value = "99.5",
-                             max = "100", min="1",
-                             step = ".25",
-                             icon = icon("percent")
-            )
-          )
-          ),
-          fluidRow(align="center",column(6,
-                                         pickerInput(
-                                           "selectsortper",
-                                           "Filter Option",
-                                           choices = c("min%", "between%", "max%"),
-                                           selected = "min%"
-                                         )
-          )),
-          fluidRow(align="center",
-                   actionButton("actionsortper", "filter percentile")
-          ),
-          helpText("Hint: use 1 file to display a range of %'s")
-        ),
           div(
             id = "hidesortplots1",
             box(headerBorder = F,
-              width = 6,
-              withSpinner(plotOutput("plot1sort",height = "200px"), type = 4)
+                width = 6,
+                withSpinner(plotOutput("plot1sort",height = "200px"), type = 4)
             )
           ),
           div(
             id = "hidesortplots2",
             box(headerBorder = F,
-              width = 6,
-              withSpinner(plotOutput("plot2sort",height = "200px"), type = 4)
+                width = 6,
+                withSpinner(plotOutput("plot2sort",height = "200px"), type = 4)
             )
           ),
           valueBoxOutput("valueboxsort")
@@ -4503,37 +4504,37 @@ ui <- dashboardPage(
               solidHeader = T,
               width = 12,
               column(width = 6,
-              selectInput(
-                inputId = "selectratiofile",
-                label = "Select gene list to sort on",
-                choices = "Load data file",
-                width = "99%"
-              ),
-              actionButton("actionratiotool", "Get fold changes"),
-              awesomeCheckbox(
-                "checkratiozero",
-                label = "replace 0 with min/2",
-                value = FALSE
-              )
+                     selectInput(
+                       inputId = "selectratiofile",
+                       label = "Select gene list to sort on",
+                       choices = "Load data file",
+                       width = "99%"
+                     ),
+                     actionButton("actionratiotool", "Get fold changes"),
+                     awesomeCheckbox(
+                       "checkratiozero",
+                       label = "replace 0 with min/2",
+                       value = FALSE
+                     )
               ),
               column(width = 6,
-              pickerInput(
-                inputId = "pickerratio1file",
-                width = "99%",
-                label = "Select first file",
-                choices = "Load data file",
-                multiple = F,
-                options = list(title = "Select first file")
-              ),
-              pickerInput(
-                inputId = "pickerratio2file",
-                width = "99%",
-                label = "Select second file",
-                choices = "Load data file",
-                multiple = F,
-                options = list(title = "Select second file")
+                     pickerInput(
+                       inputId = "pickerratio1file",
+                       width = "99%",
+                       label = "Select first file",
+                       choices = "Load data file",
+                       multiple = F,
+                       options = list(title = "Select first file")
+                     ),
+                     pickerInput(
+                       inputId = "pickerratio2file",
+                       width = "99%",
+                       label = "Select second file",
+                       choices = "Load data file",
+                       multiple = F,
+                       options = list(title = "Select second file")
+                     )
               )
-            )
           ),
           box(
             title = "Ratio tool",
@@ -4620,57 +4621,57 @@ ui <- dashboardPage(
               solidHeader = T,
               width = 6,
               pickerInput("clusterGeneList", label = "select list",
-                                 choices = (LIST_DATA$meta_data)),
-         pickerInput("clusterSamples", label = "select sample",
-                             choices = "select sample",selected = "select sample",
-                             multiple = F
-                            )
-                 
+                          choices = (LIST_DATA$meta_data)),
+              pickerInput("clusterSamples", label = "select sample",
+                          choices = "select sample",selected = "select sample",
+                          multiple = F
+              )
+              
           ),
-         box(
-           title = "Cluster tools",
-           status = "primary",
-           solidHeader = T,
-           width = 6,
-           id = "test",
-           style = "margin-bottom: 15px;",
-           fluidRow(column(
-             4,
-             selectInput(
-               inputId = "selectclusternumber",
-               label = "Select number of clusters",
-               choices = c(10:2),
-               selected = 4,
-               width = "99%"
-             )
-           ),
-           column(
-             8,
-             sliderTextInput(
-               "sliderbincluster",
-               label = "Select Bin Range:",
-               grid = TRUE,
-               choices = c("100","100"),
-               selected = c("100","100")
-             )
-           )),
-           column(width = 6,
-           actionButton("actionclustertool", "Get clusters"))
-         ),
-         div(
+          box(
+            title = "Cluster tools",
+            status = "primary",
+            solidHeader = T,
+            width = 6,
+            id = "test",
+            style = "margin-bottom: 15px;",
+            fluidRow(column(
+              4,
+              selectInput(
+                inputId = "selectclusternumber",
+                label = "Select number of clusters",
+                choices = c(10:2),
+                selected = 4,
+                width = "99%"
+              )
+            ),
+            column(
+              8,
+              sliderTextInput(
+                "sliderbincluster",
+                label = "Select Bin Range:",
+                grid = TRUE,
+                choices = c("100","100"),
+                selected = c("100","100")
+              )
+            )),
+            column(width = 6,
+                   actionButton("actionclustertool", "Get clusters"))
+          ),
+          div(
             id = "hideclusterplots1",
             box(headerBorder = F,
                 width = 8,
                 withSpinner(plotOutput("plot1cluster",height = "300px"), type = 4)
             )
           ),
-         div(
-           id = "hideclustertable",
-           box(headerBorder = F,
-               style = "padding: 0px 2px;",
-           width = 4,
-           DT::dataTableOutput('clustertable',height = "320px")     
-                ))
+          div(
+            id = "hideclustertable",
+            box(headerBorder = F,
+                style = "padding: 0px 2px;",
+                width = 4,
+                DT::dataTableOutput('clustertable',height = "320px")     
+            ))
         )
       ),
       tabItem(
@@ -4688,7 +4689,7 @@ ui <- dashboardPage(
                           choices = "select sample",selected = "select sample",
                           multiple = F
               )
-
+              
           ),
           box(
             title = "groupies tools",
@@ -4747,111 +4748,111 @@ ui <- dashboardPage(
         # cdf ----
         tabName = "cdftool",
         box(
-            title = "CDF tool",
-            status = "primary",
-            solidHeader = T,
-            collapsible = T,
-            width = 12,
-            box(title = "Main",
+          title = "CDF tool",
+          status = "primary",
+          solidHeader = T,
+          collapsible = T,
+          width = 12,
+          box(title = "Main",
+              width = 6,
+              status = "navy",
+              solidHeader = T,
+              collapsible = T,
+              collapsed = F,
+              uiOutput("DynamicCDFPicker_main")
+          ),
+          hidden(
+            div(
+              id = "showpickersort_cdf",
+              box(
+                title = "Filter (max 4 lists)",
                 width = 6,
                 status = "navy",
                 solidHeader = T,
                 collapsible = T,
-                collapsed = F,
-                uiOutput("DynamicCDFPicker_main")
-            ),
-            hidden(
-              div(
-                id = "showpickersort_cdf",
-                box(
-                  title = "Filter (max 4 lists)",
-                  width = 6,
-                  status = "navy",
-                  solidHeader = T,
-                  collapsible = T,
-                  collapsed = T,
-                  uiOutput("DynamicCDFPicker_sort")
-                )
-              )),
-            hidden(
-              div(
-                id = "showpickercomparisons_cdf",
-                box(
-                  title = "Gene comparisons",
-                  width = 6,
-                  status = "navy",
-                  solidHeader = T,
-                  collapsible = T,
-                  collapsed = T,
-                  uiOutput("DynamicCDFPicker_comparisons")
-                )
-              )),
-            hidden(
-              div(
-                id = "showpickerratio_cdf",
-                box(
-                  title = "Ratio",
-                  width = 6,
-                  status = "navy",
-                  solidHeader = T,
-                  collapsible = T,
-                  collapsed = T,
-                  uiOutput("DynamicCDFPicker_ratio")
-                )
-              )),
-            hidden(
-              div(
-                id = "showpickercluster_cdf",
-                box(
-                  title = "Clusters",
-                  width = 6,
-                  status = "navy",
-                  solidHeader = T,
-                  collapsible = T,
-                  collapsed = T,
-                  uiOutput("DynamicCDFPicker_clusters")
-                )
-              ))
-            ,
-            hidden(
-              div(
-                id = "showpickergroupies_cdf",
-                box(
-                  title = "Groups",
-                  width = 6,
-                  status = "navy",
-                  solidHeader = T,
-                  collapsible = T,
-                  collapsed = T,
-                  uiOutput("DynamicCDFPicker_groupies")
-                )
-              ))
-          ),
-          box(
-            title = "CDF Plot",
-            status = "primary",
-            solidHeader = TRUE,
-            width = 12,
-            column(
-              width = 6,
-              sliderTextInput(
-                "sliderbincdf1",
-                label = "Select numerator Bin Range:",
-                grid = TRUE,
-                choices = c("0","100"),
-                selected = c("0","100")
-              )),
-              column(
+                collapsed = T,
+                uiOutput("DynamicCDFPicker_sort")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickercomparisons_cdf",
+              box(
+                title = "Gene comparisons",
                 width = 6,
-                sliderTextInput(
-                  "sliderbincdf2",
-                  label = "Select denominator Bin Range:",
-                  grid = TRUE,
-                  choices = c("100","100"),
-                  selected = c("100","100")
-                )),
-            fluidRow(column(
-              width = 2,
+                status = "navy",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = T,
+                uiOutput("DynamicCDFPicker_comparisons")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickerratio_cdf",
+              box(
+                title = "Ratio",
+                width = 6,
+                status = "navy",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = T,
+                uiOutput("DynamicCDFPicker_ratio")
+              )
+            )),
+          hidden(
+            div(
+              id = "showpickercluster_cdf",
+              box(
+                title = "Clusters",
+                width = 6,
+                status = "navy",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = T,
+                uiOutput("DynamicCDFPicker_clusters")
+              )
+            ))
+          ,
+          hidden(
+            div(
+              id = "showpickergroupies_cdf",
+              box(
+                title = "Groups",
+                width = 6,
+                status = "navy",
+                solidHeader = T,
+                collapsible = T,
+                collapsed = T,
+                uiOutput("DynamicCDFPicker_groupies")
+              )
+            ))
+        ),
+        box(
+          title = "CDF Plot",
+          status = "primary",
+          solidHeader = TRUE,
+          width = 12,
+          column(
+            width = 6,
+            sliderTextInput(
+              "sliderbincdf1",
+              label = "Select numerator Bin Range:",
+              grid = TRUE,
+              choices = c("0","100"),
+              selected = c("0","100")
+            )),
+          column(
+            width = 6,
+            sliderTextInput(
+              "sliderbincdf2",
+              label = "Select denominator Bin Range:",
+              grid = TRUE,
+              choices = c("100","100"),
+              selected = c("100","100")
+            )),
+          fluidRow(column(
+            width = 2,
             numericInput(
               "numericcdfmin",
               label = "Xaxis min",
@@ -4859,39 +4860,39 @@ ui <- dashboardPage(
             )),
             column(
               width = 2,
-            numericInput(
-              "numericcdfmax",
-              label = "Xaxis max",
-              value = 1
-            ))),
-            actionButton("actioncdftool", "Plot CDF"),
-            actionButton("actioncdfcolor", "Set Plot colors")
-          ),
-          box(
-            title = "CDF Plot",
-            status = "primary",
-            solidHeader = TRUE,
-            width = 12,
-            collapsible = TRUE,
-            withSpinner(plotOutput("plotcdf"), type = 4)
-          ),
-          box(
-            title = "Scatter Plot",
-            status = "primary",
-            solidHeader = TRUE,
-            width = 12,
-            collapsible = TRUE,
-            withSpinner(plotOutput("plotcdfscatter"), type = 4)
-          )
+              numericInput(
+                "numericcdfmax",
+                label = "Xaxis max",
+                value = 1
+              ))),
+          actionButton("actioncdftool", "Plot CDF"),
+          actionButton("actioncdfcolor", "Set Plot colors")
+        ),
+        box(
+          title = "CDF Plot",
+          status = "primary",
+          solidHeader = TRUE,
+          width = 12,
+          collapsible = TRUE,
+          withSpinner(plotOutput("plotcdf"), type = 4)
+        ),
+        box(
+          title = "Scatter Plot",
+          status = "primary",
+          solidHeader = TRUE,
+          width = 12,
+          collapsible = TRUE,
+          withSpinner(plotOutput("plotcdfscatter"), type = 4)
+        )
       ),
       tabItem(
         # DataTable ----
         tabName = "DataTableTool",
         box(
-            status = "primary",
-            solidHeader = T,
-            collapsible = T,
-            width = 12,
+          status = "primary",
+          solidHeader = T,
+          collapsible = T,
+          width = 12,
           title = "Data Table",
           pickerInput("pickerDT",
                       label = "select gene list",
