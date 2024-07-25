@@ -49,7 +49,7 @@ RgbToHex <- function(x,
 # finds first partial match to gene list input 
 MatchGenes <- function(common_list, gene_list){
   # print("gene match fun")
-  if(str_detect(gene_list$gene[1],"|")){
+  if(str_detect(gene_list$gene[1],"\\|")){
     tablefile <-
       map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
       setNames(gene_list$gene)
@@ -114,10 +114,15 @@ PrepMetaFile <- function(file_path, file_name) {
       )
   }
   if(! "group" %in% names(meta_data)){
-    meta_data <- meta_data %>% mutate(group = nick) 
+    meta_data <- meta_data %>% mutate(group = "self") 
   } else if(n_distinct(meta_data$group)==1 ){
-    meta_data <- meta_data %>% mutate(group = nick) 
+    meta_data <- meta_data %>% mutate(group = "self") 
+  } else {
+    meta_data <- meta_data %>% group_by(group) %>% 
+      mutate(group = paste(nick,collapse = ":")) %>% 
+      ungroup()
   }
+    
   if(! "color" %in% names(meta_data)){
     meta_data <- meta_data %>% 
       mutate(color = sample(
@@ -1612,6 +1617,42 @@ FilterPeak <-
     list_data
   }
 
+# combined samples grouped together
+MakeGroupFile <- 
+  function(list_data,
+           mymath = "mean") {
+    for(i in distinct(LIST_DATA$meta_data,group)$group){
+      myset <- list_data$meta_data %>% dplyr::filter(group == i) %>% 
+        dplyr::select(set)
+      if(n_distinct(myset$set) > 1){
+        legend_nickname <- paste(mymath,i,sep = ":")
+        new_gene_list <- list_data$table_file %>% dplyr::filter(set == myset$set) %>% 
+          group_by(chrom,start,end,gene,strand,bin) %>% summarise(score=get(mymath)(score, na.rm = T),
+                                                                  .groups="drop") %>% 
+          dplyr::mutate(set=legend_nickname) %>% 
+          replace_na(., list(score = 0))
+        
+        # adds meta data 
+        list_data$table_file <- dplyr::filter(list_data$table_file, set != legend_nickname)
+        list_data$meta_data <- dplyr::filter(list_data$meta_data, set != legend_nickname)
+        list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
+        list_data$meta_data <- distinct(bind_rows(list_data$meta_data,
+                                                  list_data$meta_data %>%
+                                                    dplyr::filter(set == myset$set[1] & gene_list == "Complete") %>%
+                                                    dplyr::mutate(count = paste0("n = ",n_distinct(new_gene_list$gene)),
+                                                                  set = legend_nickname,
+                                                                  group = legend_nickname,
+                                                                  onoff = "0",
+                                                                  sub = " ",
+                                                                  plot_legend = " ")))
+      }
+      
+     
+    }
+    
+   return(list_data)
+    
+  }
 # make a new normalized file by dividing one file by the other
 MakeNormFile <-
   function(list_data,
@@ -2257,7 +2298,7 @@ CompareRatios <-
                                                            Sys.Date()
                                                          ),
                                                        save_name = gsub(" ", "_", paste("ratio_No_Diff_fold_cut_off", my_num, Sys.Date(), sep = "_")),
-                                                       col_info = "gene file2/file1"
+                                                       col_info = "gene file1/file2"
       )
       list_data$meta_data <- 
         distinct(bind_rows(list_data$meta_data,

@@ -150,6 +150,7 @@ server <- function(input, output, session) {
   addCssClass(selector = "a[data-value='mainplot']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='qcOptions']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='filenorm']", class = "inactiveLink")
+  addCssClass(selector = "a[data-value='grouptab']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='genelists']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
   addCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
@@ -337,6 +338,7 @@ server <- function(input, output, session) {
     shinyjs::reset("filetable")
     removeCssClass(selector = "a[data-value='qcOptions']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='mainplot']", class = "inactiveLink")
+    removeCssClass(selector = "a[data-value='grouptab']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='filenorm']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='genelists']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
@@ -1235,30 +1237,8 @@ server <- function(input, output, session) {
       shinyjs::hide("hidesortplots2")
       
     }
-    # file norm tab ----
-    if (input$leftSideTabs == "filenorm") {
-      updatePickerInput(
-        session,
-        "pickernumerator",
-        choices = distinct(LIST_DATA$meta_data, set)$set,
-        choicesOpt = list(style = paste("color", dplyr::select(
-          dplyr::filter(LIST_DATA$meta_data,
-                        gene_list == names(LIST_DATA$gene_file)[1]),
-          mycol)$mycol, sep = ":"),
-          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
-        )
-      )
-      updatePickerInput(
-        session,
-        "pickerdenominator",
-        choices = c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"),
-        choicesOpt = list(style = paste("color", dplyr::select(
-          dplyr::filter(LIST_DATA$meta_data,
-                        gene_list == names(LIST_DATA$gene_file)[1]),
-          mycol)$mycol, sep = ":"),
-          content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"))
-        )
-      )
+    # file group norm tab ----
+    if (input$leftSideTabs == "grouptab") {
       updatePickerInput(
         session,
         "pickergroupsample",
@@ -1267,7 +1247,7 @@ server <- function(input, output, session) {
           content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
         )
       )
-      output$valueboxnormfile <- renderValueBox({
+      output$valueboxnormgroup <- renderValueBox({
         valueBox("0%",
                  "Done",
                  icon = icon("gears"),
@@ -1308,6 +1288,37 @@ server <- function(input, output, session) {
         )
       )
       output$loadedfilestable2 <- DT::renderDataTable(dt)
+    }
+    # file norm tab ----
+    if (input$leftSideTabs == "filenorm") {
+      updatePickerInput(
+        session,
+        "pickernumerator",
+        choices = distinct(LIST_DATA$meta_data, set)$set,
+        choicesOpt = list(style = paste("color", dplyr::select(
+          dplyr::filter(LIST_DATA$meta_data,
+                        gene_list == names(LIST_DATA$gene_file)[1]),
+          mycol)$mycol, sep = ":"),
+          content = gsub("(.{55})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
+        )
+      )
+      updatePickerInput(
+        session,
+        "pickerdenominator",
+        choices = c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"),
+        choicesOpt = list(style = paste("color", dplyr::select(
+          dplyr::filter(LIST_DATA$meta_data,
+                        gene_list == names(LIST_DATA$gene_file)[1]),
+          mycol)$mycol, sep = ":"),
+          content = gsub("(.{55})", "\\1<br>", c(distinct(LIST_DATA$meta_data, set)$set,"Multiply by -1"))
+        )
+      )
+      output$valueboxnormfile <- renderValueBox({
+        valueBox("0%",
+                 "Done",
+                 icon = icon("gears"),
+                 color = "yellow")
+      })
     }
     # genelists tab ----
     if (input$leftSideTabs == "genelists") {
@@ -2631,6 +2642,87 @@ server <- function(input, output, session) {
                    }
                  })
   
+  # create group file ----
+  observeEvent(input$actionnormgroup, ignoreInit = TRUE, {
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   LD <- MakeGroupFile(
+                     LIST_DATA,
+                     input$pickergroupmath
+                   )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      
+      updatePickerInput(
+        session,
+        "pickergroupsample",
+        choices = distinct(LIST_DATA$meta_data, set)$set,
+        choicesOpt = list(
+          content = gsub("(.{35})", "\\1<br>", distinct(LIST_DATA$meta_data, set)$set)
+        )
+      )
+      gts <- LIST_DATA$meta_data %>% 
+        filter(gene_list == "Complete") %>% 
+        mutate(group = if_else(gsub("\n","", group) != set,as.character(as.integer(as.factor(group))),"self" )) %>% 
+        select(set,group) %>%
+        rename(File = set)
+      dt <- datatable(
+        gts,
+        colnames = names(gts),
+        rownames = FALSE,
+        filter = "none",
+        class = 'cell-border stripe compact',
+        options = list(
+          scrollX = TRUE,
+          scrollY = TRUE,
+          autoWidth = TRUE,
+          width = 20,
+          sDom  = '<"top">lrt<"bottom">ip',
+          info = FALSE,
+          paging = FALSE,
+          lengthChange = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center ', targets = "_all"),
+            list(
+              targets = 0,
+              render = JS(
+                "function(data, type, row, meta) {",
+                "return type === 'display' && data.length > 35 ?",
+                "'<span title=\"' + data + '\">' + data.substr(0, 37) + '...</span>' : data;",
+                "}"
+              )
+            )
+          )
+        )
+      )
+      output$loadedfilestable2 <- DT::renderDataTable(dt)
+      updateTextInput(session, "textnromname", value = "")
+      output$valueboxnormgroup <- renderValueBox({
+        valueBox(
+          "Done",
+          paste("Compleat n =", n_distinct(LIST_DATA$gene_file[[1]]$full$gene, na.rm = T)),
+          icon = icon("thumbs-up", lib = "glyphicon"),
+          color = "green"
+        )
+      })
+      ff <- distinct(LIST_DATA$meta_data, set)$set
+      updateSelectInput(session,
+                        "selectdataoption",
+                        choices = ff)
+    } else {
+      #no new data file created
+      output$valueboxnormgroup <- renderValueBox({
+        valueBox("0%",
+                 "Done",
+                 icon = icon("gears"),
+                 color = "red")
+      })
+    }
+  })
+  
   # create norm file ----
   observeEvent(input$actionnorm, ignoreInit = TRUE, {
     withProgress(message = 'Calculation in progress',
@@ -3833,6 +3925,7 @@ ui <- dashboardPage(
       menuItem("Load Data", tabName = "loaddata", icon = icon("file-import")),
       menuItem("Plot", tabName = "mainplot", icon = icon("chart-area")),
       menuItem("QC/Options", tabName = "qcOptions", icon = icon("clipboard-check")),
+      menuItem("Group data", tabName = "grouptab", icon = icon("copy")),
       menuItem("Norm data", tabName = "filenorm", icon = icon("copy")),
       menuItem("Compare Lists", tabName = "genelists", icon = icon("grip-lines")),
       menuItem("Filter Tool", tabName = "sorttool", icon = icon("filter")),
@@ -4142,6 +4235,65 @@ ui <- dashboardPage(
         )
       ),
       tabItem(
+        # grouptab ----
+        tabName = "grouptab",
+        div(
+          box(
+            title = "Select files for setting groups",
+            width = 12,
+            status = "primary",
+            solidHeader = T,
+            collapsible = T,
+            align = "center",
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  pickerInput(
+                    "pickergroupsample",
+                    label = "Pick group samples",
+                    width = "90%",
+                    choices = "Load data file",
+                    multiple = T,
+                    options = list(title = "Select at least 2 files",
+                                   `selected-text-format` = "count > 0"
+                    )
+                  ),
+                  DT::dataTableOutput('loadedfilestable2')
+                )),
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  textInput("textgroupname", "group file name",
+                            width = "90%",)),
+                column(4, style = "padding-top: 4%;",
+                       actionButton("actiongroup", label = "create group"),
+                       helpText("will have the same color as the top sample in the group"))
+            )
+          ),
+          box(
+            title = "Select math for combinding group to one sample",
+            width = 12,
+            status = "primary",
+            solidHeader = T,
+            collapsible = T,
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  pickerInput(
+                    "pickergroupmath",
+                    label = "Math",
+                    width = "90%",
+                    choices = c("mean", "sum", "median"),
+                    selected = "mean"
+                  )
+                )),
+            div(style = "padding-left: 15%;",
+                fluidRow(
+                  column(4, style = "padding-top: 4%;",
+                         actionButton("actionnormgroup", label = "create file"))
+                )),
+            valueBoxOutput("valueboxgroupfile")
+          )
+        )
+      ),
+      tabItem(
         # filenorm ----
         tabName = "filenorm",
         div(
@@ -4205,37 +4357,6 @@ ui <- dashboardPage(
               "checkboxnormzero2",
               label = "replace all 0's with min/2",value = FALSE),
             valueBoxOutput("valueboxnormfile")
-          ),
-          box(
-            title = "Select files for group mean",
-            width = 12,
-            status = "primary",
-            solidHeader = T,
-            collapsible = T,
-            collapsed = T,
-            align = "center",
-            div(style = "padding-left: 15%;",
-                fluidRow(
-                  pickerInput(
-                    "pickergroupsample",
-                    label = "Pick group samples",
-                    width = "90%",
-                    choices = "Load data file",
-                    multiple = T,
-                    options = list(title = "Select at least 2 files",
-                                   `selected-text-format` = "count > 0"
-                    )
-                  ),
-                  DT::dataTableOutput('loadedfilestable2')
-                )),
-            div(style = "padding-left: 15%;",
-                fluidRow(
-                  textInput("textgroupname", "group file name",
-                            width = "90%",)),
-                column(4, style = "padding-top: 4%;",
-                       actionButton("actiongroup", label = "create group"),
-                       helpText("will have the same color as the top sample in the group"))
-            )
           )
         )
       ),
