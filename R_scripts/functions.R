@@ -89,6 +89,21 @@ PrepMetaFile <- function(file_path, file_name) {
         col_types = col_types
       )) 
     
+  } else if(str_detect(file_name, "_urls.tsv")) {
+    col_names <- c("filepath", "nick", "strand")
+    col_types <- cols(
+      filepath = col_character(),
+      nick = col_character(),
+      strand = col_character()
+    )
+    meta_data <-
+      suppressMessages(read_delim(
+        file_path,
+        skip = 1,
+        delim = "\t",
+        col_names = col_names,
+        col_types = col_types
+      )) 
   } else {
     meta_data <-  tibble(
       filepath = file_path

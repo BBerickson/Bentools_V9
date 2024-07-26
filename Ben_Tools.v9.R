@@ -3947,7 +3947,7 @@ ui <- dashboardPage(
                   box(
                     status = "navy",
                     solidHeader = TRUE,
-                    title = "Load .matrix.gz/URL.txt file",
+                    title = "Load .matrix.gz/URL.txt/url.tsv file",
                     width = 6,
                     style = "height: 150px;",
                     align = "center",
