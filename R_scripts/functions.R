@@ -1641,7 +1641,7 @@ MakeGroupFile <-
         dplyr::select(set)
       if(n_distinct(myset$set) > 1){
         legend_nickname <- paste(mymath,i,sep = ":")
-        new_gene_list <- list_data$table_file %>% dplyr::filter(set == myset$set) %>% 
+        new_gene_list <- list_data$table_file %>% dplyr::filter(set %in% myset$set) %>% 
           group_by(chrom,start,end,gene,strand,bin) %>% summarise(score=get(mymath)(score, na.rm = T),
                                                                   .groups="drop") %>% 
           dplyr::mutate(set=legend_nickname) %>% 
