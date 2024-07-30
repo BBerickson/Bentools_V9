@@ -103,7 +103,7 @@ PrepMetaFile <- function(file_path, file_name) {
         delim = "\t",
         col_names = col_names,
         col_types = col_types
-      )) 
+      )) %>% select(-strand)
   } else {
     meta_data <-  tibble(
       filepath = file_path
@@ -141,8 +141,8 @@ PrepMetaFile <- function(file_path, file_name) {
   if(! "color" %in% names(meta_data)){
     meta_data <- meta_data %>% 
       mutate(color = sample(
-        suppressWarnings(brewer.pal(11, sample(
-          kBrewerList, size = 1))) %>%
+        suppressWarnings(rep(brewer.pal(11, sample(
+          kBrewerList, size = 1)),nrow(meta_data))) %>%
           grep("#FF", ., value = T, invert = T),
         size = nrow(meta_data))
       )
