@@ -259,7 +259,7 @@ LoadGeneFile <-
       return()
     }
     legend_nickname <- last(str_split(file_name,"/",simplify = T)) %>% 
-      str_remove(., ".txt") %>% str_replace("\\.","_")
+      str_remove(., ".txt|.bed.gz|.bed") %>% str_replace("\\.","_")
     # checks if file with same nickname has already been loaded
     if (legend_nickname %in% names(list_data$gene_file)) {
       showModal(modalDialog(
@@ -286,24 +286,30 @@ LoadGeneFile <-
       ))
       return()
     }
-    if(str_detect(file_path, ".bed")){
-      col_names <- 1:num_col
-      col_names[4] <- "gene"
+    if(str_detect(file_name, ".bed")){
+      # reads in file
+      bedfile <-
+        suppressMessages(read_bed(file_path)) %>% 
+        distinct(chrom,start,end,name,strand,.keep_all = T) %>% 
+        group_by(chrom,name,strand) %>% summarise(start=min(start),end=max(end),.groups = "drop") 
+      tablefile <- bedfile %>% 
+        distinct(name,.keep_all = T) %>% mutate(gene=as.character(name))
+      # checks gene list is a subset of what has been loaded
     } else {
-      col_names <- FALSE
+      # reads in file
+      tablefile <-
+        suppressMessages(read_tsv(file_path,
+                                  comment = "#",
+                                  col_names = FALSE,
+                                  show_col_types = FALSE)) 
+      if(!"gene" %in% names(tablefile)){
+        names(tablefile)[1] <- "gene"
+      }
+      tablefile <- tablefile %>% 
+        distinct(gene,.keep_all = T) %>% mutate(gene=as.character(gene))
+      # checks gene list is a subset of what has been loaded
     }
-    # reads in file
-    tablefile <-
-      suppressMessages(read_tsv(file_path,
-                                comment = "#",
-                                col_names = col_names,
-                                show_col_types = FALSE)) 
-    if(!"gene" %in% names(tablefile)){
-      names(tablefile)[1] <- "gene"
-    }
-    tablefile <- tablefile %>% 
-      distinct(gene,.keep_all = T) %>% mutate(gene=as.character(gene))
-    # checks gene list is a subset of what has been loaded
+    
     gene_names <- tablefile %>% select(gene) %>% 
       semi_join(., list_data$gene_file$Complete$full, by = "gene") %>% distinct(gene)
     # test data is compatible with already loaded data
@@ -317,8 +323,15 @@ LoadGeneFile <-
           easyClose = T
         )
       )
+      if(str_detect(file_name, ".bed")){
+        gene_names <- bed_intersect(group_by(bedfile,strand), group_by(LIST_DATA$gene_file$Complete$full,strand)) %>% 
+          distinct(gene.y) %>% dplyr::rename(gene=gene.y)
+        legend_nickname <- paste0(legend_nickname, "_intersected")
+      } else {
+        gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene))
+      }
       # tries to grep lists and find matches
-      gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene))
+     
       if (n_distinct(gene_names$gene, na.rm = T) == 0) {
         showModal(
           modalDialog(

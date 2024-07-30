@@ -3993,7 +3993,7 @@ ui <- dashboardPage(
                     "filegene1",
                     width = "75%",
                     label = "",
-                    accept = c('.txt', '.bed'),
+                    accept = c('text/plain', 'application/gzip', 'application/x-gzip', '.txt', '.bed.gz', '.bed'),
                     multiple = FALSE
                   ),
                   helpText("load gene list"),
