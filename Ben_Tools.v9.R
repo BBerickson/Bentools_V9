@@ -1624,7 +1624,7 @@ server <- function(input, output, session) {
                                                     input$numerictssname,
                                                     input$numerictesname,
                                                     slider = T)
-    
+    reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, 0)
     reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$meta_data_plot$binning[1])
     
     reactive_values$slider_breaks$myselect  <- c(first(reactive_values$slider_breaks$mylabels),
