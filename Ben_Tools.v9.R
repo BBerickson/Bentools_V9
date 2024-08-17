@@ -1293,6 +1293,12 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "filenorm") {
       updatePickerInput(
         session,
+        "pickergenelist",
+        choices = distinct(LIST_DATA$meta_data, gene_list)$gene_list,
+        selected = distinct(LIST_DATA$meta_data, gene_list)$gene_list[1]
+      )
+      updatePickerInput(
+        session,
         "pickernumerator",
         choices = distinct(LIST_DATA$meta_data, set)$set,
         choicesOpt = list(style = paste("color", dplyr::select(
@@ -2731,6 +2737,7 @@ server <- function(input, output, session) {
                  {
                    LD <- MakeNormFile(
                      LIST_DATA,
+                     input$pickergenelist,
                      input$pickernumerator,
                      input$pickerdenominator,
                      input$radiogenebygene,
@@ -3351,6 +3358,12 @@ server <- function(input, output, session) {
       ))
       return()
     }
+    if(n_distinct(input$sliderbingroupies) < 2){
+      start_end_bin <- c(reactive_values$slider_breaks$mylabels[1], last(reactive_values$slider_breaks$mylabels))
+    } else {
+      start_end_bin <- floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% input$sliderbingroupies])
+    }
     withProgress(message = 'Calculation in progress',
                  detail = 'This may take a while...',
                  value = 0,
@@ -3360,8 +3373,7 @@ server <- function(input, output, session) {
                        LIST_DATA,
                        input$groupiesGeneList,
                        input$groupiesSamples,
-                       floor(reactive_values$slider_breaks$mybrakes[
-                         reactive_values$slider_breaks$mylabels %in% input$sliderbingroupies])
+                       start_end_bin
                      )
                  })
     if (!is_empty(LD$table_file)) {
@@ -4305,6 +4317,12 @@ ui <- dashboardPage(
             collapsible = T,
             div(style = "padding-left: 15%;",
                 fluidRow(
+                  pickerInput("pickergenelist",
+                              label = "Select Gene list if doing mean of means",
+                              width = "50%",
+                              choices = "Load data file",
+                              multiple = F
+                              ),
                   pickerInput(
                     "pickernumerator",
                     label = "numerator",

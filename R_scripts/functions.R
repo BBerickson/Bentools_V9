@@ -1649,7 +1649,8 @@ FilterPeak <-
 MakeGroupFile <- 
   function(list_data,
            mymath = "mean") {
-    for(i in distinct(LIST_DATA$meta_data,group)$group){
+    group <- distinct(list_data$meta_data,group) %>% filter(!str_detect(group,"self"),!str_detect(group,"^mean:"))
+    for(i in group$group){
       myset <- list_data$meta_data %>% dplyr::filter(group == i) %>% 
         dplyr::select(set)
       if(n_distinct(myset$set) > 1){
@@ -1684,6 +1685,7 @@ MakeGroupFile <-
 # make a new normalized file by dividing one file by the other
 MakeNormFile <-
   function(list_data,
+           genelist,
            nom,
            dnom,
            gbyg,
@@ -1700,7 +1702,7 @@ MakeNormFile <-
     # get data files
     if(dnom != "Multiply by -1"){
       nd <- list_data$table_file %>% dplyr::filter(set == nom | set== dnom) %>% 
-        replace_na(., list(score = 0))
+        replace_na(., list(score = 0)) %>% semi_join(.,list_data$gene_file[[genelist]]$full, by = 'gene')
       if(nchar(nickname)<1){
         nickname <- paste(nom, addfiles, dnom,sep = " ")
       }
@@ -2173,6 +2175,8 @@ CompareRatios <-
         semi_join(dplyr::filter(list_data$table_file, set == j), 
                   list_data$gene_file[[list_name]]$full, by = 'gene') 
       if (normlabel != "NA") {
+        print(normlabel)
+        print(normbin)
         db <- group_by(db, gene) %>%
           arrange(bin) %>% 
           dplyr::mutate(score = score / nth(score, normbin))
