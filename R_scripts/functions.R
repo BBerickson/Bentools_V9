@@ -2218,6 +2218,55 @@ CompareRatios <-
         }
       }
     })
+    
+    if(length(ratiofile) == 2 & all(str_detect(ratiofile,"^mean:"))){
+      db <- list()
+      ratiofile <- str_replace_all(ratiofile,":","|") %>% str_remove_all(.,"mean\\|")
+      for(i in seq_along(ratiofile)){
+        db[[i]] <-
+          semi_join(dplyr::filter(list_data$table_file, str_detect(set,ratiofile[i]) & !str_detect(set,"^mean:")), 
+                    outlist[[1]], by = 'gene') %>% group_by(gene,set) %>%
+          summarise(sum1 = sum(score[start1_bin:end1_bin],	na.rm = T),
+                    sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") 
+        
+        if(start2_bin == 0){
+          db[[i]]$sum2 <- 1
+        }
+        if (divzerofix) {
+          db[[i]]$sum2 <- na_if(db[[i]]$sum2, 0)
+          new_min <-
+            min(db[[i]]$sum2, na.rm = TRUE) / 2
+          db[[i]] <-
+            replace_na(db[[i]], list(sum2 = new_min))
+        }
+        
+        db[[i]] <- db[[i]] %>% transmute(., gene = gene, set=set, score = sum1 / sum2) %>%
+          dplyr::mutate(score = na_if(score,Inf)) %>% 
+          pivot_wider(names_from = set,values_from = score,values_fill = 0) 
+      }
+      
+      combined_data <- full_join(db[[1]],db[[2]],by="gene") %>% 
+        mutate(across(everything(), ~ replace_na(.x, 0)))
+      
+      # Calculate perform t-test for each gene
+      suppressWarnings(outlist[[1]] <- combined_data %>% 
+        # Rowwise operation for calculating p-values
+        rowwise() %>%
+          mutate(p_value = tryCatch(
+            {
+              t.test(
+                select(cur_data(), matches(ratiofile[1])) %>% unlist(),
+                select(cur_data(), matches(ratiofile[2])) %>% unlist()
+              )$p.value
+            },
+            error = function(e) 1  # Return 1 if an error occurs
+          )) %>% 
+          ungroup() %>%
+        mutate(adj_p_value = p.adjust(p_value, method = "BH")) %>% 
+        full_join(outlist[[1]],.,by="gene"))
+      
+      
+    }
     #remove old info
     list_data$gene_file <- list_data$gene_file[!str_detect(names(list_data$gene_file),"^Ratio_")]
     list_data$meta_data <- list_data$meta_data %>% dplyr::filter(!str_detect(gene_list,"^Ratio_"))
