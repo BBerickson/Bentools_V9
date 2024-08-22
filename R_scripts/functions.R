@@ -2260,7 +2260,7 @@ CompareRatios <-
         rowwise() %>%
           mutate(p_value = tryCatch(
             {
-              t.test(
+              wilcox.test(
                 select(cur_data(), matches(ratiofile[1])) %>% unlist(),
                 select(cur_data(), matches(ratiofile[2])) %>% unlist()
               )$p.value
