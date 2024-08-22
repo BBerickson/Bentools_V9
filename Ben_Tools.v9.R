@@ -338,15 +338,6 @@ server <- function(input, output, session) {
     shinyjs::reset("filetable")
     removeCssClass(selector = "a[data-value='qcOptions']", class = "inactiveLink")
     removeCssClass(selector = "a[data-value='mainplot']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='grouptab']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='filenorm']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='genelists']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='groupiestool']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
-    removeCssClass(selector = "a[data-value='DataTableTool']", class = "inactiveLink")
     
     gts <- LIST_DATA$table_file %>% group_by(set) %>%
       summarise(number_of_genes = n_distinct(gene, na.rm = T)) %>%
@@ -1198,6 +1189,15 @@ server <- function(input, output, session) {
                                       reactive_values$slider_breaks$mylabels)
         )
         reactive_values$droplinesandlabels <- 1
+        removeCssClass(selector = "a[data-value='grouptab']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='filenorm']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='genelists']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='sorttool']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='ratiotool']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='clustertool']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='groupiestool']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='cdftool']", class = "inactiveLink")
+        removeCssClass(selector = "a[data-value='DataTableTool']", class = "inactiveLink")
       }
       if(all(LIST_DATA$meta_data$group == "self")){
         shinyjs::hide("hideplotgroup")
@@ -3919,7 +3919,8 @@ ui <- dashboardPage(
     tags$head(
       tags$style(".inactiveLink {
                             pointer-events: none;
-                           cursor: default;
+                            color: gray !important; 
+                            cursor: not-allowed;
                            }",
                  ".shiny-notification {
                          position: fixed;
@@ -3937,8 +3938,8 @@ ui <- dashboardPage(
       menuItem("Load Data", tabName = "loaddata", icon = icon("file-import")),
       menuItem("Plot", tabName = "mainplot", icon = icon("chart-area")),
       menuItem("QC/Options", tabName = "qcOptions", icon = icon("clipboard-check")),
-      menuItem("Group data", tabName = "grouptab", icon = icon("copy")),
-      menuItem("Norm data", tabName = "filenorm", icon = icon("copy")),
+      menuItem("Group data", tabName = "grouptab", icon = icon("sitemap")),
+      menuItem("Norm data", tabName = "filenorm", icon = icon("scale-balanced")),
       menuItem("Compare Lists", tabName = "genelists", icon = icon("grip-lines")),
       menuItem("Filter Tool", tabName = "sorttool", icon = icon("filter")),
       menuItem("Ratio Tool", tabName = "ratiotool", icon = icon("divide")),

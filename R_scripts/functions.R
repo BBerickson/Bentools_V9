@@ -205,10 +205,14 @@ tableTestbin <- function(meta_data){
   binning <- header %>% as.numeric()
   # set labels every # bins
   if(num_bins < 106){
-    if(type == 2){
+    if(type == 2 | as.double(binning[2]) < 6){
       everybp <- 1
     } else {
-      everybp <- round(as.double(binning[2])*5, -2)
+      if(as.double(binning[2]) > 10){
+        everybp <- round(as.double(binning[2])*5, -2)
+      } else {
+        everybp <- round(as.double(binning[2])*5, -1)
+      } 
     }
   } else {
     everybp <- round((num_bins-6)/10,-1)*binning[2]
