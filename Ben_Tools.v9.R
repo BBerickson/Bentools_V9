@@ -4652,7 +4652,7 @@ ui <- dashboardPage(
                      actionButton("actionratiotool", "Get fold changes"),
                      awesomeCheckbox(
                        "checkratiozero",
-                       label = "replace 0 with min/2",
+                       label = "replace denom 0's with min/2",
                        value = FALSE
                      )
               ),

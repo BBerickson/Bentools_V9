@@ -2159,6 +2159,7 @@ CompareRatios <-
                            "[", startend1_label[1], ":", startend1_label[2],
                            "]/[", startend2_label[1], ":", startend2_label[2], "]")
       ratiosub <- paste0("\n",ratio2file)
+      ratio2file <- str_remove_all(ratio2file,"\n")
     } else {
       ratiosub <- paste0("\n",ratio1file," / \n", ratio2file)
       ratiofile <- c(ratio1file, ratio2file)
@@ -2167,7 +2168,8 @@ CompareRatios <-
                            "]/[", startend2_label[1], ":", startend2_label[2], "]/",
                            ratio2file,
                            "[", startend1_label[1], ":", startend1_label[2],
-                           "]/[", startend2_label[1], ":", startend2_label[2], "]")
+                           "]/[", startend2_label[1], ":", startend2_label[2], "]") %>% 
+        str_remove_all(.,"\n")
     }
     lc <- 0
     lapply(ratiofile, function(j) {
@@ -2183,8 +2185,7 @@ CompareRatios <-
       }
       db <- group_by(db, gene) %>%
         summarise(sum1 = sum(score[start1_bin:end1_bin],	na.rm = T),
-                  sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") %>%
-        ungroup()
+                  sum2 = sum(score[start2_bin:end2_bin],	na.rm = T),.groups="drop") 
       # if min/2 find Na's and 0's, and replace
       if(start2_bin == 0){
         db$sum2 <- 1
@@ -2199,7 +2200,8 @@ CompareRatios <-
       lc <<- lc + 1
       outlist[[lc]] <<-
         transmute(db, gene = gene, Ratio = sum1 / sum2) %>%
-        dplyr::mutate(Ratio = na_if(Ratio,Inf)) %>% dplyr::select(gene, Ratio)
+        dplyr::mutate(Ratio = na_if(Ratio,Inf))%>%
+        dplyr::mutate(Ratio = na_if(Ratio,-Inf)) %>% dplyr::select(gene, Ratio)
       
       if (lc > 1) {
         if (divzerofix) {
@@ -2209,19 +2211,21 @@ CompareRatios <-
           outlist[[1]] <<-
             inner_join(outlist[[1]], outlist[[2]], by = 'gene') %>%
             transmute(gene = gene, Ratio = Ratio.x / Ratio.y) %>%
-            dplyr::mutate(Ratio = na_if(Ratio,Inf)) %>% dplyr::select(gene, Ratio)
+            dplyr::mutate(Ratio = na_if(Ratio,Inf))%>%
+            dplyr::mutate(Ratio = na_if(Ratio,-Inf)) %>% dplyr::select(gene, Ratio)
         } else {
-          outlist[[1]] <<-
+          outlist[[1]] <<- 
             inner_join(outlist[[1]], outlist[[2]], by = 'gene') %>%
             transmute(gene = gene, Ratio = Ratio.x / Ratio.y) %>%
-            dplyr::mutate(Ratio = na_if(Ratio,Inf))  %>% dplyr::select(gene, Ratio)
+            dplyr::mutate(Ratio = na_if(Ratio,Inf)) %>%
+            dplyr::mutate(Ratio = na_if(Ratio,-Inf)) %>% dplyr::select(gene, Ratio)
         }
       }
     })
     
     if(length(ratiofile) == 2 & all(str_detect(ratiofile,"^mean:"))){
       db <- list()
-      ratiofile <- str_replace_all(ratiofile,":","|") %>% str_remove_all(.,"mean\\|")
+      ratiofile <- str_replace_all(ratiofile,":","|")  %>% str_remove_all(.,"\n") %>% str_remove_all(.,"mean\\|")
       for(i in seq_along(ratiofile)){
         db[[i]] <-
           semi_join(dplyr::filter(list_data$table_file, str_detect(set,ratiofile[i]) & !str_detect(set,"^mean:")), 
@@ -2241,10 +2245,15 @@ CompareRatios <-
         }
         
         db[[i]] <- db[[i]] %>% transmute(., gene = gene, set=set, score = sum1 / sum2) %>%
-          dplyr::mutate(score = na_if(score,Inf)) %>% 
+          dplyr::mutate(score = na_if(score,Inf)) %>%
+          dplyr::mutate(score = na_if(score,-Inf)) %>% 
           pivot_wider(names_from = set,values_from = score,values_fill = 0) 
       }
       
+      if (divzerofix) {
+        db[[2]] <- db[[2]] %>%  mutate(across(-gene, ~ na_if(.x, 0))) %>% 
+          mutate(across(-gene, ~ replace_na(.x, new_min)))
+      }
       combined_data <- full_join(db[[1]],db[[2]],by="gene") %>% 
         mutate(across(everything(), ~ replace_na(.x, 0)))
       
