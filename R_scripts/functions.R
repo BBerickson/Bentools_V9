@@ -693,10 +693,9 @@ SlidersSetsInfo <- function(slider_breaks, type){
     setsliders <- slider_breaks$mylabels[c(1,1,2,2)]
     
   } else if(type == 543) {
-    setsliders <- slider_breaks$mylabels[c(floor(num_bins*.19),
-                                           floor(num_bins*.24),
-                                           floor(num_bins*.24)+1,
-                                           floor(num_bins*.59))] 
+    setsliders <- c(slider_breaks$mylabels[c(floor(num_bins*.19),
+                                           floor(num_bins*.24))],
+                    NA,NA) 
     
   } else if (type == 5) {
     setsliders <- c(slider_breaks$mylabels[c(floor(num_bins*.25)+1,
@@ -704,14 +703,12 @@ SlidersSetsInfo <- function(slider_breaks, type){
                     NA,NA)
     
   } else if (type == 3) {
-    setsliders <- slider_breaks$mylabels[c(1,floor(num_bins/3.2),
-                                           floor(num_bins/3.2)+1,num_bins)]
+    setsliders <- c(slider_breaks$mylabels[c(1,floor(num_bins/3.2),
+                                           floor(num_bins/3.2)+1)],
+                    NA,NA)
   } else {
-    setsliders <- slider_breaks$mylabels[c(
-      1,
-      floor(num_bins/2),
-      floor(num_bins/2)+1,
-      num_bins)]
+    setsliders <- c(slider_breaks$mylabels[c(1,num_bins)],
+                    NA,NA)
   }
   setsliders
 }
