@@ -123,7 +123,7 @@ server <- function(input, output, session) {
     Lines_Labels_List = list(mybrakes="",mylabels="",
                              myline = tibble(use_virtical_line_color=c("green","red","black","black"),
                                              use_virtical_line_type=c("dotted","dotted","solid","solid")),
-                             mysize = c(2.0, 2.5, 13.0, 13.0, 10.0, 0.8),
+                             mysize = c(2.0, 2.5, 13.0, 13.0, 10.0, 0.8, 20, 5),
                              myset = c(20, 40, 15, 45, 100, 5)),
     Picker_controler = NULL,
     mymath = c("mean", "none", "0", "FALSE", "FALSE", "1", "80", "none"),
@@ -540,7 +540,8 @@ server <- function(input, output, session) {
                  detail = 'This may take a while...',
                  value = 0,
                  {
-                   list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull)
+                   list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull, 
+                                                       input$selectlegendnewline, input$selectlegendnewlinespace)
                    if (!is_empty(list_data_frame) & nrow(list_data_frame) !=0) {
                      LIST_DATA$meta_data <<- rows_update(LIST_DATA$meta_data,
                                                          list_data_frame %>% 
@@ -587,7 +588,9 @@ server <- function(input, output, session) {
                                                         input$selectttestalt,
                                                         input$selectttestexact,
                                                         input$selectttestpaired,
-                                                        input$mygroup)
+                                                        input$mygroup,
+                                                        input$selectlegendnewline, 
+                                                        input$selectlegendnewlinespace)
                        } else {
                          LIST_DATA$ttest <<- NULL
                        }
@@ -996,6 +999,89 @@ server <- function(input, output, session) {
           column(
             12,
             div(
+              style = "padding-left: 25px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set font Options"),
+                numericInput(
+                  inputId = 'selectlegendnewline',
+                  "Set legend wrap size",
+                  value = reactive_values$Lines_Labels_List$mysize[7],
+                  min = 1,
+                  max = 20,
+                  step = 1
+                ),
+                numericInput(
+                  inputId = 'selectlegendnewlinespace',
+                  "Set wrap size brake window",
+                  value = reactive_values$Lines_Labels_List$mysize[8],
+                  min = 1,
+                  max = 20,
+                  step = 1
+                ),
+                numericInput(
+                  inputId = 'selectlegendsize',
+                  "Set legend size",
+                  value = reactive_values$Lines_Labels_List$mysize[5],
+                  min = 1,
+                  max = 20,
+                  step = 1
+                ),
+                numericInput(
+                  inputId = 'selectfontsizex',
+                  "Set X axis font size",
+                  value = reactive_values$Lines_Labels_List$mysize[3],
+                  min = 1,
+                  max = 30,
+                  step = 1
+                ),
+                numericInput(
+                  inputId = 'selectfontsizey',
+                  "Set Y axis font size",
+                  value = reactive_values$Lines_Labels_List$mysize[4],
+                  min = 1,
+                  max = 30,
+                  step = 1
+                ),
+                icon = icon("sliders"),
+                status = "warning",
+                tooltip = tooltipOptions(title = "Font Options")
+              )
+            ),
+            div(
+              style = "padding-left: 25px; display:inline-block;",
+              dropdownButton(
+                tags$h3("Set line Options"),
+                
+                numericInput(
+                  inputId = 'selectlinesize',
+                  "Set plot line size",
+                  value = reactive_values$Lines_Labels_List$mysize[2],
+                  min = .5,
+                  max = 10,
+                  step = .5
+                ),
+                numericInput(
+                  inputId = 'selectvlinesize',
+                  "Set vertcal line size",
+                  value = reactive_values$Lines_Labels_List$mysize[1],
+                  min = .5,
+                  max = 10,
+                  step = .5
+                ),
+                numericInput(
+                  inputId = 'selectalpha',
+                  "Set line alpha",
+                  value = reactive_values$Lines_Labels_List$mysize[6],
+                  min = .01,
+                  max = 1,
+                  step = .1
+                ),
+                icon = icon("sliders"),
+                status = "warning",
+                tooltip = tooltipOptions(title = "Line Options")
+              )
+            ),
+            div(
               style = "padding-left: -5px; display:inline-block;",
               dropdownButton(
                 tags$h3("Set TSS Options"),
@@ -1079,74 +1165,6 @@ server <- function(input, output, session) {
                 icon = icon("sliders"),
                 status = "danger",
                 tooltip = tooltipOptions(title = "TES Options")
-              )
-            ),
-            div(
-              style = "padding-left: 25px; display:inline-block;",
-              dropdownButton(
-                tags$h3("Set font Options"),
-                
-                numericInput(
-                  inputId = 'selectvlinesize',
-                  "Set vertcal line size",
-                  value = reactive_values$Lines_Labels_List$mysize[1],
-                  min = .5,
-                  max = 10,
-                  step = .5
-                ),
-                numericInput(
-                  inputId = 'selectfontsizex',
-                  "Set X axis font size",
-                  value = reactive_values$Lines_Labels_List$mysize[3],
-                  min = 1,
-                  max = 30,
-                  step = 1
-                ),
-                numericInput(
-                  inputId = 'selectfontsizey',
-                  "Set Y axis font size",
-                  value = reactive_values$Lines_Labels_List$mysize[4],
-                  min = 1,
-                  max = 30,
-                  step = 1
-                ),
-                icon = icon("sliders"),
-                status = "warning",
-                tooltip = tooltipOptions(title = "Font Options")
-              )
-            ),
-            div(
-              style = "padding-left: 25px; display:inline-block;",
-              dropdownButton(
-                tags$h3("Set line Options"),
-                
-                numericInput(
-                  inputId = 'selectlinesize',
-                  "Set plot line size",
-                  value = reactive_values$Lines_Labels_List$mysize[2],
-                  min = .5,
-                  max = 10,
-                  step = .5
-                ),
-                numericInput(
-                  inputId = 'selectlegendsize',
-                  "Set legend size",
-                  value = reactive_values$Lines_Labels_List$mysize[5],
-                  min = 1,
-                  max = 20,
-                  step = 1
-                ),
-                numericInput(
-                  inputId = 'selectalpha',
-                  "Set line alpha",
-                  value = reactive_values$Lines_Labels_List$mysize[6],
-                  min = .01,
-                  max = 1,
-                  step = .1
-                ),
-                icon = icon("sliders"),
-                status = "warning",
-                tooltip = tooltipOptions(title = "Line Options")
               )
             )
           )
@@ -1666,6 +1684,8 @@ server <- function(input, output, session) {
         input$selectfontsizex,
         input$selectfontsizey,
         input$selectlegendsize,
+        input$selectlegendnewline,
+        input$selectlegendnewlinespace,
         input$selectalpha,
         reactive_values$slider_breaks$lineloc
       )
@@ -1728,20 +1748,24 @@ server <- function(input, output, session) {
       input$selectfontsizex,
       input$selectfontsizey,
       input$selectlegendsize,
-      input$selectalpha
+      input$selectalpha,
+      input$selectlegendnewline,
+      input$selectlegendnewlinespace
     ),
     ignoreInit = TRUE,
     {
       if(LIST_DATA$STATE[2] > 0){
         # print("keep bin positions in bounds > 0")
-        mynum <- c(2, 2.5, 13, 13, 10, 0.8)
+        mynum <- c(2, 2.5, 13, 13, 10, 0.8, 20, 5)
         myset <- c(
           input$selectvlinesize,
           input$selectlinesize,
           input$selectfontsizex,
           input$selectfontsizey,
           input$selectlegendsize,
-          input$selectalpha
+          input$selectalpha,
+          input$selectlegendnewline,
+          input$selectlegendnewlinespace
         )
         # keep bin positions in bounds > 0
         for (i in seq_along(myset)) {
@@ -1753,6 +1777,8 @@ server <- function(input, output, session) {
             updateNumericInput(session, "selectfontsizey", value = myset[4])
             updateNumericInput(session, "selectlegendsize", value = myset[5])
             updateNumericInput(session, "selectalpha", value = myset[6])
+            updateNumericInput(session, "selectlegendnewline", value = myset[7])
+            updateNumericInput(session, "selectlegendnewlinespace", value = myset[8])
           }
         }
       }
@@ -1954,7 +1980,8 @@ server <- function(input, output, session) {
     
     if (LIST_DATA$STATE[2] != 2){
       # print("t.test button")
-      list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull)
+      list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull, 
+                                          input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         if (sum(ttest_values == reactive_values$ttest_values) != 7){
           reactive_values$ttest_values <- ttest_values
@@ -1988,7 +2015,9 @@ server <- function(input, output, session) {
                                                           input$selectttestalt,
                                                           input$selectttestexact,
                                                           input$selectttestpaired,
-                                                          input$mygroup)
+                                                          input$mygroup,
+                                                          input$selectlegendnewline, 
+                                                          input$selectlegendnewlinespace)
                            mm <- YaxisValuetTest(LIST_DATA$ttest, input$hlinettest, input$selectttestlog )
                          })
           } else {
@@ -2205,7 +2234,8 @@ server <- function(input, output, session) {
       LD$meta_data <- LD$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == names(LD$gene_file)[mylist] &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(LD, input$checkboxfull)
+      list_data_frame <- Active_list_data(LD, input$checkboxfull, 
+                                          input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         withProgress(message = 'Calculation in progress',
                      detail = 'This may take a while...',
@@ -2470,7 +2500,8 @@ server <- function(input, output, session) {
       sortmin$meta_data <- sortmin$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == mylist &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(sortmin, input$checkboxfull)
+      list_data_frame <- Active_list_data(sortmin, input$checkboxfull, 
+                                          input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         reactive_values$Plot_controler_sort_min <- ggplot()
         withProgress(message = 'Calculation in progress',
@@ -2851,8 +2882,9 @@ server <- function(input, output, session) {
     if (!is.null(input$pickergroupsample)) {
       LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
         mutate(group = if_else(set %in% input$pickergroupsample,
-                               gsub("(.{20})", "\\1\n",
-                                    gsub(",",":",input$textgroupname)), group))
+                               as_tibble(insert_line_breaks(gsub(",",":",input$textgroupname), 
+                                                            input$selectlegendnewline, 
+                                                            input$selectlegendnewlinespace))$value, group))
       updatePickerInput(session,
                         "pickergroupsample", selected = "",
                         options = list(title = "Select at least 2 files"))
@@ -3275,7 +3307,8 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD, input$checkboxfull)
+                                  list_data_frame <- Active_list_data(LD, input$checkboxfull, 
+                                                                      input$selectlegendnewline, input$selectlegendnewlinespace)
                                   if (!is_empty(list_data_frame)) {
                                     
                                     Apply_Cluster_Math <- ApplyMath(
@@ -3430,7 +3463,8 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD, input$checkboxfull)
+                                  list_data_frame <- Active_list_data(LD, input$checkboxfull, 
+                                                                      input$selectlegendnewline, input$selectlegendnewlinespace)
                                   if (!is_empty(list_data_frame)) {
                                     
                                     Apply_groupies_Math <- ApplyMath(
@@ -3731,7 +3765,8 @@ server <- function(input, output, session) {
                        input$sliderbincdf1,
                        floor(reactive_values$slider_breaks$mybrakes[
                          reactive_values$slider_breaks$mylabels %in% input$sliderbincdf2]),
-                       input$sliderbincdf2
+                       input$sliderbincdf2, 
+                       input$selectlegendnewline, input$selectlegendnewlinespace
                      )
                  })
     if (!is_empty(LD$table_file)) {

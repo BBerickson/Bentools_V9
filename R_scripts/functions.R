@@ -1,3 +1,56 @@
+# plot legend new line insert helper
+insert_line_breaks <- function(text, width = 20, max_dist = 5) {
+  # Ensure max_dist is not greater than width
+  if (max_dist > width) {
+    max_dist <- width
+  }
+  
+  sapply(text, function(x) {
+    # Check for \nn = and strip it off along with everything after it
+    nn_pos <- regexpr("\\\nn =", x)
+    if (nn_pos > 0) {
+      x <- substr(x, 1, nn_pos - 1) %>% str_remove(.,"`")
+    }
+    
+    # Check if the text length exceeds the specified width
+    if (nchar(x) > width) {
+      # Find positions of underscores, spaces, or hyphens after the width position
+      pos <- unlist(gregexpr("[_ :-]", substr(x, width + 1, nchar(x)))) + width
+      
+      # Check if the last position is more than the specified width
+      if(last(pos) < width){
+        return(x)
+      }
+      
+      # Generate multiples of width up to the last position found
+      multiples <- seq(width, last(pos), by = width)
+      
+      # Find the closest position to each multiple of width
+      pos <- unique(sapply(multiples, function(x) { pos[which.min(abs(pos - x))] }))
+      
+      # Adjust positions if they are too far from the multiples
+      for (i in seq_along(pos)) {
+        if (pos[i] - multiples[i] > max_dist) {
+          pos[i] <- multiples[i]
+        }
+      }
+      
+      n_pos <- 1
+      # Insert line breaks at the calculated positions
+      for (i in seq_along(pos)) {
+        # Ensure the last brake is at least max_dist from end of string
+        if (pos[i] + max_dist > nchar(x)) {
+          next
+        }
+        pos[i] <- pos[i] + n_pos
+        n_pos <- n_pos + 1
+        x <- paste0(substr(x, 1, pos[i] - 1), "\n", substr(x, pos[i], nchar(x)))
+      }
+    }
+    return(x)
+  })
+}
+
 # basic test for valid rgb color and type and
 # switches hex <--> rgb, able to apply tint colors
 RgbToHex <- function(x, 
@@ -441,7 +494,9 @@ LinesLabelsPlot <-
            linesize,
            fontsizex,
            fontsizey,
-           legendsize,
+           legendsize, 
+           legendbrake, 
+           legendbrakespace,
            myalpha,
            lineloc) {
     # print("lines and labels plot fun")
@@ -502,7 +557,7 @@ LinesLabelsPlot <-
       mycolors = mycolors,
       mybrakes = use_plot_breaks,
       mylabels = use_plot_breaks_labels,
-      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, myalpha),
+      mysize = c(vlinesize, linesize, fontsizex, fontsizey, legendsize, myalpha, legendbrake, legendbrakespace),
       myset = c(body1bin, body2bin, tssbin, tesbin, binsize, binspace)
     )
   }
@@ -731,7 +786,7 @@ CheckBoxOnOff <- function(check_box, list_data) {
 
 # input data list, output filtered and bound data with plot legend column
 Active_list_data <-
-  function(list_data, group="none", fulljoin=F) {
+  function(list_data, group="none", fulljoin=F,legend_brake=20,legend_brake_size=5) {
     table_file <- list_data$table_file
     gene_file <- list_data$gene_file
     meta_data <- list_data$meta_data
@@ -764,16 +819,20 @@ Active_list_data <-
         if(fulljoin){
           my_sel <- my_sel %>% dplyr::mutate(.,sub = paste(sub, "Inc0"))
         }
-        # adds line brake at 20 character for legend spacing
-        my_sel2 <- my_sel %>% dplyr::mutate(.,plot_legend = paste(
-          gsub("(.{20})", "\\1\n", set),
-          gsub("(.{20})", "\\1\n", 
-               str_split_fixed(i, "\nn = ", n=2)[,1]),
-          paste0("n = ", n_distinct(list_data_out[[i]]$gene, na.rm = T)),
+        # adds line brakes for legend spacing
+        my_sel2 <- my_sel %>% 
+          # insert line brakes
+          dplyr::mutate(., set2 = as_tibble(insert_line_breaks(set,legend_brake,legend_brake_size))$value,
+                                            group2 = as_tibble(insert_line_breaks(i,legend_brake,legend_brake_size))$value) %>%
+          # paste it all together
+          dplyr::mutate(.,plot_legend = paste(
+            set2,
+            group2,
+          paste0("n = ", n_distinct(list_data_out[[i]]$gene, na.rm = T)), # gets real count
           sep = '\n'
-        ),group=paste(
-          gsub("(.{20})", "\\1\n", group)
-        )) %>% dplyr::select(set,plot_legend,group)
+          ),
+          group=as_tibble(insert_line_breaks(group,legend_brake,legend_brake_size))$value
+        ) %>% dplyr::select(set,plot_legend,group)
         list_data_out[[i]] <- list_data_out[[i]] %>% inner_join(.,my_sel2,by="set")
       }
     }
@@ -883,7 +942,10 @@ ApplyTtest <-
            my_alt, 
            my_exact, 
            my_paired,
-           group = "none") {
+           group = "none",
+           legend_brake=20,
+           legend_brake_size=5
+           ) {
     # t.test comparing files in same gene list
     ttest <- NULL
     if(switchttest != "none"){
@@ -902,7 +964,8 @@ ApplyTtest <-
         if(n_test %>% dplyr::filter(gene_list == i) %>% dplyr::select(n) > 1){
           ttest[[i]] <- bind_rows(try_t_test(list_data %>% dplyr::filter(gene_list == i), i,
                                              use_tmath,switchttesttype,padjust,
-                                             my_alt, noquote(my_exact), noquote(my_paired))) %>% 
+                                             my_alt, noquote(my_exact), noquote(my_paired),
+                                             legend_brake=20,legend_brake_size=5)) %>% 
             dplyr::mutate(myline = 1,
                           mycol = "#000000" )
         } 
@@ -913,7 +976,8 @@ ApplyTtest <-
 
 # makes sure t test wont crash on an error
 try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
-                       alternative="two.sided", exact=FALSE, paired=FALSE){
+                       alternative="two.sided", exact=FALSE, paired=FALSE,
+                       legend_brake=20,legend_brake_size=5){
   # print("try t.test")
   exact <- if_else(exact=="TRUE",TRUE,FALSE)
   paired <- if_else(paired=="TRUE",TRUE,FALSE)
@@ -953,12 +1017,9 @@ try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
     }
     db_out[[str_c(i,collapse = "-")]] <- myTtest %>% 
       dplyr::mutate(., set = paste(
-        paste0(gsub("(.{20})", "\\1\n", 
-                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,1]),
-               gsub("(.{20})", "\\1\n", 
-                    str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,2])),
-        gsub("(.{20})", "\\1\n", 
-             str_split_fixed(my_set, "\n", n=2)[,1]),
+        paste0(as_tibble(insert_line_breaks(str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,1],legend_brake,legend_brake_size))$value,
+               as_tibble(insert_line_breaks(str_split_fixed(str_c(i,collapse = "-"), "\n",n=2)[,2],legend_brake,legend_brake_size))$value),
+        as_tibble(insert_line_breaks(str_split_fixed(my_set, "\n", n=2)[,1],legend_brake,legend_brake_size))$value,
         str_split_fixed(my_set, "\n", n=2)[,2],
         sep = '\n'
       ))
@@ -2420,7 +2481,8 @@ CumulativeDistribution <-
            startend1_bin,
            startend1_label,
            startend2_bin,
-           startend2_label) {
+           startend2_label,
+           legend_brake=20,legend_brake_size=5) {
     # print("cdf function")
     if(length(startend1_bin) == 1){
       startend1_bin <- c(startend1_bin,startend1_bin)
@@ -2468,7 +2530,7 @@ CumulativeDistribution <-
           gene = gene,
           bin = row_number(),
           set = set,
-          plot_legend = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
+          plot_legend = paste(list_name, "-", as_tibble(insert_line_breaks(set,legend_brake,legend_brake_size))$value),
           value = value
         ) %>%
         ungroup()
@@ -2523,7 +2585,7 @@ CumulativeDistribution <-
                                            onoff = "0",
                                            count = paste("n =", outlist %>% dplyr::filter(grepl(list_name,plot_legend)) %>% 
                                                            summarise(n=n_distinct(bin))),
-                                           plot_legend = paste(list_name, "-", gsub("(.{20})", "\\1\n", set)),
+                                           plot_legend = paste(list_name, "-", as_tibble(insert_line_breaks(set,legend_brake,legend_brake_size))$value),
                                            myheader = use_header)))
     }
     list_data
