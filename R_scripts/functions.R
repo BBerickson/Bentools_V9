@@ -8,7 +8,7 @@ insert_line_breaks <- function(text, width = 20, max_dist = 5) {
   sapply(text, function(x) {
     # Check for \nn = and strip it off along with everything after it
     nn_pos <- regexpr("\\\nn =", x)
-    if (nn_pos > 0) {
+    if (!is.na(nn_pos) && nn_pos > 0) {
       x <- substr(x, 1, nn_pos - 1) %>% str_remove(.,"`")
     }
     
@@ -1711,10 +1711,10 @@ FilterPeak <-
 MakeGroupFile <- 
   function(list_data,
            mymath = "mean") {
-    group <- distinct(list_data$meta_data,group) %>% filter(!str_detect(group,"self"),!str_detect(group,"^mean:"))
+    group <- dplyr::filter(list_data$meta_data, set !=group) %>% distinct(.,group)
     for(i in group$group){
       myset <- list_data$meta_data %>% dplyr::filter(group == i) %>% 
-        dplyr::select(set)
+        dplyr::distinct(set)
       if(n_distinct(myset$set) > 1){
         legend_nickname <- paste(mymath,i,sep = ":")
         new_gene_list <- list_data$table_file %>% dplyr::filter(set %in% myset$set) %>% 
@@ -1729,8 +1729,8 @@ MakeGroupFile <-
         list_data$table_file <- bind_rows(list_data$table_file, new_gene_list)
         list_data$meta_data <- distinct(bind_rows(list_data$meta_data,
                                                   list_data$meta_data %>%
-                                                    dplyr::filter(set == myset$set[1] & gene_list == "Complete") %>%
-                                                    dplyr::mutate(count = paste0("n = ",n_distinct(new_gene_list$gene)),
+                                                    dplyr::filter(set == myset$set[1]) %>%
+                                                    dplyr::mutate(count = count,
                                                                   set = legend_nickname,
                                                                   group = legend_nickname,
                                                                   onoff = "0",

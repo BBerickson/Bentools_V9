@@ -1006,16 +1006,16 @@ server <- function(input, output, session) {
                   inputId = 'selectlegendnewline',
                   "Set legend wrap size",
                   value = reactive_values$Lines_Labels_List$mysize[7],
-                  min = 1,
-                  max = 20,
+                  min = 0,
+                  max = 50,
                   step = 1
                 ),
                 numericInput(
                   inputId = 'selectlegendnewlinespace',
                   "Set wrap size brake window",
                   value = reactive_values$Lines_Labels_List$mysize[8],
-                  min = 1,
-                  max = 20,
+                  min = 0,
+                  max = 50,
                   step = 1
                 ),
                 numericInput(
