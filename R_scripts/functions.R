@@ -823,16 +823,22 @@ Active_list_data <-
         my_sel2 <- my_sel %>% 
           # insert line brakes
           dplyr::mutate(., set2 = as_tibble(insert_line_breaks(set,legend_brake,legend_brake_size))$value,
-                                            group2 = as_tibble(insert_line_breaks(i,legend_brake,legend_brake_size))$value) %>%
+                        gene_list2 = as_tibble(insert_line_breaks(i,legend_brake,legend_brake_size))$value,
+                        group2=as_tibble(insert_line_breaks(group,legend_brake,legend_brake_size))$value,
+                        real_count=paste0("n = ", n_distinct(list_data_out[[i]]$gene, na.rm = T))) %>% # gets real gene count
           # paste it all together
-          dplyr::mutate(.,plot_legend = paste(
-            set2,
-            group2,
-          paste0("n = ", n_distinct(list_data_out[[i]]$gene, na.rm = T)), # gets real count
-          sep = '\n'
-          ),
-          group=as_tibble(insert_line_breaks(group,legend_brake,legend_brake_size))$value
-        ) %>% dplyr::select(set,plot_legend,group)
+          dplyr::mutate(.,
+                        plot_legend = paste(
+                          set2,
+                          gene_list2,
+                          real_count, 
+                          sep = '\n'),
+                        group=paste(
+                          group2,
+                          gene_list2,
+                          real_count, 
+                          sep = '\n')
+          ) %>% dplyr::select(set,plot_legend,group)
         list_data_out[[i]] <- list_data_out[[i]] %>% inner_join(.,my_sel2,by="set")
       }
     }
@@ -898,15 +904,17 @@ ApplyMath <-
     # finish making file ready for ggplot
     if(group == "groups"){
       list_data <- select(list_data, -plot_legend) %>% 
+        # collapse plot_legend down to 1 per group
         right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
                      select(group, plot_legend, gene_list),by=c("group","gene_list")) %>% 
-        separate(plot_legend,c("cc","set2"),"\n",extra = "merge",remove = F) %>% dplyr::select(-cc) %>%
-        dplyr::mutate(group=if_else(set != group, paste(group,set2,sep = "\n"),plot_legend)) %>%
+        # update set for plot color and plot_legend group name
         transmute(set = plot_legend,plot_legend=group,bin=bin,value=value) %>% 
         group_by(set, bin,plot_legend) %>% 
+        # mean groups and set min and max for geom_ribbon
         summarise(min=min(value),max=max(value),
                   value = mean(value), .groups = "drop") 
     } else {
+      # set min and max for geom_ribbon place holders
       list_data <- list_data %>% 
         mutate(set=plot_legend,min=value,max=value)
     }

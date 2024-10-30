@@ -1004,7 +1004,7 @@ server <- function(input, output, session) {
                 tags$h3("Set font Options"),
                 numericInput(
                   inputId = 'selectlegendnewline',
-                  "Set legend wrap size",
+                  "Set legend character brake",
                   value = reactive_values$Lines_Labels_List$mysize[7],
                   min = 0,
                   max = 50,
@@ -1012,7 +1012,7 @@ server <- function(input, output, session) {
                 ),
                 numericInput(
                   inputId = 'selectlegendnewlinespace',
-                  "Set wrap size brake window",
+                  "Set character brake window",
                   value = reactive_values$Lines_Labels_List$mysize[8],
                   min = 0,
                   max = 50,
