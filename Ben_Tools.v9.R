@@ -2234,7 +2234,7 @@ server <- function(input, output, session) {
       LD$meta_data <- LD$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == names(LD$gene_file)[mylist] &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(LD, input$checkboxfull, 
+      list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
                                           input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         withProgress(message = 'Calculation in progress',
@@ -2500,7 +2500,7 @@ server <- function(input, output, session) {
       sortmin$meta_data <- sortmin$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == mylist &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(sortmin, input$checkboxfull, 
+      list_data_frame <- Active_list_data(sortmin, group="none", input$checkboxfull, 
                                           input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         reactive_values$Plot_controler_sort_min <- ggplot()
@@ -3307,22 +3307,19 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD, input$checkboxfull, 
+                                  list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
                                                                       input$selectlegendnewline, input$selectlegendnewlinespace)
                                   if (!is_empty(list_data_frame)) {
                                     
                                     Apply_Cluster_Math <- ApplyMath(
                                       list_data_frame,
-                                      "mean",
-                                      "relative frequency",
-                                      0,
-                                      0
+                                      relative_frequency="relative frequency"
                                     )
                                   }
                                   reactive_values$Plot_controler_cluster <- ggplot()
                                   gp1 <-
                                     ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=gene_list)) +
-                                    geom_line() +
+                                    geom_line(linewidth=1) +
                                     ylab("relative frequency") +
                                     theme(legend.position="bottom",
                                           legend.title = element_blank(),
@@ -3463,7 +3460,7 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD, input$checkboxfull, 
+                                  list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
                                                                       input$selectlegendnewline, input$selectlegendnewlinespace)
                                   if (!is_empty(list_data_frame)) {
                                     
