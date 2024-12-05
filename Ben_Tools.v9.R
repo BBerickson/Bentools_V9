@@ -204,6 +204,7 @@ server <- function(input, output, session) {
                        # if first file loaded, save info else test file compatibility 
                        if (LIST_DATA$meta_data_plot$x_plot_range[2] == 0) {
                          LIST_DATA$meta_data_plot$x_plot_range <<- c(1,bin_colname$num_bins-6)
+                         LIST_DATA$meta_data_plot$landmarks <<- LinesLableLandmarks(bin_colname$binning)
                          # for testing if files are loaded later and resetting lines and labels
                          LIST_DATA$meta_data_plot$binning <<- bin_colname$binning
                          LIST_DATA$meta_data_plot$binning2 <<- bin_colname$binning
@@ -314,6 +315,28 @@ server <- function(input, output, session) {
                      return()
                    }
                  })
+    # filter overlapping regions
+    LD <- FilterSepSize(LIST_DATA$gene_file$Complete$full,
+                        max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1),
+                        0,
+                        0,
+                        LIST_DATA$meta_data_plot$rnaseq)
+    
+    if(n_distinct(LD$gene) > 0) {
+      # adds full n count to nickname
+      
+      # preps meta data
+      LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
+        dplyr::mutate(count = if_else(gene_list == "Complete",
+                                      paste("n =", n_distinct(LD$gene, na.rm = T)),
+                                      count),
+                      sub = if_else(gene_list == "Complete",
+                                    paste0("Complete: gene sep > ",max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1)),
+                                    sub)
+                                    )
+      # saves data in list of lists
+      LIST_DATA$gene_file[["Complete"]]$full <<- distinct(LD)
+    }
     # first time starting
     if (LIST_DATA$STATE[1] == 0) {
       shinyjs::show("startoff")
