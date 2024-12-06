@@ -331,7 +331,7 @@ server <- function(input, output, session) {
                                       paste("n =", n_distinct(LD$gene, na.rm = T)),
                                       count),
                       sub = if_else(gene_list == "Complete",
-                                    paste0("Complete: gene sep > ",max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1)),
+                                    paste0("Complete: feature sep > ",max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1)),
                                     sub)
                                     )
       # saves data in list of lists

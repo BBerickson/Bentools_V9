@@ -1211,7 +1211,7 @@ GGplotLineDot <-
           linetype = line_list$myline$use_virtical_line_type,
           color = line_list$myline$use_virtical_line_color
         ) +
-        xlab(paste(Sys.Date(), paste(unique(
+        xlab(paste(paste0(Sys.Date(),"\n"), paste(unique(
           plot_options$sub
         ), collapse = ", "), collapse = ", ")) +
         ylab(plot_ttest$ylabTT)+
@@ -1243,7 +1243,7 @@ GGplotLineDot <-
       return(suppressMessages(gp+ gp2 + plot_layout(ncol = 1, heights = my_occupancy)))
     } else{
       gp <- gp + 
-        xlab(paste(Sys.Date(), paste(unique(
+        xlab(paste(paste0(Sys.Date(),"\n"), paste(unique(
           plot_options$sub
         ), collapse = ", "), collapse = ", ")) +
         scale_x_continuous(breaks = line_list$mybrakes[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
