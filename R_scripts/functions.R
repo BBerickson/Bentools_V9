@@ -1359,7 +1359,7 @@ FilterSepSize <-
       outlist <- outlist %>% 
         filter(value2 <= as.numeric(maxsize)) 
     }
-    outlist %>% select(gene,start,end,strand)
+    outlist %>% select(gene,chrom,start,end,strand)
   }
 
 # sorts active gene list contain top % signal based on selected bins and file
