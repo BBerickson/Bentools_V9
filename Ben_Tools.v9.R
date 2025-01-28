@@ -469,7 +469,8 @@ server <- function(input, output, session) {
                    # load info, update select boxes, switching works and changing info and plotting
                    LD <- LoadGeneFile(input$filegene1$datapath,
                                       input$filegene1$name,
-                                      LIST_DATA)
+                                      LIST_DATA,
+                                      input$checkboxgenematch)
                  })
     if (!is.null(LD)) {
       LIST_DATA <<- LD
@@ -4065,6 +4066,7 @@ ui <- dashboardPage(
                     multiple = FALSE
                   ),
                   helpText("load gene list"),
+                  checkboxInput(inputId = "checkboxgenematch",label = "non-exact gene match"),
                   br(),
                   DT::dataTableOutput('loadedgenetable')
                 )

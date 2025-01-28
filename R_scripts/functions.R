@@ -305,7 +305,8 @@ LoadTableFile <-
 LoadGeneFile <-
   function(file_path,
            file_name,
-           list_data) {
+           list_data,
+           checkboxgenematch=F) {
     if ( str_detect(file_name,".matrix|.matrix.gz")){
       showModal(modalDialog(
         title = "Information message",
@@ -325,7 +326,7 @@ LoadGeneFile <-
         size = "s",
         easyClose = TRUE
       ))
-      return()
+      legend_nickname <- paste0(legend_nickname, "_dup")
     }
     # gets number of columns in file, used to guess how to deal with file
     #  and checks if file exits
@@ -370,22 +371,26 @@ LoadGeneFile <-
     gene_names <- tablefile %>% select(gene) %>% 
       semi_join(., list_data$gene_file$Complete$full, by = "gene") %>% distinct(gene)
     # test data is compatible with already loaded data
-    if (n_distinct(gene_names$gene, na.rm = T) == 0) {
+    if (n_distinct(gene_names$gene, na.rm = T) == 0 | checkboxgenematch) {
       showModal(
         modalDialog(
           title = "Information message",
-          " couldn't find a exact match, checking for partial match
+          " checking for non-exact gene name matchs
             This might take a few minutes",
           size = "s",
           easyClose = T
         )
       )
       if(str_detect(file_name, ".bed")){
+        bedfile <- bedfile %>% filter(!name %in% gene_names$gene)
         gene_names <- bed_intersect(group_by(bedfile,strand), group_by(LIST_DATA$gene_file$Complete$full,strand)) %>% 
-          distinct(gene.y) %>% dplyr::rename(gene=gene.y)
+          filter(.overlap > 0) %>% 
+          distinct(gene.y) %>% dplyr::rename(gene=gene.y) %>% bind_rows(gene_names,.) %>% distinct()
         legend_nickname <- paste0(legend_nickname, "_intersected")
       } else {
-        gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene))
+        tablefile <- tablefile %>% filter(!gene %in% gene_names$gene)
+        gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene)) %>% 
+          bind_rows(gene_names,.) %>% distinct()
       }
       # tries to grep lists and find matches
      
