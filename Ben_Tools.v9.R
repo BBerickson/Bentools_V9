@@ -32,6 +32,7 @@ suppressPackageStartupMessages(my_packages(
     "shinyjs",
     "RColorBrewer",
     "colourpicker",
+    "colorspace",
     "DT",
     "patchwork",
     "zip",

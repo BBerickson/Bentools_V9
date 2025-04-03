@@ -65,33 +65,21 @@ RgbToHex <- function(x,
       mygrb <- "0,0,0"
     } else {
       myrgb <- x
-      if (is.numeric(tint) & between(tint,0,1)) {
-        myrgb <- as.numeric(str_split_fixed(myrgb,",",n=3))
-        myrgb <-
-          paste(round(myrgb + (255 - myrgb) * tint), collapse = ",")
-        myhex <- rgb(str_split_fixed(myrgb,",",n=3),
-                     maxColorValue = 255)
-      } 
     }
   } else {
-    # rgb <- hex (tint)
     myrgb <- try(col2rgb(x), silent = TRUE)
     if("try-error" %in% class(myrgb)){
       myhex <- "#000000"
       myrgb <- "0,0,0"
     } else {
-      if (is.numeric(tint) & between(tint,0,1)) {
-        myrgb <-
-          paste(round(as.numeric(myrgb) + (255 - as.numeric(myrgb)) * tint), collapse = ",")
-        myhex <- rgb(str_split_fixed(myrgb,",",n=3),
-                     maxColorValue = 255)
-        
-      } else {
-        myhex <- x
-        myrgb <- paste(myrgb, collapse = ",")
-      }
+      myhex <- x
+      myrgb <- paste(myrgb, collapse = ",")
     }
   }
+  if (is.numeric(tint)) {
+    myhex <- lighten(myhex,amount = 0.2 * (tint-1))
+    myrgb <- col2rgb(myhex)
+  } 
   if(convert == "hex"){
     return(myhex)
   } else {
@@ -1055,7 +1043,7 @@ MakePlotOptionttest <- function(list_data, Y_Axis_TT,my_ttest_log,hlineTT,pajust
   for (i in seq_along(out_options$mycol)) {
     if (ldf[i]) {
       out_options$mycol[i] <-
-        RgbToHex(out_options$mycol[i], convert = "hex", tint = log(i,10))
+        RgbToHex(out_options$mycol[i], convert = "hex", tint = i)
     }
   }
   
@@ -1095,16 +1083,24 @@ MakePlotOptionFrame <- function(meta_data) {
   }
   # tint if same color is used more then once
   md <- meta_data %>% filter(onoff != 0)
-  ldf <- duplicated(md["mycol"]) 
-  for (i in seq_along(md$mycol)) {
-    if (ldf[i]) {
-      md$mycol[i] <- RgbToHex(md$mycol[i], convert = "hex", tint = log(i,10))
-      meta_data <- mutate(meta_data,mycol=if_else(meta_data$plot_legend == md$plot_legend[i], md$mycol[i], mycol))
+  for(s in distinct(md, onoff)$onoff) {
+    # ensure each set has a unique color
+    if (sum(md$onoff == s) > 1) {
+      # if more than 1, use tint to differentiate
+      ldf <-  duplicated(md$mycol[md$onoff == s])
+      for (i in seq_along(ldf)) {
+        if (ldf[i]) {
+          md$mycol[md$onoff == s][i] <- RgbToHex(md$mycol[md$onoff == s][i], convert = "hex", tint = i)
+          meta_data <- mutate(meta_data,mycol=if_else(meta_data$plot_legend == md$plot_legend[md$onoff == s][i], md$mycol[md$onoff == s][i], mycol))
+        }
+      }
     }
   }
   
+  
+  
   return(meta_data)
-}
+} 
 
 # main ggplot function
 GGplotLineDot <-
@@ -2211,8 +2207,20 @@ CompareRatios <-
       ))
       return()
     }
-    if(length(startend2_bin) < 2){
+
+    # Check if the variable is numeric and has 1 or 2 elements
+    if (is.numeric(startend2_bin)) {
+      if (length(startend2_bin) == 1) {
+        startend2_bin <- c(startend2_bin, startend2_bin)
+      }
+    } else if (identical(x, numeric(0))) {
       startend2_bin <- c(0,0)
+    } else {
+      print("startend2_bin does not meet the criteria.")
+      print(startend2_bin)
+    }
+    if(length(startend1_bin) == 1){
+      startend1_bin <- c(startend1_bin, startend1_bin)
     }
     start1_bin <- startend1_bin[1]
     start2_bin <- startend2_bin[1]
