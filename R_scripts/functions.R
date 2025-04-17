@@ -88,25 +88,46 @@ RgbToHex <- function(x,
 }
 
 # finds first partial match to gene list input 
-MatchGenes <- function(common_list, gene_list){
+MatchGenes <- function(common_list, gene_list, bedfile = FALSE){
   # print("gene match fun")
-  if(str_detect(gene_list$gene[1],"\\|")){
-    tablefile <-
-      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
-      setNames(gene_list$gene)
-  } else if(str_detect(gene_list$gene[1],"_")){
-    tablefile <-
-      map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
-      setNames(gene_list$gene)
-  }else {
-    tablefile <-
-      map(paste0("\\|", gene_list$gene,"$"), str_subset, string = common_list$gene) %>% 
-      setNames(gene_list$gene)
+  if(bedfile){
+    tablefile <- 
+      bed_intersect(group_by(gene_list,strand), group_by(common_list,strand),suffix = c("",".y")) %>% 
+      dplyr::filter(.overlap > 0) %>% 
+      group_by(gene.y) %>%
+      dplyr::filter(.overlap == max(.overlap)) %>%
+      group_by(gene) %>%
+      dplyr::filter(.overlap == max(.overlap)) %>%
+      ungroup() %>%
+      distinct(gene.y,.keep_all = T) %>%
+      distinct(gene,.keep_all = T) %>%
+      select(-.overlap,-.source) %>%
+      dplyr::rename(gene.x=gene.y) %>% select(!ends_with(".y")) %>%
+      full_join(.,gene_list,by=c("chrom","start","end","strand","gene")) %>% 
+      dplyr::rename(org_gene=gene,gene=gene.x) %>% 
+      dplyr::relocate(gene,chrom,start,end,org_gene,strand,.before = last_col()) %>%
+      distinct()
+  } else {
+    if(str_detect(gene_list$gene[1],"\\|")){
+      tablefile <-
+        map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
+        setNames(gene_list$gene)
+    } else if(str_detect(gene_list$gene[1],"_")){
+      tablefile <-
+        map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
+        setNames(gene_list$gene)
+    }else {
+      tablefile <-
+        map(paste0("\\|", gene_list$gene,"$"), str_subset, string = common_list$gene) %>% 
+        setNames(gene_list$gene)
+    }
+    tablefile <- map_df(tablefile, ~as.data.frame(.x), .id="gene") %>% 
+      distinct(gene,.keep_all = T) %>% 
+      full_join(.,gene_list,by="gene") %>% 
+      transmute(org_gene = gene, gene=.x) %>% 
+      dplyr::relocate(gene,org_gene,strand,.before = last_col()) %>%
+      distinct()
   }
-  tablefile <- map_df(tablefile, ~as.data.frame(.x), .id="gene") %>% 
-    distinct(gene,.keep_all = T) %>% 
-    full_join(.,gene_list,by="gene") %>% 
-    transmute(org_gene = gene, gene=.x)
   return(tablefile)
 }
 
@@ -340,6 +361,7 @@ LoadGeneFile <-
         group_by(chrom,name,strand) %>% summarise(start=min(start),end=max(end),.groups = "drop") 
       tablefile <- bedfile %>% 
         distinct(name,.keep_all = T) %>% mutate(gene=as.character(name))
+      
       # checks gene list is a subset of what has been loaded
     } else {
       # reads in file
@@ -370,10 +392,9 @@ LoadGeneFile <-
         )
       )
       if(str_detect(file_name, ".bed")){
-        bedfile <- bedfile %>% filter(!name %in% gene_names$gene)
-        gene_names <- bed_intersect(group_by(bedfile,strand), group_by(LIST_DATA$gene_file$Complete$full,strand)) %>% 
-          filter(.overlap > 0) %>% 
-          distinct(gene.y) %>% dplyr::rename(gene=gene.y) %>% bind_rows(gene_names,.) %>% distinct()
+        bedfilei <- bedfile %>% filter(!name %in% gene_names$gene) %>% dplyr::rename(gene=name)
+        gene_names <- MatchGenes(LIST_DATA$gene_file$Complete$full, bedfilei, bedfile = T) %>% 
+          bind_rows(gene_names,.) %>% distinct()
         legend_nickname <- paste0(legend_nickname, "_intersected")
       } else {
         tablefile <- tablefile %>% filter(!gene %in% gene_names$gene)
@@ -393,7 +414,6 @@ LoadGeneFile <-
         )
         return()
       } else {
-        tablefile <- gene_names
         showModal(
           modalDialog(
             title = "Information message",
@@ -414,7 +434,7 @@ LoadGeneFile <-
                     sub = " ", onoff = "0",
                     plot_legend = " ")
     # saves data in list of lists
-    list_data$gene_file[[my_name]]$full <- tablefile %>% select(gene) %>% distinct()
+    list_data$gene_file[[my_name]]$full <- gene_names %>% distinct()
     list_data$gene_file[[my_name]]$info <- tibble(loaded_info =
                                                     paste("Loaded gene list from file",
                                                           legend_nickname,

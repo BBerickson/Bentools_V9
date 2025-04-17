@@ -284,14 +284,22 @@ server <- function(input, output, session) {
                        )))
                        ### check if grep of gene has occurred
                        for(gg in seq_along(LIST_DATA$gene_file)[-1]){
-                         if("org_gene" %in% LIST_DATA$gene_file[[gg]]$full){
+                         if("org_gene" %in% names(LIST_DATA$gene_file[[gg]]$full)){
                            setProgress(i/length(meta_data$filepath), 
                                        detail = paste("re-matching gene list",meta_data$nick[i]))
-                           new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full,
-                                                        LIST_DATA$gene_file[[gg]]$full %>% select(org_gene) %>%
-                                                          dplyr::rename(gene = org_gene))
+                           if(str_detect(LIST_DATA$meta_data$gene_list[gg], "_intersected")){
+                             new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full,
+                                                          LIST_DATA$gene_file[[gg]]$full %>% select(-gene) %>% 
+                                                            dplyr::rename(gene = org_gene), bedfile = T)
+                           } else {
+                             new_gene_match <- MatchGenes(LIST_DATA$gene_file[[1]]$full,
+                                                          LIST_DATA$gene_file[[gg]]$full %>% select(org_gene) %>%
+                                                            dplyr::rename(gene = org_gene))
+                           }
+                           
                            if (n_distinct(new_gene_match$gene, na.rm = T) != 0) {
                              # fix name, fix info
+                             LIST_DATA$gene_file[[gg]]$full <<- new_gene_match
                              listname <- names(LIST_DATA$gene_file)[gg]
                              LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
                                dplyr::mutate(count=if_else(gene_list == listname,paste("n =",n_distinct(new_gene_match$gene, na.rm = T)),
@@ -430,7 +438,7 @@ server <- function(input, output, session) {
         ggg <-
           c(
             ggg,
-            sapply(LIST_DATA$gene_file[i], function(x) x$full$gene) %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
+            sapply(LIST_DATA$gene_file[i], function(x) x$full$gene) %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1,na.rm = T)
           )
       }
       ggg <- dplyr::mutate(gg, "total_in_file" = ggg)
@@ -487,7 +495,7 @@ server <- function(input, output, session) {
       ggg <-
         c(
           ggg,
-          sapply(LIST_DATA$gene_file[i], function(x) x$full$gene) %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1)
+          sapply(LIST_DATA$gene_file[i], function(x) x$full$gene) %>% bind_cols(.) %>% suppressMessages() %>% n_distinct(1,na.rm = T)
         )
     }
     ggg <- dplyr::mutate(gg, "total_in_file" = ggg)
