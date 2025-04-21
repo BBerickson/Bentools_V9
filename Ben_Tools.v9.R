@@ -3919,6 +3919,47 @@ server <- function(input, output, session) {
     }
   })
   
+  
+  # capture filtered DataTable ----
+  observeEvent(input$showgenelist_rows_all, ignoreNULL = TRUE, ignoreInit = TRUE,{
+    listname <- str_split_fixed(input$pickerDT,"\nn = ",2)[1]
+    if(!str_detect(listname,"^filtered_")){
+      listname <- paste0("filtered_",listname)
+    } 
+   
+    if (length(input$showgenelist_rows_all) > 0 & 
+        length(input$showgenelist_rows_all) != length(LIST_DATA$gene_file[[input$pickerDT]]$full$gene)) {
+      
+      if(any(str_detect(names(LIST_DATA$gene_file),listname))){
+        # remove old filtered gene list
+        old_names <- names(LIST_DATA$gene_file)[str_detect(names(LIST_DATA$gene_file),listname)]
+        for(i in old_names){
+          LIST_DATA$gene_file[[i]] <<- NULL
+          LIST_DATA$meta_data <<- dplyr::filter(LIST_DATA$meta_data,
+                                               gene_list != i)
+        }
+      } 
+      listname <- paste0(listname,"\nn = ",length(input$showgenelist_rows_all))
+      genelist <- LIST_DATA$gene_file[["Complete"]]$full[input$showgenelist_rows_all,]
+      # record for info
+      LIST_DATA$gene_file[[listname]]$full <<- genelist
+      LIST_DATA$gene_file[[listname]]$info <<- tibble(loaded_info =
+                                                         paste(listname,
+                                                               Sys.Date()),
+                                                       save_name = gsub(" ", "_", paste(listname, Sys.Date(), sep = "_")),
+                                                       col_info = "gene"
+      )
+      LIST_DATA$meta_data <<- 
+        distinct(bind_rows(LIST_DATA$meta_data,
+                           LIST_DATA$meta_data %>% 
+                             dplyr::filter(gene_list == names(LIST_DATA$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = listname,
+                                           sub =  listname, 
+                                           count = paste0("n = ",length(input$showgenelist_rows_all)),
+                                           onoff = "0",
+                                           plot_legend = " ")))
+    }
+  })
   # QC action ----
   observeEvent(input$buttonFilterzero, ignoreInit = TRUE, {
     # print("QC % tool") 
