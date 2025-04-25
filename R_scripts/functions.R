@@ -2227,17 +2227,16 @@ CompareRatios <-
       ))
       return()
     }
-
     # Check if the variable is numeric and has 1 or 2 elements
     if (is.numeric(startend2_bin)) {
       if (length(startend2_bin) == 1) {
         startend2_bin <- c(startend2_bin, startend2_bin)
+      }  else if (identical(startend2_bin, numeric(0))) {
+        startend2_bin <- c(0,0)
+      } else {
+        print("startend2_bin does not meet the criteria.")
+        print(startend2_bin)
       }
-    } else if (identical(x, numeric(0))) {
-      startend2_bin <- c(0,0)
-    } else {
-      print("startend2_bin does not meet the criteria.")
-      print(startend2_bin)
     }
     if(length(startend1_bin) == 1){
       startend1_bin <- c(startend1_bin, startend1_bin)
