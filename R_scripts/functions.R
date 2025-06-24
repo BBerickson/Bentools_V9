@@ -970,7 +970,7 @@ ApplyTtest <-
     # t.test comparing files in same gene list
     ttest <- NULL
     if(switchttest != "none"){
-      if(group == "groups only"){
+      if(group == "groups"){
         list_data <- list_data %>% 
           dplyr::mutate(set= gsub("\n", "", group)) 
       }
