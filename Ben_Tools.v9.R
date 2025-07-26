@@ -3867,15 +3867,17 @@ server <- function(input, output, session) {
                          paste(use_header, paste("  p-value = ", format(tt[[2]], scientific = TRUE)))
                      }
                    }
+                   mycdfss <- ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_legend",
+                             alpha=.8, palette = df_options$mycol,
+                             ylim = as.numeric(c(input$numericcdfmin, input$numericcdfmax))) + 
+                     rremove("x.text") + rremove("legend")
+                   print(mycdfss)
                    mycdf <- GGplotC(df, df_options, use_header,as.numeric(c(input$numericcdfmin, input$numericcdfmax)))
                    output$plotcdf <- renderPlot({
                      mycdf
                    })
                    output$plotcdfscatter <- renderPlot({
-                     ggscatter(df %>% arrange(value), y = "value",x="gene",color = "plot_legend",
-                               alpha=.8, palette = df_options$mycol,
-                               ylim = as.numeric(c(input$numericcdfmin, input$numericcdfmax))) + 
-                       rremove("x.text") + rremove("legend")
+                     mycdfss
                    })
                    shinyjs::enable('actioncdfcolor')
                  })
