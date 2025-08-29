@@ -149,47 +149,22 @@ PrepMetaFile <- function(file_path, file_name) {
         delim = " ",
         col_names = col_names,
         col_types = col_types
-      )) 
+      )) %>%
+      mutate(nick = str_replace(nick, "\\.", "_")
+      ) 
     
-  } else if(str_detect(file_name, "_urls.tsv")) {
-    col_names <- c("filepath", "nick", "strand")
-    col_types <- cols(
-      filepath = col_character(),
-      nick = col_character(),
-      strand = col_character()
-    )
-    meta_data <-
-      suppressMessages(read_delim(
-        file_path,
-        skip = 1,
-        delim = "\t",
-        col_names = col_names,
-        col_types = col_types
-      )) %>% select(-strand)
   } else {
     meta_data <-  tibble(
       filepath = file_path
     ) %>% 
       mutate(nick = str_split(file_name, "/", simplify = T) %>%
                as_tibble(., .name_repair = "unique") %>%
-               select(last_col()) %>% unlist() %>%
-               str_remove(., ".matrix.gz") %>% str_replace("\\.", "_")
-      ) 
-  }
-  # makes sure needed meta data is there
-  if(! "nick" %in% names(meta_data)){
-    meta_data <- meta_data %>% 
-      mutate(nick = str_split(filepath, "/", simplify = T) %>%
-               as_tibble(., .name_repair = "unique") %>%
-               select(last_col()) %>% unlist() %>%
-               str_remove(., ".matrix.gz") %>% str_replace("\\.", "_")
-      ) 
-  } else {
-    # removes "." in nickname to prevent problems
-    meta_data <- meta_data %>%
-      mutate(nick = str_replace(nick, "\\.", "_")
+               pull(last_col()) %>%  
+               str_remove(".matrix.gz") %>% 
+               str_replace("\\.", "_")
       )
   }
+  # update group column
   if(! "group" %in% names(meta_data)){
     meta_data <- meta_data %>% mutate(group = "self") 
   } else if(n_distinct(meta_data$group)==1 ){
@@ -199,7 +174,7 @@ PrepMetaFile <- function(file_path, file_name) {
       mutate(group = paste(nick,collapse = ":")) %>% 
       ungroup()
   }
-    
+  # update color column  
   if(! "color" %in% names(meta_data)){
     meta_data <- meta_data %>% 
       mutate(color = sample(
