@@ -12,41 +12,57 @@ insert_line_breaks <- function(text, width = 20, max_dist = 5) {
       x <- substr(x, 1, nn_pos - 1) %>% str_remove(.,"`")
     }
     
-    # Check if the text length exceeds the specified width
-    if (nchar(x) > width) {
-      # Find positions of underscores, spaces, or hyphens after the width position
-      pos <- unlist(gregexpr("[_ :-]", substr(x, width + 1, nchar(x)))) + width
-      
-      # Check if the last position is more than the specified width
-      if(last(pos) < width){
-        return(x)
-      }
-      
-      # Generate multiples of width up to the last position found
-      multiples <- seq(width, last(pos), by = width)
-      
-      # Find the closest position to each multiple of width
-      pos <- unique(sapply(multiples, function(x) { pos[which.min(abs(pos - x))] }))
-      
-      # Adjust positions if they are too far from the multiples
-      for (i in seq_along(pos)) {
-        if (pos[i] - multiples[i] > max_dist) {
-          pos[i] <- multiples[i]
+    # Add line breaks after all colons
+    x <- str_remove_all(x, "\n")
+    x <- gsub(":", ":\n", x)
+    
+    # Split text by existing line breaks to process each segment
+    segments <- strsplit(x, "\n")[[1]]
+    
+    # Process each segment for additional line breaks if needed
+    processed_segments <- sapply(segments, function(segment) {
+      # Check if the segment length exceeds the specified width
+      if (nchar(segment) > width) {
+        
+        # Find positions of underscores, spaces, or hyphens after the width position
+        search_start <- max(1, width - max_dist)
+        search_end <- min(nchar(segment), width + max_dist)
+        search_text <- substr(segment, search_start, search_end)
+        
+        all_pos <- unlist(gregexpr("[_ -]", search_text)) + search_start - 1
+        # Remove invalid positions
+        all_pos <- all_pos[all_pos > 0 & all_pos <= nchar(segment)]
+        
+        # Check if any break points were found within acceptable range
+        valid_pos <- all_pos[all_pos >= (width - max_dist) & all_pos <= (width + max_dist)]
+        
+        if(length(valid_pos) == 0) {
+          # No break points found within acceptable range - force break at width
+          pos <- width
+        } else {
+          # Use the break point closest to the target width
+          pos <- valid_pos[which.min(abs(valid_pos - width))]
+        }
+        
+        # Insert the line break
+        if(pos < nchar(segment)) {  # Don't break if it's at the very end
+          segment <- paste0(substr(segment, 1, pos), "\n", substr(segment, pos + 1, nchar(segment)))
+        }
+        
+        # Recursively process the remaining part if it's still too long
+        remaining <- substr(segment, pos + 2, nchar(segment))  # +2 to account for the \n
+        if(!is.na(remaining) && nchar(remaining) > width) {
+          # Recursively process the remaining text
+          processed_remaining <- insert_line_breaks(remaining, width, max_dist)
+          segment <- paste0(substr(segment, 1, pos + 1), processed_remaining)
         }
       }
-      
-      n_pos <- 1
-      # Insert line breaks at the calculated positions
-      for (i in seq_along(pos)) {
-        # Ensure the last brake is at least max_dist from end of string
-        if (pos[i] + max_dist > nchar(x)) {
-          next
-        }
-        pos[i] <- pos[i] + n_pos
-        n_pos <- n_pos + 1
-        x <- paste0(substr(x, 1, pos[i] - 1), "\n", substr(x, pos[i], nchar(x)))
-      }
-    }
+      return(segment)
+    })
+    
+    # Rejoin all segments with line breaks
+    x <- paste(processed_segments, collapse = "\n")
+    
     return(x)
   })
 }
@@ -2210,7 +2226,6 @@ CompareRatios <-
         startend2_bin <- c(0,0)
       } else {
         print("startend2_bin does not meet the criteria.")
-        print(startend2_bin)
       }
     }
     if(length(startend1_bin) == 1){
@@ -2254,8 +2269,6 @@ CompareRatios <-
         semi_join(dplyr::filter(list_data$table_file, set == j), 
                   list_data$gene_file[[list_name]]$full, by = 'gene') 
       if (normlabel != "NA") {
-        print(normlabel)
-        print(normbin)
         db <- group_by(db, gene) %>%
           arrange(bin) %>% 
           dplyr::mutate(score = score / nth(score, normbin))

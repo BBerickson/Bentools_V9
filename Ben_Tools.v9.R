@@ -709,10 +709,7 @@ server <- function(input, output, session) {
                                input$checkboxsmooth,
                                input$checkboxlog2)
     Lines_Labels_List <- reactive_values$Lines_Labels_List
-    # make line smaller so group ribbon stands out more
-    if(input$mygroup == "groups only"){
-      Lines_Labels_List$mysize[2] <- Lines_Labels_List$mysize[2] / 2
-    } 
+    
     sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
       reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
     if(length(sliderplotBinRange) < 2){
@@ -3415,7 +3412,7 @@ server <- function(input, output, session) {
         is.null(input$groupiesSamples)) {
       showModal(modalDialog(
         title = "Information message",
-        paste("Can't make more groupies than number of genes"),
+        paste("Can't make more groups than number of genes"),
         size = "s",
         easyClose = TRUE
       ))
@@ -4379,6 +4376,7 @@ ui <- dashboardPage(
                                    `selected-text-format` = "count > 0"
                     )
                   ),
+                  helpText(icon("exclamation-triangle"),"samples can be set in more that one group at a time"),
                   DT::dataTableOutput('loadedfilestable2')
                 )),
             div(style = "padding-left: 15%;",
