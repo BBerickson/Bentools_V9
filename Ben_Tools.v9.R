@@ -325,7 +325,7 @@ server <- function(input, output, session) {
                    }
                  })
     # filter overlapping regions
-    LD <- FilterSepSize(LIST_DATA$gene_file$Complete$full,
+    LD <- FilterSepSize(distinct(LIST_DATA$table_file,gene,chrom,start,end,strand),
                         max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1),
                         0,
                         0,
@@ -1342,7 +1342,7 @@ server <- function(input, output, session) {
       updatePickerInput(
         session,
         "pickergenelist",
-        choices = distinct(LIST_DATA$meta_data, gene_list)$gene_list,
+        choices = distinct(LIST_DATA$meta_data, gene_list)$gene_list[1],
         selected = distinct(LIST_DATA$meta_data, gene_list)$gene_list[1]
       )
       updatePickerInput(
@@ -2625,7 +2625,7 @@ server <- function(input, output, session) {
     LIST_DATA$gene_file[[my_name]] <<- NULL
     LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% filter(gene_list != my_name)
     
-    LD <- FilterSepSize(LIST_DATA$gene_file$Complete$full,
+    LD <- FilterSepSize(distinct(LIST_DATA$table_file,gene,chrom,start,end,strand),
                         genesep,
                         genesizemin,
                         genesizemax,
@@ -4426,7 +4426,7 @@ ui <- dashboardPage(
             div(style = "padding-left: 15%;",
                 fluidRow(
                   pickerInput("pickergenelist",
-                              label = "Select Gene list if doing mean of means",
+                              label = "Complete Gene list if doing mean of means",
                               width = "50%",
                               choices = "Load data file",
                               multiple = F

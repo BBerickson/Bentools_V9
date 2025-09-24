@@ -1225,7 +1225,7 @@ GGplotLineDot <-
         ) +
         xlab(paste(paste0(Sys.Date(),"\n"), paste(unique(
           plot_options$sub
-        ), collapse = ", "), collapse = ", ")) +
+        ), collapse = ",\n"), collapse = ", ")) +
         ylab(plot_ttest$ylabTT)+
         scale_x_continuous(breaks = line_list$mybrakes[between(line_list$mybrakes, xBinRange[1], xBinRange[2])],
                            labels = line_list$mylabels[between(line_list$mybrakes, xBinRange[1], xBinRange[2])]) +
@@ -1887,7 +1887,6 @@ MakeNormFile <-
                                                   dplyr::mutate(set = legend_nickname,
                                                                 group = legend_nickname,
                                                                 onoff = "0",
-                                                                sub = " ",
                                                                 plot_legend = " ")))
     } else {
       list_data$table_file <- list_data$table_file %>%
