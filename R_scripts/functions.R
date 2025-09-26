@@ -1767,7 +1767,6 @@ MakeGroupFile <-
 # make a new normalized file by dividing one file by the other
 MakeNormFile <-
   function(list_data,
-           genelist,
            nom,
            dnom,
            gbyg,
@@ -1784,7 +1783,7 @@ MakeNormFile <-
     # get data files
     if(dnom != "Multiply by -1"){
       nd <- list_data$table_file %>% dplyr::filter(set == nom | set== dnom) %>% 
-        replace_na(., list(score = 0)) %>% semi_join(.,list_data$gene_file[[genelist]]$full, by = 'gene')
+        replace_na(., list(score = 0)) %>% group_by(gene) %>% filter(n_distinct(set)==2) %>% ungroup()
       if(nchar(nickname)<1){
         nickname <- paste(nom, addfiles, dnom,sep = " ")
       }

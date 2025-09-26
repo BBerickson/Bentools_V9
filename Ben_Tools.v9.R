@@ -1341,12 +1341,6 @@ server <- function(input, output, session) {
     if (input$leftSideTabs == "filenorm") {
       updatePickerInput(
         session,
-        "pickergenelist",
-        choices = distinct(LIST_DATA$meta_data, gene_list)$gene_list[1],
-        selected = distinct(LIST_DATA$meta_data, gene_list)$gene_list[1]
-      )
-      updatePickerInput(
-        session,
         "pickernumerator",
         choices = distinct(LIST_DATA$meta_data, set)$set,
         choicesOpt = list(style = paste("color", dplyr::select(
@@ -2798,7 +2792,6 @@ server <- function(input, output, session) {
                  {
                    LD <- MakeNormFile(
                      LIST_DATA,
-                     input$pickergenelist,
                      input$pickernumerator,
                      input$pickerdenominator,
                      input$radiogenebygene,
@@ -4425,12 +4418,6 @@ ui <- dashboardPage(
             collapsible = T,
             div(style = "padding-left: 15%;",
                 fluidRow(
-                  pickerInput("pickergenelist",
-                              label = "Complete Gene list if doing mean of means",
-                              width = "50%",
-                              choices = "Load data file",
-                              multiple = F
-                              ),
                   pickerInput(
                     "pickernumerator",
                     label = "numerator",
