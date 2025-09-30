@@ -3699,13 +3699,26 @@ server <- function(input, output, session) {
   })
   
   # update Ratio violinplot ----
-  observeEvent(c(input$textboxmaxratio, input$textboxminratio),ignoreInit = TRUE, ignoreNULL = TRUE,{
+  observeEvent(c(input$textboxmaxratio, input$textboxminratio, input$checkboxviolinlog),ignoreInit = TRUE, ignoreNULL = TRUE,{
     if(!is.null(LIST_DATA$boxRatio)){
-      my_range <- c(floor(input$textboxminratio), ceiling(input$textboxmaxratio)) 
-      gb <- ggviolin(LIST_DATA$boxRatio, x= "set", y = "Ratio", fill="set",
-                     color="set",add = "boxplot", add.params = list(fill = "white"),xlab = "") + 
-        theme(legend.position = 'none') +
-        coord_cartesian(ylim = my_range)
+      if(input$checkboxviolinlog){
+        shinyjs::disable("textboxminratio")
+        shinyjs::disable("textboxmaxratio")
+        gb <- ggviolin(LIST_DATA$boxRatio, x= "set", y = "Ratio", fill="set",
+                       color="set",add = "boxplot", yscale = "log2",
+                       add.params = list(fill = "white"),
+                       xlab = "",ylab = "log2(Ratio)") + 
+          theme(legend.position = 'none') 
+      } else {
+        shinyjs::enable("textboxminratio")
+        shinyjs::enable("textboxmaxratio")
+        my_range <- c(floor(input$textboxminratio), ceiling(input$textboxmaxratio)) 
+        gb <- ggviolin(LIST_DATA$boxRatio, x= "set", y = "Ratio", fill="set",
+                       color="set",add = "boxplot", add.params = list(fill = "white"),xlab = "") + 
+          theme(legend.position = 'none') +
+          coord_cartesian(ylim = my_range)
+      
+      }
       print(gb)
       reactive_values$Plot_controler_ratio <- gb 
     } 
@@ -4836,7 +4849,9 @@ ui <- dashboardPage(
                          value = 0,
                          min = 0,
                          max = 1000,
-                         step = .5)
+                         step = .5),
+            checkboxInput(inputId = 'checkboxviolinlog',
+                          label = "log2",value = FALSE)
           ),
           fluidRow(
             valueBoxOutput("valueboxratio1"),
