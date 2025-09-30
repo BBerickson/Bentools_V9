@@ -652,11 +652,18 @@ server <- function(input, output, session) {
   
   # updates mymath plot ----
   observeEvent(input$actionMathUpDatePlot, ignoreInit = T, {
+    if(between(input$numericsmooth,0.0001,1)){
+      numericsmooth <- input$numericsmooth
+    } else {
+      updateNumericInput(session,"numericsmooth",value = 0.1)
+      numericsmooth <- 0.1
+    }
     # print("actionMathUpDatePlot")
     mymath <- c(input$myMath,
                 input$selectplotnrom,
                 input$selectplotBinNorm,
                 input$checkboxsmooth,
+                numericsmooth,
                 input$checkboxlog2,
                 input$sliderplotBinRange,
                 input$mygroup,
@@ -725,7 +732,8 @@ server <- function(input, output, session) {
         reactive_values$Plot_Options,
         reactive_values$Y_Axis_numbers,
         Lines_Labels_List,
-        input$checkboxsmooth, 
+        input$checkboxsmooth,
+        input$numericsmooth,
         Plot_Options_ttest,
         input$checkboxlog2,
         Y_Axis_Label,
@@ -4176,6 +4184,7 @@ ui <- dashboardPage(
               column(
                 3,
                 awesomeCheckbox("checkboxsmooth", label = "smooth"),
+                numericInput("numericsmooth", label = "span 0:1", value = 0.2,min = 0,max = 1,step = 0.05),
                 awesomeRadio("checkboxbin",label = "norm bin",choices = c("divide","subtract"),selected = "divide",inline = T)
               ),
               column(

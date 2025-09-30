@@ -1121,6 +1121,7 @@ GGplotLineDot <-
            yBinRange,
            line_list,
            use_smooth,
+           smooth_span,
            plot_ttest,
            use_log2,
            use_y_label,
@@ -1163,7 +1164,7 @@ GGplotLineDot <-
       gp <- gp +
         geom_smooth(se = FALSE,
                     size = line_list$mysize[2],
-                    span = .2, alpha=line_list$mysize[6]) 
+                    span = smooth_span, alpha=line_list$mysize[6]) 
     } else{
       gp <- gp +
         geom_line(linewidth = line_list$mysize[2],alpha=line_list$mysize[6])
