@@ -324,10 +324,24 @@ server <- function(input, output, session) {
                      return()
                    }
                  })
-    # filter overlapping regions
+    # filter overlapping regions, binning = (type, bp/bin, before, after, body, un5, un3, spacing)
+    sep_bins <- 1
+    gene_length <- 10
+    if(LIST_DATA$meta_data_plot$binning2[1] == "543"){
+      sep_bins <- max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1)
+      gene_length <- max(sum(LIST_DATA$meta_data_plot$binning2[c(6,7)]),gene_length)
+    } else if(LIST_DATA$meta_data_plot$binning2[1] == "5"){
+      sep_bins <- max(LIST_DATA$meta_data_plot$binning2[3],1)
+      gene_length <- max(sum(LIST_DATA$meta_data_plot$binning2[4]),gene_length)
+    } else if(LIST_DATA$meta_data_plot$binning2[1] == "3"){
+      sep_bins <- max(LIST_DATA$meta_data_plot$binning2[4],1)
+      gene_length <- max(sum(LIST_DATA$meta_data_plot$binning2[3]),gene_length)
+    } 
+    updateNumericInput(session, "geneSizeMin", value = gene_length) 
+    updateNumericInput(session, "geneSeparation", value = sep_bins)
     LD <- FilterSepSize(distinct(LIST_DATA$table_file,gene,chrom,start,end,strand),
-                        max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1),
-                        0,
+                        sep_bins,
+                        gene_length,
                         0,
                         LIST_DATA$meta_data_plot$rnaseq)
     
@@ -340,7 +354,7 @@ server <- function(input, output, session) {
                                       paste("n =", n_distinct(LD$gene, na.rm = T)),
                                       count),
                       sub = if_else(gene_list == "Complete",
-                                    paste0("Complete: feature sep > ",max(LIST_DATA$meta_data_plot$binning2[c(3,4)],1)),
+                                    paste0("Complete: sep > ",sep_bins,", length > ", gene_length),
                                     sub)
                                     )
       # saves data in list of lists
@@ -3672,17 +3686,17 @@ server <- function(input, output, session) {
         })
       }
       if(!is.null(LIST_DATA$boxRatio)){
+        updateNumericInput(session, "textboxmaxratio",
+                           value = 0)
+        updateNumericInput(session, "textboxminratio",
+                           value = 0)
         my_range <- range(LIST_DATA$boxRatio$Ratio,na.rm = T) 
+        
         updateNumericInput(session, "textboxmaxratio",
                            value = my_range[2])
         updateNumericInput(session, "textboxminratio",
                            value = my_range[1])
-      } else {
-        updateNumericInput(session, "textboxmaxratio",
-                           value = 0)
-        updateNumericInput(session, "textboxminratio",
-                           value = 0)
-      }
+      } 
     } else {
       output$valueboxratio1 <- renderValueBox({
         valueBox(0,
@@ -4860,7 +4874,7 @@ ui <- dashboardPage(
                          max = 1000,
                          step = .5),
             checkboxInput(inputId = 'checkboxviolinlog',
-                          label = "log2",value = FALSE)
+                          label = "log2",value = TRUE)
           ),
           fluidRow(
             valueBoxOutput("valueboxratio1"),
