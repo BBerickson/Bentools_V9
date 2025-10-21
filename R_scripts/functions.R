@@ -134,14 +134,14 @@ MatchGenes <- function(common_list, gene_list, bedfile = FALSE){
         setNames(gene_list$gene)
     }else {
       tablefile <-
-        map(paste0("\\|", gene_list$gene,"$"), str_subset, string = common_list$gene) %>% 
+        map(paste0(gene_list$gene,"$"), str_subset, string = common_list$gene) %>% 
         setNames(gene_list$gene)
     }
     tablefile <- map_df(tablefile, ~as.data.frame(.x), .id="gene") %>% 
       distinct(gene,.keep_all = T) %>% 
       full_join(.,gene_list,by="gene") %>% 
       transmute(org_gene = gene, gene=.x) %>% 
-      dplyr::relocate(gene,org_gene,strand,.before = last_col()) %>%
+      dplyr::relocate(gene, org_gene, any_of("strand"), .before = last_col()) %>%
       distinct()
   }
   return(tablefile)
@@ -388,7 +388,7 @@ LoadGeneFile <-
           bind_rows(gene_names,.) %>% distinct()
         legend_nickname <- paste0(legend_nickname, "_intersected")
       } else {
-        tablefile <- tablefile %>% filter(!gene %in% gene_names$gene)
+        tablefile <- tablefile %>% filter(!gene %in% gene_names$gene) %>% filter(!gene %in% "gene")
         gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene)) %>% 
           bind_rows(gene_names,.) %>% distinct()
       }
@@ -1998,7 +1998,7 @@ FindClusters <- function(list_data,
                          list_name,
                          clusterfile,
                          start_end_bin,
-                         fast_mean=FALSE) {
+                         smooth_bins=0) {
   # print("find clusters")
   if (clusterfile == "") {
     showModal(modalDialog(
@@ -2015,10 +2015,12 @@ FindClusters <- function(list_data,
     filter(bin %in% c(start_end_bin[1]:start_end_bin[2]))
   
   list_data$clust <- list()
-  if(fast_mean){
+  if(smooth_bins > 0){
     list_data$clust$cm <- 
-      hclust.vector(db %>% group_by(gene) %>% 
-                      summarise(value=mean(score),.groups = "drop") %>% select(value), method = "ward")
+      hclust.vector(db %>% group_by(gene, 
+                                    bin_group = ceiling(bin / smooth_bins)) %>% 
+                      summarise(value=mean(score),.groups = "drop") %>% 
+                      spread(., bin_group, value) %>% select(-gene), method = "ward")
   } else{
     list_data$clust$cm <-
       hclust.vector(as.data.frame(spread(db, bin, score))[-c(1:7)], method = "ward")
@@ -2545,7 +2547,9 @@ CumulativeDistribution <-
         summarise(sum1 = mean(score[startend1_bin[1]:startend1_bin[2]],	na.rm = T),
                   sum2 = mean(score[startend2_bin[1]:startend2_bin[2]],	na.rm = T),.groups="drop") %>%
         dplyr::mutate(., value = sum1 / sum2) %>% 
+        group_by(gene) %>% 
         dplyr::filter(!any(is.na(value))) %>%
+        ungroup() %>% 
         dplyr::mutate(value=log2(value)) %>% 
         dplyr::mutate(value = na_if(value,Inf)) %>% 
         dplyr::mutate(value = na_if(value,-Inf)) %>% 

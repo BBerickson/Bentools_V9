@@ -3295,7 +3295,8 @@ server <- function(input, output, session) {
                        input$clusterGeneList,
                        input$clusterSamples,
                        floor(reactive_values$slider_breaks$mybrakes[
-                         reactive_values$slider_breaks$mylabels %in% input$sliderbincluster])
+                         reactive_values$slider_breaks$mylabels %in% input$sliderbincluster]),
+                       smooth_bins=as.integer(input$numericClusterSmooth)
                      )
                  })
     reactive_values$clustergroups <- NULL
@@ -3310,8 +3311,19 @@ server <- function(input, output, session) {
     }
   })
   
+  # keep numeric cluster in bounds ----
+  observeEvent(input$numericClusterSmooth,ignoreInit = TRUE,{
+    
+    if(is.na(input$numericClusterSmooth) | input$numericClusterSmooth < 0){
+      updateNumericInput(session, "numericClusterSmooth",value = 0)
+    }
+    if(input$numericClusterSmooth > LIST_DATA$meta_data_plot$x_plot_range[2])
+      updateNumericInput(session, "numericClusterSmooth",value = LIST_DATA$meta_data_plot$x_plot_range[2], 
+                         max = LIST_DATA$meta_data_plot$x_plot_range[2])
+  })
+  
   # Plots Clusters based on number selected ----
-  observeEvent(c(input$selectclusternumber, reactive_values$clustergroups),
+  observeEvent(c(input$selectclusternumber, reactive_values$clustergroups, input$clusterRF),
                ignoreInit = TRUE, ignoreNULL = TRUE,
                {
                  # print("cluster tool number")
@@ -3355,10 +3367,14 @@ server <- function(input, output, session) {
                                   list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
                                                                       input$selectlegendnewline, input$selectlegendnewlinespace)
                                   if (!is_empty(list_data_frame)) {
-                                    
+                                    if(input$clusterRF){
+                                      clusterRF <- "relative frequency"
+                                    } else {
+                                      clusterRF <- "none"
+                                    }
                                     Apply_Cluster_Math <- ApplyMath(
                                       list_data_frame,
-                                      relative_frequency="relative frequency"
+                                      relative_frequency=clusterRF
                                     )
                                   }
                                   reactive_values$Plot_controler_cluster <- ggplot()
@@ -3824,6 +3840,7 @@ server <- function(input, output, session) {
                        input$selectlegendnewline, input$selectlegendnewlinespace
                      )
                  })
+    LD <<- LD
     if (!is_empty(LD$table_file)) {
       LIST_DATA <<- LD
       if(LIST_DATA$STATE[1] != 0){
@@ -4927,6 +4944,10 @@ ui <- dashboardPage(
                 selected = c("100","100")
               )
             )),
+            column(width = 4,
+                   numericInput("numericClusterSmooth",label = "group every X bins together",value = 0,min = 0,step = 1)),
+            column(width = 6,
+                   checkboxInput("clusterRF","plot relative frequency",value = T)),
             column(width = 6,
                    actionButton("actionclustertool", "Get clusters"))
           ),
