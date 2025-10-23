@@ -113,7 +113,7 @@ Switch back to the main plots tab to see the newly generated gene list
 
 2. Click **Update Plot**
 
-<img src=www/filter_plot.png width="500" > 
+<img src=www/Filter_plot.png width="500" > 
 
 ## Contact
 
