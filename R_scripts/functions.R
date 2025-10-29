@@ -370,7 +370,7 @@ LoadGeneFile <-
     }
     
     gene_names <- tablefile %>% select(gene) %>% 
-      semi_join(., list_data$gene_file$Complete$full, by = "gene") %>% distinct(gene)
+      semi_join(., distinct(list_data$table_file), by = "gene") %>% distinct(gene)
     # test data is compatible with already loaded data
     if (n_distinct(gene_names$gene, na.rm = T) == 0 | checkboxgenematch) {
       showModal(
@@ -384,12 +384,12 @@ LoadGeneFile <-
       )
       if(str_detect(file_name, ".bed")){
         bedfilei <- bedfile %>% filter(!name %in% gene_names$gene) %>% dplyr::rename(gene=name)
-        gene_names <- MatchGenes(LIST_DATA$gene_file$Complete$full, bedfilei, bedfile = T) %>% 
+        gene_names <- MatchGenes(distinct(list_data$table_file), bedfilei, bedfile = T) %>% 
           bind_rows(gene_names,.) %>% distinct()
         legend_nickname <- paste0(legend_nickname, "_intersected")
       } else {
         tablefile <- tablefile %>% filter(!gene %in% gene_names$gene) %>% filter(!gene %in% "gene")
-        gene_names <- MatchGenes(list_data$gene_file$Complete$full, tablefile %>% select(gene)) %>% 
+        gene_names <- MatchGenes(distinct(list_data$table_file), tablefile %>% select(gene)) %>% 
           bind_rows(gene_names,.) %>% distinct()
       }
       # tries to grep lists and find matches
@@ -1144,7 +1144,6 @@ GGplotLineDot <-
             x = as.numeric(bin),
             y = log2(value),
             color = set,
-            size = set,
             linetype = set
           )
         )
@@ -1480,6 +1479,153 @@ FilterTop <-
                                          onoff = "0",
                                          count = paste0("n = ", n_distinct(outlist$gene, na.rm = T)),
                                          plot_legend = " ")))
+    list_data
+  }
+
+# filters genes to have all bins above or below the mean or median
+FilterAverage <-
+  function(list_data,
+           list_name,
+           file_names,
+           start_end_bin,
+           start_end_label,
+           mymath) { # mean, median
+    if (is.null(file_names)) {
+      showModal(modalDialog(
+        title = "Information message",
+        paste("No file selected to work on"),
+        size = "s",
+        easyClose = TRUE
+      ))
+      return(NULL)
+    }
+    lc <- 0
+    outlist <- NULL
+    lapply(file_names, function(j) {
+      apply_bins <-
+        semi_join(dplyr::filter(list_data$table_file, set == j), 
+                  list_data$gene_file[[list_name]]$full, by = 'gene') %>% 
+        dplyr::filter(bin %in% min(start_end_bin):max(start_end_bin)) %>% 
+        filter(score != 0) 
+      
+      average_bins <- apply_bins %>%
+        group_by(bin) %>%
+        summarise(avg_score = get(mymath)(score, na.rm = TRUE), .groups = "drop")
+      
+      # Classify genes (only considering non-zero bins)
+      gene_classification <- apply_bins %>%
+        left_join(average_bins, by = "bin") %>%
+        group_by(gene) %>% 
+        summarise(
+          classification = case_when(
+            all(score >= avg_score) ~ "All Above",
+            all(score <= avg_score) ~ "All Below",
+            TRUE ~ "Mixed"
+          ),
+          .groups = "drop"
+        )
+      
+      if (lc > 0) {
+        outlist <<- full_join(outlist, gene_classification, by = 'gene') %>% 
+          group_by(gene) %>% 
+          mutate(classification = if_else(classification.x == classification.y,
+                                          classification.x,
+                                          "Mixed")) %>% 
+          select(gene,classification) %>% ungroup()
+      } else {
+        outlist <<- gene_classification
+      }
+      lc <<- lc + 1
+    })
+    old_names <- grep("^Filter_all_bins", names(LIST_DATA$gene_file), value = T)
+    if (length(old_names) > 0) {  # Check if ANY exist
+      # remove old gene lists
+      for (name in old_names) {
+        list_data$gene_file[[name]] <- NULL
+      }
+      list_data$meta_data <- dplyr::filter(list_data$meta_data,
+                                           !gene_list %in% old_names)
+    }
+    outlist_above <- outlist %>% filter(classification == "All Above")
+    if (length(outlist_above$gene) > 0) {
+      nick_name1 <-
+        paste("Filter_all_bins_Above\nn =", n_distinct(outlist_above$gene, na.rm = T))
+      # record for info
+      list_data$gene_file[[nick_name1]]$full <- distinct(outlist_above,gene)
+      list_data$gene_file[[nick_name1]]$info <- tibble(loaded_info =
+                                                         paste("Filter_all_bins_Above", mymath,
+                                                               "from",
+                                                               paste(list_name, collapse = " and "),
+                                                               Sys.Date()),
+                                                       save_name = gsub(" ", "_", 
+                                                                        paste("Filter_all_bins_Above=", 
+                                                                              n_distinct(outlist_above$gene, na.rm = T), 
+                                                                              Sys.Date(), sep = "_")),
+                                                       col_info = "gene"
+      )
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name1,
+                                           sub =  paste("Filter_all_bins_Above"), 
+                                           onoff = "0",
+                                           plot_legend = " ")))
+    }
+    outlist_below <- outlist %>% filter(classification == "All Below")
+    if (length(outlist_below$gene) > 0) {
+      nick_name2 <-
+        paste("Filter_all_bins_Below\nn =", n_distinct(outlist_below$gene, na.rm = T))
+      # record for info
+      list_data$gene_file[[nick_name2]]$full <- distinct(outlist_below,gene)
+      list_data$gene_file[[nick_name2]]$info <- tibble(loaded_info =
+                                                         paste("Filter_all_bins_Below", mymath,
+                                                               "from",
+                                                               paste(list_name, collapse = " and "),
+                                                               Sys.Date()),
+                                                       save_name = gsub(" ", "_", 
+                                                                        paste("Filter_all_bins_Below=", 
+                                                                              n_distinct(outlist_below$gene, na.rm = T), 
+                                                                              Sys.Date(), sep = "_")),
+                                                       col_info = "gene"
+      )
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name2,
+                                           sub =  paste("Filter_all_bins_Below"), 
+                                           onoff = "0",
+                                           plot_legend = " ")))
+    }
+    outlist_mix <- outlist %>% filter(classification == "Mixed")
+    if (length(outlist_mix$gene) > 0) {
+      nick_name2 <-
+        paste("Filter_all_bins_Mixed\nn =", n_distinct(outlist_mix$gene, na.rm = T))
+      # record for info
+      list_data$gene_file[[nick_name2]]$full <- distinct(outlist_mix,gene)
+      list_data$gene_file[[nick_name2]]$info <- tibble(loaded_info =
+                                                         paste("Filter_all_bins_Mixed", mymath,
+                                                               "from",
+                                                               paste(list_name, collapse = " and "),
+                                                               Sys.Date()),
+                                                       save_name = gsub(" ", "_", 
+                                                                        paste("Filter_all_bins_Mixed=", 
+                                                                              n_distinct(outlist_mix$gene, na.rm = T), 
+                                                                              Sys.Date(), sep = "_")),
+                                                       col_info = "gene"
+      )
+      list_data$meta_data <- 
+        distinct(bind_rows(list_data$meta_data,
+                           list_data$meta_data %>% 
+                             dplyr::filter(gene_list == names(list_data$gene_file)[1]) %>% 
+                             dplyr::mutate(gene_list = nick_name2,
+                                           sub =  paste("Filter_all_bins_Mixed"), 
+                                           onoff = "0",
+                                           plot_legend = " ")))
+    }
+    
+    
     list_data
   }
 
@@ -1998,8 +2144,8 @@ FindClusters <- function(list_data,
                          list_name,
                          clusterfile,
                          start_end_bin,
-                         smooth_bins=0) {
-  # print("find clusters")
+                         clustpattern="pattern") {
+  
   if (clusterfile == "") {
     showModal(modalDialog(
       title = "Information message",
@@ -2009,24 +2155,77 @@ FindClusters <- function(list_data,
     ))
     return(NULL)
   }
+  
   db <-
     semi_join(dplyr::filter(list_data$table_file, set == clusterfile), 
               list_data$gene_file[[list_name]]$full, by = 'gene') %>% 
-    filter(bin %in% c(start_end_bin[1]:start_end_bin[2]))
+    filter(bin %in% c(start_end_bin[1]:start_end_bin[2])) 
   
-  list_data$clust <- list()
-  if(smooth_bins > 0){
-    list_data$clust$cm <- 
-      hclust.vector(db %>% group_by(gene, 
-                                    bin_group = ceiling(bin / smooth_bins)) %>% 
-                      summarise(value=mean(score),.groups = "drop") %>% 
-                      spread(., bin_group, value) %>% select(-gene), method = "ward")
-  } else{
-    list_data$clust$cm <-
-      hclust.vector(as.data.frame(spread(db, bin, score))[-c(1:7)], method = "ward")
+  # Check if we have data after filtering
+  if(nrow(db) == 0) {
+    showModal(modalDialog(
+      title = "Error",
+      "No data found after filtering. Check your bin range and gene list.",
+      size = "s",
+      easyClose = TRUE
+    ))
+    return(list_data)
   }
   
-  list_data$clust$full <- distinct(db, gene)
+  matrix_df <- db %>% 
+    group_by(gene, bin) %>% 
+    summarise(value = mean(score), .groups = "drop") %>% 
+    pivot_wider(names_from = bin, values_from = value) 
+  
+  gene_names <- matrix_df$gene
+  matrix_data <- matrix_df %>% select(-gene) %>% as.matrix()
+  
+  # Handle any NAs that might appear
+  if(any(is.na(matrix_data))) {
+    cat("Warning: Found", sum(is.na(matrix_data)), "NA values, replacing with 0\n")
+    matrix_data[is.na(matrix_data)] <- 0
+  }
+  
+  # Remove genes with zero or near-zero variance
+  gene_vars <- apply(matrix_data, 1, var, na.rm = TRUE)
+  valid_genes <- gene_vars > 1e-10
+  
+  matrix_data_filtered <- matrix_data[valid_genes, ]
+  gene_names_filtered <- gene_names[valid_genes]
+  
+  if(sum(!valid_genes) > 0) {
+    cat("Removed", sum(!valid_genes), "genes with zero variance\n")
+  }
+  
+  # Check if we have enough genes left to cluster
+  if(nrow(matrix_data_filtered) < 2) {
+    showModal(modalDialog(
+      title = "Error",
+      "Not enough genes with variance to cluster (need at least 2).",
+      size = "s",
+      easyClose = TRUE
+    ))
+    return(list_data)
+  }
+  
+  list_data$clust <- list()
+  
+  if(clustpattern == "expression") {
+    # Focus on expression levels (Euclidean distance)
+    list_data$clust$cm <- 
+      hclust(dist(matrix_data_filtered), method = "ward.D2")
+  } else {
+    # Focus on pattern similarity (correlation distance)
+    cor_matrix <- cor(t(matrix_data_filtered), use = "pairwise.complete.obs")
+    cor_dist <- as.dist(1 - cor_matrix)
+    list_data$clust$cm <-
+      hclust(cor_dist, method = "ward.D2")
+  }
+  
+  list_data$clust$full <- tibble(gene = gene_names_filtered)
+  #list_data$clust$matrix_data <- matrix_data_filtered  # Save for later visualization
+  #list_data$clust$method <- clustpattern  # Remember which method was used
+  
   list_data
 }
 

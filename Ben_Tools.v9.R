@@ -548,7 +548,7 @@ server <- function(input, output, session) {
   output$downloadGeneList <- downloadHandler(
     filename = function() {
       paste0(LIST_DATA$gene_file[[input$selectsave]]$info$save_name,
-             ".txt")
+             ".tsv")
     },
     content = function(file) {
       new_comments <-
@@ -565,6 +565,7 @@ server <- function(input, output, session) {
                               paste(LIST_DATA$gene_file[[input$selectsave]]$info$col_info)
         ))
       new_comments2 <-
+        inner_join(LIST_DATA$gene_file$Complete$full,LIST_DATA$gene_file[[input$selectsave]]$full)
         LIST_DATA$gene_file[[input$selectsave]]$full
       if(input$selectsave == "CDF Log2 PI Cumulative plot"){
         new_comments2 <- new_comments2 %>% 
@@ -2249,6 +2250,9 @@ server <- function(input, output, session) {
       })
       
     })
+  
+  
+
   # filter sum tool action ----
   observeEvent(input$actionsorttool, {
     # print("sort tool")
@@ -2353,6 +2357,105 @@ server <- function(input, output, session) {
     }
   })
   
+  
+  
+  observeEvent(input$actionaveragetool, {
+    # print("average tool")
+    withProgress(message = 'Calculation in progress',
+                 detail = 'This may take a while...',
+                 value = 0,
+                 {
+                   shinyjs::show("hidesortplots1")
+                   reactive_values$Plot_controler_sort_min <- ggplot()
+                   LD <- FilterAverage(
+                     LIST_DATA,
+                     input$sortGeneList,
+                     input$sortSamples,
+                     floor(reactive_values$slider_breaks$mybrakes[
+                       reactive_values$slider_breaks$mylabels %in% input$slidersortbinrange]),
+                     input$slidersortbinrange,
+                     input$selectaveragemath
+                   )
+                 })
+    if (!is_empty(LD$table_file)) {
+      LIST_DATA <<- LD
+      LD <- LIST_DATA
+      mylist <- grep("^Filter_all_bins", names(LIST_DATA$gene_file),value = T)
+      LD$meta_data <- LD$meta_data %>%
+        dplyr::mutate(onoff=if_else(gene_list %in% mylist &
+                                      set %in% input$sortSamples, set, "0"))
+      list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
+                                          input$selectlegendnewline, input$selectlegendnewlinespace)
+      if (!is_empty(list_data_frame)) {
+        withProgress(message = 'Calculation in progress',
+                     detail = 'This may take a while...',
+                     value = 0,
+                     {
+                       Apply_Cluster_Math <-
+                         ApplyMath(
+                           list_data_frame,
+                           "mean",
+                           "none",
+                           0,
+                           0
+                         )
+                       reactive_values$Plot_controler_sort_min <- ggplot()
+                       reactive_values$Plot_controler_sort_max <- ggplot()
+                       gp1 <-
+                         ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=set)) +
+                         geom_line() +
+                         ylab("Mean bin value") +
+                         theme(legend.position="bottom",
+                               legend.title = element_blank(),
+                               axis.title.x=element_blank())
+                       print(gp1)
+                       reactive_values$Plot_controler_sort_min <- gp1
+                       shinyjs::show("hidesortplots1")
+                       shinyjs::hide("hidesortplots2")
+                     })
+      }
+      if (any(grep("^Filter all bins", names(LIST_DATA$gene_file)) > 0)) {
+        output$valueboxsort <- renderValueBox({
+          valueBox(
+            n_distinct(LIST_DATA$gene_file[[last(grep("^Filter all bins", names(LIST_DATA$gene_file)))]]$full$gene, na.rm = T),
+            "All bins Filter",
+            icon = icon("list"),
+            color = "green"
+          )
+        })
+      } else {
+        output$valueboxsort <- renderValueBox({
+          valueBox(0,
+                   "All bins Filter",
+                   icon = icon("list"),
+                   color = "green")
+        })
+      }
+    } else {
+      output$valueboxsort <- renderValueBox({
+        valueBox(0,
+                 "All bins Filter",
+                 icon = icon("list"),
+                 color = "green")
+      })
+    }
+    # updating select and keeping track if sort on sort
+    ol <- input$sortGeneList
+    if(!is.null(ol)){
+      if (!ol %in% names(LIST_DATA$gene_file)) {
+        ol <- "Complete"
+      } 
+    }
+    updatePickerInput(session, "sortGeneList",
+                      choices = names(LIST_DATA$gene_file),
+                      selected = ol,
+                      choicesOpt = list(
+                        content = gsub("(.{35})", "\\1<br>", names(LIST_DATA$gene_file))
+                      ))
+    if(LIST_DATA$STATE[1] !=0 ){
+      LIST_DATA$STATE[1] <<- 0.75
+    }
+  })
   
   # filter % numeric controller ----
   observeEvent(c(input$numericsortmin,input$numericsortmax, input$selectsortper), ignoreInit = TRUE, ignoreNULL = TRUE, {
@@ -3296,7 +3399,7 @@ server <- function(input, output, session) {
                        input$clusterSamples,
                        floor(reactive_values$slider_breaks$mybrakes[
                          reactive_values$slider_breaks$mylabels %in% input$sliderbincluster]),
-                       smooth_bins=as.integer(input$numericClusterSmooth)
+                       input$clustpattern
                      )
                  })
     reactive_values$clustergroups <- NULL
@@ -3311,16 +3414,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # keep numeric cluster in bounds ----
-  observeEvent(input$numericClusterSmooth,ignoreInit = TRUE,{
-    
-    if(is.na(input$numericClusterSmooth) | input$numericClusterSmooth < 0){
-      updateNumericInput(session, "numericClusterSmooth",value = 0)
-    }
-    if(input$numericClusterSmooth > LIST_DATA$meta_data_plot$x_plot_range[2])
-      updateNumericInput(session, "numericClusterSmooth",value = LIST_DATA$meta_data_plot$x_plot_range[2], 
-                         max = LIST_DATA$meta_data_plot$x_plot_range[2])
-  })
   
   # Plots Clusters based on number selected ----
   observeEvent(c(input$selectclusternumber, reactive_values$clustergroups, input$clusterRF),
@@ -3369,8 +3462,10 @@ server <- function(input, output, session) {
                                   if (!is_empty(list_data_frame)) {
                                     if(input$clusterRF){
                                       clusterRF <- "relative frequency"
+                                      ylabRF <- "relative frequency"
                                     } else {
                                       clusterRF <- "none"
+                                      ylabRF <- "mean of bin counts"
                                     }
                                     Apply_Cluster_Math <- ApplyMath(
                                       list_data_frame,
@@ -3381,7 +3476,7 @@ server <- function(input, output, session) {
                                   gp1 <-
                                     ggplot(Apply_Cluster_Math ,aes(as.numeric(bin),value,color=gene_list)) +
                                     geom_line(linewidth=1) +
-                                    ylab("relative frequency") +
+                                    ylab(ylabRF) +
                                     theme(legend.position="bottom",
                                           legend.title = element_blank(),
                                           axis.title.x=element_blank())
@@ -4146,7 +4241,7 @@ ui <- dashboardPage(
               hidden(div(
                 id = "startoff",
                 box(
-                  title = "Load Gene list, .txt/.bed",
+                  title = "Load Gene list, .tsv/.txt/.bed",
                   width = 6,
                   style = "height: 150px;" ,
                   solidHeader = TRUE,
@@ -4696,6 +4791,35 @@ ui <- dashboardPage(
             )
           ),
           box(
+            title = "Filter on average genes",
+            solidHeader = T,
+            width = 6,
+            status = "navy",
+            collapsible = T,
+            fluidRow(align="center",
+                     helpText(HTML("For selected bins creates gene lists<br>
+                       &nbsp;&nbsp;&nbsp;&nbsp;1. All bins above<br>
+                       &nbsp;&nbsp;&nbsp;&nbsp;2. All bins below<br>
+                       &nbsp;&nbsp;&nbsp;3. Mixed"))),
+            fluidRow(align="center",
+                     column(
+                       6,
+                       style = "margin-bottom: 10px;",
+                       pickerInput(
+                         "selectaveragemath",
+                         choices = c("mean", "median"),
+                         selected = "mean"
+                       )
+                     ),
+                     column(
+                       6,
+                       helpText("Tip: Use 1 sample and small number of bins")
+                       )),
+            fluidRow(align="center",
+                     actionButton("actionaveragetool", "filter list")
+            )
+          ),
+          box(
             title = "filter peaks",
             solidHeader = T,
             width = 6,
@@ -4944,8 +5068,10 @@ ui <- dashboardPage(
                 selected = c("100","100")
               )
             )),
-            column(width = 4,
-                   numericInput("numericClusterSmooth",label = "group every X bins together",value = 0,min = 0,step = 1)),
+            column(width = 5,
+                   pickerInput("clustpattern",label = "Cluster on",
+                               choices = c("pattern","expression"),
+                               selected = "expression",multiple = F)),
             column(width = 6,
                    checkboxInput("clusterRF","plot relative frequency",value = T)),
             column(width = 6,
