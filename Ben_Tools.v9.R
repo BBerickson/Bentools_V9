@@ -120,7 +120,7 @@ server <- function(input, output, session) {
   reactive_values <- reactiveValues(
     Apply_Math = NULL,
     Plot_Options = NULL,
-    Y_Axis_numbers = c(0,100),
+    Y_Axis_numbers = c(0,0),
     Lines_Labels_List = list(mybrakes="",mylabels="",
                              myline = tibble(use_virtical_line_color=c("green","red","black","black"),
                                              use_virtical_line_type=c("dotted","dotted","solid","solid")),
@@ -717,6 +717,22 @@ server <- function(input, output, session) {
                        step = my_step)
   })
   
+  # reactive Violin, sets Y axis min max ----
+  observeEvent(reactive_values$Y_Axis_numbers_set_Violin, ignoreInit = T, ignoreNULL = T, {
+    # print("updates reactive_values$Y_Axis_numbers")
+    my_step <-
+      (max(reactive_values$Y_Axis_numbersViolin) - min(reactive_values$Y_Axis_numbersViolin)) /
+      20
+    updateNumericInput(session,
+                       "numericYRangeHighViolin",
+                       value = round(max(reactive_values$Y_Axis_numbersViolin), 4),
+                       step = my_step)
+    updateNumericInput(session,
+                       "numericYRangeLowViolin",
+                       value = round(min(reactive_values$Y_Axis_numbersViolin), 4),
+                       step = my_step)
+  })
+  
   # reactive Plot_Options, triggers plot ----
   observeEvent(reactive_values$Plot_Options, ignoreInit = T, ignoreNULL = T, {
     # print("plot")
@@ -740,6 +756,7 @@ server <- function(input, output, session) {
     } else {
       sliderplotBinRange <- range(sliderplotBinRange,na.rm = T)
     }
+    
     reactive_values$Plot_controler <-
       GGplotLineDot(
         reactive_values$Apply_Math,
@@ -755,6 +772,59 @@ server <- function(input, output, session) {
         input$sliderplotOccupancy,
         input$checkboxauc
       )
+    
+    LIST_DATA$STATE[2] <<- 1
+  })
+  
+  # reactive Violin Plot, triggers plot ----
+  observeEvent(input$actionViolinPlot, ignoreInit = T, ignoreNULL = T, {
+    # print("Violin plot")
+    
+    Y_Axis_Label <- YAxisLabel(input$myMath,
+                               input$selectplotnrom,
+                               input$selectplotBinNorm,
+                               input$checkboxsmooth,
+                               input$checkboxlog2)
+    
+    sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+      reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
+    if(length(sliderplotBinRange) < 2){
+      sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
+    } else {
+      sliderplotBinRange <- range(sliderplotBinRange,na.rm = T)
+    }
+    
+    list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull, 
+                                        input$selectlegendnewline, input$selectlegendnewlinespace) %>% 
+      dplyr::mutate(set = plot_legend)
+    
+    reactive_values$Y_Axis_numbersViolin <-
+      YAxisValues(
+        list_data_frame %>% mutate(min=min(score,na.rm=T),max=max(score,na.rm=T)),
+        sliderplotBinRange,
+        input$checkboxlog2
+      )
+    reactive_values$Y_Axis_numbers_set_Violin <- reactive_values$Y_Axis_numbersViolin
+    
+    Y_Axis_numbersViolin <-
+      c(input$numericYRangeLowViolin,input$numericYRangeHighViolin)
+    Plot_Options <- reactive_values$Plot_Options
+    
+    if(!identical(reactive_values$Y_Axis_numbersViolin, Y_Axis_numbersViolin)){
+      reactive_values$Y_Axis_numbersViolin <- Y_Axis_numbersViolin
+    }
+    
+    reactive_values$Plot_controler_Violin <-
+      GGplotBoxViolin(list_data_frame,
+                      sliderplotBinRange,
+                      reactive_values$Plot_Options,
+                      reactive_values$Y_Axis_numbersViolin,
+                      reactive_values$Lines_Labels_List,
+                      input$checkboxlog2Violin,
+                      Y_Axis_Label,
+                      bin_step = input$VmergeBin,  # Aggregate bins to reduce clutter
+                      plot_type = input$VplotType) 
     LIST_DATA$STATE[2] <<- 1
   })
   
@@ -2097,6 +2167,9 @@ server <- function(input, output, session) {
   output$plot <- renderPlot({
     reactive_values$Plot_controler
   })
+  # output$plot <- renderPlot({
+  #   reactive_values$Plot_controler_Violin
+  # })
   output$plot1sort <- renderPlot({
     reactive_values$Plot_controler_sort_min
   })
@@ -4162,21 +4235,41 @@ ui <- dashboardPage(
     minified = TRUE,
     collapsed = TRUE,
     tags$head(
-      tags$style(".inactiveLink {
-                            pointer-events: none;
-                            color: gray !important; 
-                            cursor: not-allowed;
-                           }",
-                 ".shiny-notification {
-                         position: fixed;
-                         top: 50%;
-                         left: 50%;
-                         transform: translate(-50%, -50%);
-                         color: purple;
-                         font-size: 20px;
-                         font-style: italic;}"
-      )
-    ),
+      tags$style(HTML("
+        .inactiveLink {
+          pointer-events: none;
+          color: gray !important; 
+          cursor: not-allowed;
+        }
+    
+        .shiny-notification {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          color: purple;
+          font-size: 20px;
+          font-style: italic;
+        }
+        /* Outline all tabs */
+        .nav-pills > li > a {
+          color: white !important;       /* keep text white */
+          border: 1px solid #ffffff;     /* white outline */
+          border-radius: 6px;            /* rounded corners */
+          margin: 1px;                   /* spacing between tabs */
+        }
+    
+        /* Active tab styling */
+        .nav-pills > li.active > a {
+          color: white !important;
+          background-color: purple-light !important; /* blue fill for active tab */
+          border: 1px solid #ffffff;            /* keep outline */
+          font-weight: bold;
+        }
+    
+      "))
+    )
+    ,
     # disables tabs on start
     sidebarMenu(
       id = "leftSideTabs",
@@ -4279,81 +4372,245 @@ ui <- dashboardPage(
           ),
           sidebar = boxSidebar(
             id = "sidebarmath",
-            width = 50,
+            width = 45,
             tags$style(".calculator {color:#FF0000}"),
             icon = icon("calculator", class = "calculator"),
-            fluidRow(
-              column(
-                4,
-                selectInput("myMath",
-                            label = "Math",
-                            choices = c("mean", "sum", "median", "var"),
-                            selected = "mean"
-                )),
-              column(
-                4,
-                selectInput(
-                  "selectplotnrom",
-                  label = "Y Normalization",
-                  choices = c("none", "relative frequency", "rel gene frequency"),
-                  selected = "none",
-                  selectize = FALSE
-                )),
-              column(
-                3,
-                selectInput(
-                  "selectplotBinNorm",
-                  label = "Bin Norm:",
-                  choices = c("NA"),
-                  selected = "NA"
-                )),
-              column(
-                3,
-                awesomeCheckbox("checkboxsmooth", label = "smooth"),
-                numericInput("numericsmooth", label = "span 0:1", value = 0.2,min = 0,max = 1,step = 0.05),
-                awesomeRadio("checkboxbin",label = "norm bin",choices = c("divide","subtract"),selected = "divide",inline = T)
+            
+            actionBttn(
+              inputId = "actionMathUpDatePlot",
+              label = "Update Line Plot",
+              style = "unite",
+              color = "primary",
+              size = "md",
+              block = TRUE,
+              icon = icon("chart-line")
+            ),
+            
+            br(),
+            # Accordion organization
+            tabsetPanel(
+              id = "sidebar_tabs",
+              type = "pills",
+              
+              # Tab 1: Basic Settings
+              tabPanel(
+                title = tagList(
+                  tags$span(icon("chart-line"), style = "color:white"),
+                  tags$span(" Main", style = "color:white")
+                ),
+                value = "basic",
+                hr(),
+                
+                fluidRow(
+                  column(
+                    5,
+                    selectInput("myMath",
+                                label = "Math Function:",
+                                choices = c("mean", "sum", "median", "var"),
+                                selected = "mean"
+                    )
+                  ),
+                  column(
+                    6,
+                    selectInput(
+                      "selectplotnrom",
+                      label = "Y Normalization:",
+                      choices = c("none", "relative frequency", "rel gene frequency"),
+                      selected = "none",
+                      selectize = FALSE
+                    )
+                  )
+                ),
+                
+                fluidRow(
+                  column(
+                    5,
+                    selectInput(
+                      "selectplotBinNorm",
+                      label = "Bin Normalization:",
+                      choices = c("NA"),
+                      selected = "NA"
+                    )
+                  ),
+                  column(
+                    6,
+                    awesomeRadio("checkboxbin",
+                                 label = "Norm bin method:",
+                                 choices = c("divide", "subtract"),
+                                 selected = "divide",
+                                 inline = TRUE)
+                  )
+                ),
+                
+                hidden(div(
+                  id = "hideplotgroup",
+                  selectInput("mygroup",
+                              label = "Plot Group:",
+                              choices = c("none", "groups"),
+                              selected = "none"
+                  )
+                ))
               ),
-              column(
-                2,
-                awesomeCheckbox("checkboxlog2", label = "log2"),
-                awesomeCheckbox("checkboxauc", label = "AUC"),
-                awesomeCheckbox("checkboxabs", label = "abs"),
-                awesomeCheckbox("checkboxfull", label = "Inc0")
+              
+              # Tab 2: Transform
+              tabPanel(
+                title = tagList(
+                  tags$span(icon("wave-square"), style = "color:white"),
+                  tags$span(" Smoothing & Transform", style = "color:white")
+                ),
+                value = "transform",
+                br(),
+                h4("Data Transformation", style = "margin-top: 0;"),
+                hr(),
+                
+                awesomeCheckbox("checkboxsmooth", 
+                                label = "Enable smoothing",
+                                value = FALSE),
+                
+                conditionalPanel(
+                  condition = "input.checkboxsmooth",
+                  numericInput("numericsmooth", 
+                               label = "Smoothing span (0-1):", 
+                               value = 0.2,
+                               min = 0,
+                               max = 1,
+                               step = 0.05)
+                ),
+                
+                hr(),
+                
+                h5("Data Transformations:"),
+                
+                fluidRow(
+                  column(
+                    6,
+                    awesomeCheckbox("checkboxlog2", 
+                                    label = "Log2 transform",
+                                    value = FALSE),
+                    awesomeCheckbox("checkboxabs", 
+                                    label = "Absolute value",
+                                    value = FALSE)
+                  ),
+                  column(
+                    6,
+                    awesomeCheckbox("checkboxauc", 
+                                    label = "Show AUC",
+                                    value = FALSE),
+                    awesomeCheckbox("checkboxfull", 
+                                    label = "Include zeros",
+                                    value = FALSE)
+                  )
+                )
               ),
-              column(
-                3,
-                numericInput("numericYRangeLow", label = "Plot Y min:", value = 0)
-              ),
-              column(
-                3,
-                numericInput("numericYRangeHigh", label = "Plot Y max:", value = 0)
-              ),
-              hidden(div(id = "hideplotgroup",
-                         column(
-                           4,
-                           selectInput("mygroup",
-                                       label = "plot group",
-                                       choices = c("none", "groups"),
-                                       selected = "none"
-                           ))
-              )),
-              column(
-                11,
+              
+              # Tab 3: Regions
+              tabPanel(
+                title = tagList(
+                  tags$span(icon("ruler"), style = "color:white"),
+                  tags$span(" Axis & Range", style = "color:white")
+                ),
+                value = "regions",
+                br(),
+                h4("Y-axis Range:", style = "margin-top: -5px; margin-bottom: -10px;"),
+                hr(),
+                
+                fluidRow(div(style = "margin-top: -10px; margin-bottom: -10px;",
+                  column(
+                    4,
+                    numericInput("numericYRangeLow", 
+                                 label = "Y min:", 
+                                 value = 0)
+                  ),
+                  column(
+                    4,
+                    numericInput("numericYRangeHigh", 
+                                 label = "Y max:", 
+                                 value = 0)
+                  )
+                )
+                ),
+                div(style = "margin-top: -10px; margin-bottom: -10px;",
+                hr(),
+                ),
+                h5("X-axis Range (Bins):"),
                 sliderTextInput(
                   "sliderplotBinRange",
-                  label = "Plot Bin Range:",
+                  label = NULL,
                   grid = TRUE,
-                  c("100","100"),
-                  selected = c("100","100")
-                )),
-              column(
-                6,offset = 4,
+                  choices = c("100", "100"),
+                  selected = c("100", "100")
+                ),
+                
+                tags$small("Adjust the bin range to zoom in/out on specific regions")
+              ),
+              
+              # Tab 4: Statistics
+              tabPanel(
+                title = tagList(
+                  tags$span(icon("play-circle"), style = "color:white"),
+                  tags$span(" Box/Violin Plot", style = "color:white")
+                ),
+                value = "stats",
+                br(),
+                tags$small("!!!! Work in progress !!!"),
+                
+                div(style = "margin-top: -10px;",
+                hr()
+                ),
                 actionBttn(
-                  inputId = "actionMathUpDatePlot",
-                  label = "Update Plot",
+                  inputId = "actionViolinPlot",
+                  label = "Create Box/Violin Plot",
                   style = "unite",
-                  color = "default",
-                  size = "sm"
+                  color = "warning",
+                  size = "md",
+                  block = TRUE,
+                  icon = icon("chart-bar")
+                ),
+                
+                fluidRow(
+                  column(
+                    4,
+                    div(style = "margin-top: 20px;",
+                    awesomeCheckbox("checkboxlog2Violin", 
+                                    label = "Log2 transform",
+                                    value = TRUE)
+                  )),
+                  column(
+                    4,
+                    selectInput("VplotType",
+                                label = "plot type:",
+                                choices = c("violin", "boxplot", "both"),
+                                selected = "boxplot")
+                    ),
+                  column(
+                    4,
+                    numericInput("VmergeBin", 
+                                 label = "Aggregate bins:", 
+                                 value = 1)
+                  )
+                ),
+                fluidRow(div(style = "margin-top: -10px; margin-bottom: -10px;",
+                             column(
+                               4,
+                               numericInput("numericYRangeLowViolin", 
+                                            label = "Y min:", 
+                                            value = 0)
+                             ),
+                             column(
+                               4,
+                               numericInput("numericYRangeHighViolin", 
+                                            label = "Y max:", 
+                                            value = 0)
+                             )
+                )
+                ),
+                
+                
+                hr(),
+                
+                tags$small(
+                  icon("info-circle"),
+                  " Click 'Update Line Plot' to refresh the main visualization or 'Create Box/Violin Plot' to view distribution plots."
                 )
               )
             )

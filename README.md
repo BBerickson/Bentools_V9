@@ -4,7 +4,7 @@ This app takes DeepTools matrix files of DNAseq and RNAseq data to make publicat
 
 ## Features
 
-- Create line plots, quickly and easly changing ascetics 
+- Create line plots, quickly and easily changing ascetics 
 - Explore and create genes lists from data
 - Load gene lists or use generated to make plots of subsets of genes
 

@@ -1162,7 +1162,7 @@ GGplotLineDot <-
     if (use_smooth) {
       gp <- gp +
         geom_smooth(se = FALSE,
-                    size = line_list$mysize[2],
+                    linewidth = line_list$mysize[2],
                     span = smooth_span, alpha=line_list$mysize[6]) 
     } else{
       gp <- gp +
@@ -1282,6 +1282,149 @@ GGplotLineDot <-
       suppressMessages(print(gp))
       return(suppressMessages(gp))
     }
+  }
+
+# violin plot function
+GGplotBoxViolin <-
+  function(list_long_data_frame,
+           xBinRange,
+           plot_options,
+           yBinRange,
+           line_list,
+           use_log2,
+           use_y_label,
+           bin_step = 1,  # Aggregate bins to reduce clutter
+           plot_type = "boxplot") {  # "violin", "boxplot", or "both"
+    
+    # Setup plot options and data
+    plot_options <- list_long_data_frame %>%
+      distinct(set, plot_legend) %>% 
+      right_join(plot_options, ., by = "set") %>% 
+      dplyr::rename(plot_legend = plot_legend.y) %>% 
+      dplyr::select(-plot_legend.x) %>% 
+      dplyr::mutate(set = plot_legend) %>% 
+      distinct(., set, .keep_all = TRUE)
+    
+    list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
+    
+    # Aggregate bins if needed
+    list_long_data_frame <- list_long_data_frame %>%
+      mutate(bin_group = floor(as.numeric(bin) / bin_step) * bin_step)
+    
+    # Apply log2 transformation if requested
+    if (use_log2) {
+      list_long_data_frame <- list_long_data_frame %>%
+        mutate(plot_value = log2(score + 1))  # Add pseudocount
+      y_label <- use_y_label
+    } else {
+      list_long_data_frame <- list_long_data_frame %>%
+        mutate(plot_value = score)
+      y_label <- use_y_label
+    }
+    
+    legend_space <- lengths(strsplit(sort(plot_options$set), "\n")) / 1.1
+    
+    # Create base plot
+    gp <- ggplot(list_long_data_frame, 
+                 aes(x = as.factor(bin_group), 
+                     y = plot_value, 
+                     fill = set))
+    
+    # Add plot type based on selection
+    if (plot_type == "violin") {
+      gp <- gp + 
+        geom_violin(trim = TRUE, scale = "width", alpha = 0.7) +
+        stat_summary(fun = mean, geom = "point", 
+                     aes(group = set),
+                     position = position_dodge(0.9),
+                     size = 0.5, color = "black")
+    } else if (plot_type == "boxplot") {
+      gp <- gp + 
+        geom_boxplot(alpha = 0.7, outlier.size = 0.5, outlier.alpha = 0.3)
+    } else if (plot_type == "both") {
+      gp <- gp + 
+        geom_violin(trim = TRUE, scale = "width", alpha = 0.5) +
+        geom_boxplot(width = 0.2, alpha = 0.7, outlier.size = 0.5)
+    }
+    
+    # Add styling
+    gp <- gp +
+      scale_fill_manual(values = plot_options$mycol) +
+      ylab(y_label) +
+      theme_bw() +
+      theme(axis.title.x = element_blank(),
+            axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+            axis.ticks.x = element_line()) +
+      theme(panel.grid.minor = element_blank(),
+            panel.grid.major.x = element_blank()) +
+      theme(axis.title.y = element_text(size = line_list$mysize[4] + 4, 
+                                        margin = margin(2, 10, 2, 2))) +
+      theme(axis.text.y = element_text(size = line_list$mysize[4],
+                                       face = 'bold')) +
+      theme(legend.title = element_blank(),
+            legend.key = element_rect(linewidth = line_list$mysize[5] / 2, 
+                                      color = 'white'),
+            legend.key.height = unit(legend_space, "line"),
+            legend.text = element_text(size = line_list$mysize[5], face = 'bold'))
+    
+    # Add vertical lines for regions (TSS, etc.)
+    # Convert vertical line positions to bin_group factor levels
+    vline_positions <- line_list$myline$use_virtical_line
+    vline_bins <- floor(vline_positions / bin_step) * bin_step
+    first_bin <- 1
+    if(bin_step > 1){
+      first_bin <- 0
+    }
+    
+    for (i in seq_along(vline_bins)) {
+      gp <- gp + 
+        geom_vline(xintercept = match(vline_bins[i], 
+                                      unique(sort(list_long_data_frame$bin_group))),
+                   linewidth = line_list$mysize[1],
+                   linetype = line_list$myline$use_virtical_line_type[i],
+                   color = line_list$myline$use_virtical_line_color[i])
+    }
+    gp <- gp + 
+    scale_x_discrete(breaks = floor(c(line_list$mybrakes[line_list$mybrakes %in% 
+                                                     unique(sort(c(distinct(list_long_data_frame,bin_group) %>% 
+                                                                     pull(),vline_positions,first_bin)))])),
+                       labels = line_list$mylabels[line_list$mybrakes %in% 
+                                                     unique(sort(c(distinct(list_long_data_frame,bin_group) %>% 
+                                                                     pull(),vline_positions,1)))]) + 
+      theme(
+          axis.text.x = ggtext::element_markdown(
+            color = line_list$mycolors[line_list$mybrakes %in% 
+                                         unique(sort(c(distinct(list_long_data_frame,bin_group) %>% 
+                                                         pull(),vline_positions,1)))],
+            size = line_list$mysize[3],
+            angle = -45,
+            hjust = .1,
+            vjust = .9,
+            face = 'bold'
+          ))
+    
+    # Add comparison statistics if using ggpubr
+    if (length(unique(list_long_data_frame$set)) == 2) {
+      # Only add comparisons if there are exactly 2 groups
+      gp <- gp + 
+        ggpubr::stat_compare_means(
+          aes(group = set),
+          method = "wilcox.test",
+          label = "p.signif",
+          hide.ns = TRUE,
+          size = 3
+        )
+    }
+    
+    # Add x-axis labels
+    gp <- gp + 
+      xlab(paste(paste0(Sys.Date(), "\n"), 
+                 paste(unique(plot_options$sub), collapse = ", "), 
+                 collapse = ", ")) +
+      coord_cartesian(ylim = unlist(yBinRange))
+    
+    suppressMessages(print(gp))
+    return(suppressMessages(gp))
   }
 
 # get min and max from apply math data set
