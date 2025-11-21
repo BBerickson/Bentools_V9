@@ -1291,6 +1291,7 @@ GGplotBoxViolin <-
            plot_options,
            yBinRange,
            line_list,
+           LLset,
            use_log2,
            use_y_label,
            bin_step = 1,  # Aggregate bins to reduce clutter
@@ -1304,6 +1305,36 @@ GGplotBoxViolin <-
       dplyr::select(-plot_legend.x) %>% 
       dplyr::mutate(set = plot_legend) %>% 
       distinct(., set, .keep_all = TRUE)
+    
+    # Function to expand colors based on label matching
+    expand_colors <- function(old_labels, old_colors, new_labels) {
+      # Create a named vector of colors based on old labels
+      color_map <- setNames(old_colors, old_labels)
+      
+      # Map new labels to colors, defaulting to black for unmatched labels
+      new_colors <- sapply(new_labels, function(label) {
+        if (label %in% names(color_map)) {
+          color_map[label]
+        } else {
+          "black"
+        }
+      })
+      
+      return(unname(new_colors))
+    }
+    
+    if(bin_step > 1){
+      # Apply to your line_list
+      line_list$mycolors <- expand_colors(
+        old_labels = line_list$mylabels,
+        old_colors = line_list$mycolors,
+        new_labels = LLset$mylabels
+      )
+      
+      # Replace mybreaks and mylabels
+      line_list$mybrakes <- LLset$mybrakes
+      line_list$mylabels <- LLset$mylabels
+    }
     
     list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
     
@@ -1375,6 +1406,10 @@ GGplotBoxViolin <-
     if(bin_step > 1){
       first_bin <- 0
     }
+    valid_positions <- unique(sort(c(distinct(list_long_data_frame, bin_group) %>% 
+                                       pull(), vline_positions, first_bin)))
+    matching_indices <- line_list$mybrakes %in% valid_positions
+    
     
     for (i in seq_along(vline_bins)) {
       gp <- gp + 
@@ -1385,23 +1420,17 @@ GGplotBoxViolin <-
                    color = line_list$myline$use_virtical_line_color[i])
     }
     gp <- gp + 
-    scale_x_discrete(breaks = floor(c(line_list$mybrakes[line_list$mybrakes %in% 
-                                                     unique(sort(c(distinct(list_long_data_frame,bin_group) %>% 
-                                                                     pull(),vline_positions,first_bin)))])),
-                       labels = line_list$mylabels[line_list$mybrakes %in% 
-                                                     unique(sort(c(distinct(list_long_data_frame,bin_group) %>% 
-                                                                     pull(),vline_positions,1)))]) + 
+      scale_x_discrete(breaks = floor(line_list$mybrakes[matching_indices]),
+                       labels = line_list$mylabels[matching_indices]) + 
       theme(
-          axis.text.x = ggtext::element_markdown(
-            color = line_list$mycolors[line_list$mybrakes %in% 
-                                         unique(sort(c(distinct(list_long_data_frame,bin_group) %>% 
-                                                         pull(),vline_positions,1)))],
-            size = line_list$mysize[3],
-            angle = -45,
-            hjust = .1,
-            vjust = .9,
-            face = 'bold'
-          ))
+        axis.text.x = ggtext::element_markdown(
+          color = line_list$mycolors[matching_indices],  
+          size = line_list$mysize[3],
+          angle = -45,
+          hjust = .1,
+          vjust = .9,
+          face = 'bold'
+        ))
     
     # Add comparison statistics if using ggpubr
     if (length(unique(list_long_data_frame$set)) == 2) {

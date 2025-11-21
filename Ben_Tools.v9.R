@@ -809,11 +809,16 @@ server <- function(input, output, session) {
     
     Y_Axis_numbersViolin <-
       c(input$numericYRangeLowViolin,input$numericYRangeHighViolin)
-    Plot_Options <- reactive_values$Plot_Options
+    plot_options <<- reactive_values$Plot_Options
+    line_list <<- reactive_values$Lines_Labels_List
     
-    if(!identical(reactive_values$Y_Axis_numbersViolin, Y_Axis_numbersViolin)){
-      reactive_values$Y_Axis_numbersViolin <- Y_Axis_numbersViolin
-    }
+    # if(!identical(reactive_values$Y_Axis_numbersViolin, Y_Axis_numbersViolin)){
+    #   reactive_values$Y_Axis_numbersViolin <- Y_Axis_numbersViolin
+    # }
+    LLset <<- LinesLabelsSet(LIST_DATA$meta_data_plot$binning,
+                   LIST_DATA$meta_data_plot$landmarks,
+                   LIST_DATA$meta_data_plot$x_plot_range[2],
+                   slider = T)
     
     reactive_values$Plot_controler_Violin <-
       GGplotBoxViolin(list_data_frame,
@@ -821,6 +826,7 @@ server <- function(input, output, session) {
                       reactive_values$Plot_Options,
                       reactive_values$Y_Axis_numbersViolin,
                       reactive_values$Lines_Labels_List,
+                      LLset,
                       input$checkboxlog2Violin,
                       Y_Axis_Label,
                       bin_step = input$VmergeBin,  # Aggregate bins to reduce clutter
