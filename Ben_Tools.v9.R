@@ -718,8 +718,9 @@ server <- function(input, output, session) {
   })
   
   # reactive Violin, sets Y axis min max ----
-  observeEvent(reactive_values$Y_Axis_numbers_set_Violin, ignoreInit = T, ignoreNULL = T, {
-    # print("updates reactive_values$Y_Axis_numbers")
+  observeEvent(reactive_values$Y_Axis_numbersViolin,
+               ignoreInit = T, ignoreNULL = T, {
+    # print("violine min max set")
     my_step <-
       (max(reactive_values$Y_Axis_numbersViolin) - min(reactive_values$Y_Axis_numbersViolin)) /
       20
@@ -731,6 +732,69 @@ server <- function(input, output, session) {
                        "numericYRangeLowViolin",
                        value = round(min(reactive_values$Y_Axis_numbersViolin), 4),
                        step = my_step)
+  })
+  
+  # keep violin merge bin in check
+  observeEvent(input$VmergeBin, ignoreInit = T, ignoreNULL = T, {
+    VmergeBin <- input$VmergeBin
+    
+    # Check if numeric and greater than or equal to 1
+    if(!is.numeric(VmergeBin) || VmergeBin < 1) {
+      VmergeBin <- 1
+      updateNumericInput(session, "VmergeBin", value = 1)
+    } 
+    # Check if it's a whole number (not a decimal)
+    else if(VmergeBin != floor(VmergeBin)) {
+      VmergeBin <- floor(VmergeBin)
+      updateNumericInput(session, "VmergeBin", value = floor(VmergeBin))
+    }
+  })
+  
+  observeEvent(c(reactive_values$Y_Axis_numbers_set_Violin, input$VplotType),
+               ignoreInit = T, ignoreNULL = T, {
+    # print("updates plot")
+    
+    Y_Axis_Label <- YAxisLabel(input$myMath,
+                               input$selectplotnrom,
+                               input$selectplotBinNorm,
+                               FALSE,
+                               input$checkboxlog2Violin)
+    
+    sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+      reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
+    if(length(sliderplotBinRange) < 2){
+      sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
+        reactive_values$slider_breaks$mylabels %in% reactive_values$slider_breaks$myselect])
+    } else {
+      sliderplotBinRange <- range(sliderplotBinRange,na.rm = T)
+    }
+    
+    list_data_frame <- Active_list_data(LIST_DATA,input$mygroup, input$checkboxfull, 
+                                        input$selectlegendnewline, input$selectlegendnewlinespace) %>% 
+      dplyr::mutate(set = plot_legend)
+    
+    Y_Axis_numbersViolin <-
+      c(input$numericYRangeLowViolin,input$numericYRangeHighViolin)
+    if(sum(Y_Axis_numbersViolin,na.rm = T)==0){
+      Y_Axis_numbersViolin <- reactive_values$Y_Axis_numbersViolin
+    }
+    LLset <- LinesLabelsSet(LIST_DATA$meta_data_plot$binning,
+                             LIST_DATA$meta_data_plot$landmarks,
+                             LIST_DATA$meta_data_plot$x_plot_range[2],
+                             slider = T)
+    
+    reactive_values$Plot_controler_Violin <-
+      GGplotBoxViolin(list_data_frame,
+                      sliderplotBinRange,
+                      reactive_values$Plot_Options,
+                      Y_Axis_numbersViolin,
+                      reactive_values$Lines_Labels_List,
+                      LLset,
+                      input$checkboxlog2Violin,
+                      Y_Axis_Label,
+                      bin_step = input$VmergeBin,  # Aggregate bins to reduce clutter
+                      plot_type = input$VplotType) 
+    LIST_DATA$STATE[2] <<- 1
   })
   
   # reactive Plot_Options, triggers plot ----
@@ -778,13 +842,7 @@ server <- function(input, output, session) {
   
   # reactive Violin Plot, triggers plot ----
   observeEvent(input$actionViolinPlot, ignoreInit = T, ignoreNULL = T, {
-    # print("Violin plot")
-    
-    Y_Axis_Label <- YAxisLabel(input$myMath,
-                               input$selectplotnrom,
-                               input$selectplotBinNorm,
-                               input$checkboxsmooth,
-                               input$checkboxlog2)
+    # print("Violin action button")
     
     sliderplotBinRange <- floor(reactive_values$slider_breaks$mybrakes[
       reactive_values$slider_breaks$mylabels %in% input$sliderplotBinRange])
@@ -803,35 +861,12 @@ server <- function(input, output, session) {
       YAxisValues(
         list_data_frame %>% mutate(min=min(score,na.rm=T),max=max(score,na.rm=T)),
         sliderplotBinRange,
-        input$checkboxlog2
+        input$checkboxlog2Violin
       )
-    reactive_values$Y_Axis_numbers_set_Violin <- reactive_values$Y_Axis_numbersViolin
     
-    Y_Axis_numbersViolin <-
-      c(input$numericYRangeLowViolin,input$numericYRangeHighViolin)
-    plot_options <<- reactive_values$Plot_Options
-    line_list <<- reactive_values$Lines_Labels_List
+    reactive_values$Y_Axis_numbers_set_Violin <- c(reactive_values$Y_Axis_numbersViolin,input$VmergeBin,
+                                                   input$numericYRangeLowViolin,input$numericYRangeHighViolin)
     
-    # if(!identical(reactive_values$Y_Axis_numbersViolin, Y_Axis_numbersViolin)){
-    #   reactive_values$Y_Axis_numbersViolin <- Y_Axis_numbersViolin
-    # }
-    LLset <<- LinesLabelsSet(LIST_DATA$meta_data_plot$binning,
-                   LIST_DATA$meta_data_plot$landmarks,
-                   LIST_DATA$meta_data_plot$x_plot_range[2],
-                   slider = T)
-    
-    reactive_values$Plot_controler_Violin <-
-      GGplotBoxViolin(list_data_frame,
-                      sliderplotBinRange,
-                      reactive_values$Plot_Options,
-                      reactive_values$Y_Axis_numbersViolin,
-                      reactive_values$Lines_Labels_List,
-                      LLset,
-                      input$checkboxlog2Violin,
-                      Y_Axis_Label,
-                      bin_step = input$VmergeBin,  # Aggregate bins to reduce clutter
-                      plot_type = input$VplotType) 
-    LIST_DATA$STATE[2] <<- 1
   })
   
   # checks that number of names == position ----

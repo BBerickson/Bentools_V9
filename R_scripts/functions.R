@@ -1331,11 +1331,79 @@ GGplotBoxViolin <-
         new_labels = LLset$mylabels
       )
       
-      # Replace mybreaks and mylabels
-      line_list$mybrakes <- LLset$mybrakes
-      line_list$mylabels <- LLset$mylabels
+      
+      # Get original breaks and labels
+      original_breaks <- LLset$mybrakes
+      original_labels <- LLset$mylabels
+      original_colors <- line_list$mycolors
+      
+      # Identify special positions
+      tss_idx <- which(original_labels == "TSS")
+      pa_idx <- which(original_labels == "pA")
+      
+      # Create aggregated bins
+      n_bins <- length(original_breaks)
+      bin_starts <- seq(1, n_bins, by = bin_step)
+      bin_ends <- c(bin_starts[-1] - 1, n_bins)
+      
+      # Create new breaks and labels
+      new_breaks <- c()
+      new_labels <- c()
+      new_colors <- c()
+      
+      for (i in 1:length(bin_starts)) {
+        start_idx <- bin_starts[i]
+        end_idx <- bin_ends[i]
+        
+        # Get color
+        bin_color <- original_colors[start_idx:end_idx] %>% unique()
+        if(length(bin_color)>1){
+          bin_color <- bin_color[!str_detect(bin_color,"black")]
+          if(length(bin_color)>1){
+            bin_color <- "purple"
+          }
+        }
+        # Get start and end labels
+        start_label <- original_labels[start_idx]
+        end_label <- original_labels[end_idx]
+        
+        # Check if TSS or pA falls in this range
+        special_markers <- c()
+        if (tss_idx >= start_idx && tss_idx <= end_idx) {
+          special_markers <- c(special_markers, "TSS")
+        }
+        if (pa_idx >= start_idx && pa_idx <= end_idx) {
+          special_markers <- c(special_markers, "pA")
+        }
+        
+        # Create label
+        if (start_idx == end_idx) {
+          # Single bin
+          label <- start_label
+        } else {
+          # Range label
+          label <- paste0(start_label, ":", end_label)
+        }
+        
+        # Add special markers if present
+        if (length(special_markers) > 0) {
+          label <- paste0(label, " (", paste(special_markers, collapse = ","), ")")
+        }
+        
+        # Use middle break for plotting position
+        middle_idx <- round((start_idx + end_idx) / 2)
+        new_breaks <- c(new_breaks, original_breaks[middle_idx])
+        new_labels <- c(new_labels, label)
+        new_colors <- c(new_colors, bin_color)
+      }
+      
+      # Update your line_list
+      line_list$mybrakes <- new_breaks
+      line_list$mylabels <- new_labels
+      line_list$mycolors <- new_colors
+      
     }
-    
+  
     list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
     
     # Aggregate bins if needed
@@ -1402,14 +1470,18 @@ GGplotBoxViolin <-
     # Convert vertical line positions to bin_group factor levels
     vline_positions <- line_list$myline$use_virtical_line
     vline_bins <- floor(vline_positions / bin_step) * bin_step
-    first_bin <- 1
-    if(bin_step > 1){
-      first_bin <- 0
-    }
-    valid_positions <- unique(sort(c(distinct(list_long_data_frame, bin_group) %>% 
-                                       pull(), vline_positions, first_bin)))
-    matching_indices <- line_list$mybrakes %in% valid_positions
     
+    # Get all unique bin_group values from your data
+    
+    valid_positions <- unique(sort(c(all_bin_groups, vline_bins, 1)))
+    if(bin_step == 1){
+      valid_positions <- line_list$mybrakes
+    }
+    
+    
+    vline_bins <<- vline_bins
+    valid_positions <<- valid_positions
+    line_list <<- line_list
     
     for (i in seq_along(vline_bins)) {
       gp <- gp + 
@@ -1419,18 +1491,23 @@ GGplotBoxViolin <-
                    linetype = line_list$myline$use_virtical_line_type[i],
                    color = line_list$myline$use_virtical_line_color[i])
     }
+
+    # Use in scale_x_discrete
     gp <- gp + 
-      scale_x_discrete(breaks = floor(line_list$mybrakes[matching_indices]),
-                       labels = line_list$mylabels[matching_indices]) + 
+      scale_x_discrete(
+        breaks = as.character(valid_positions),
+        labels = line_list$mylabels
+      ) + 
       theme(
         axis.text.x = ggtext::element_markdown(
-          color = line_list$mycolors[matching_indices],  
+          color = line_list$mycolors,  
           size = line_list$mysize[3],
           angle = -45,
           hjust = .1,
           vjust = .9,
           face = 'bold'
-        ))
+        )
+      )
     
     # Add comparison statistics if using ggpubr
     if (length(unique(list_long_data_frame$set)) == 2) {
