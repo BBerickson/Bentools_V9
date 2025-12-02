@@ -1403,7 +1403,7 @@ GGplotBoxViolin <-
       line_list$mycolors <- new_colors
       
     }
-  
+    
     list_long_data_frame$set <- factor(list_long_data_frame$set, levels = plot_options$set)
     
     # Aggregate bins if needed
@@ -1467,40 +1467,56 @@ GGplotBoxViolin <-
             legend.text = element_text(size = line_list$mysize[5], face = 'bold'))
     
     # Add vertical lines for regions (TSS, etc.)
-    # Convert vertical line positions to bin_group factor levels
     vline_positions <- line_list$myline$use_virtical_line
     vline_bins <- floor(vline_positions / bin_step) * bin_step
     
     # Get all unique bin_group values from your data
+    all_bin_groups <- unique(sort(list_long_data_frame$bin_group))
     
-    valid_positions <- unique(sort(c(all_bin_groups, vline_bins, 1)))
-    if(bin_step == 1){
-      valid_positions <- line_list$mybrakes
+    # Match line_list breaks with actual data bins
+    # For bin_step > 1, line_list$mybrakes are already aggregated
+    # For bin_step = 1, line_list$mybrakes are original bins
+    matching_indices <- line_list$mybrakes %in% all_bin_groups
+    
+    # Ensure we have matches
+    if(sum(matching_indices) == 0) {
+      # Fallback: use all
+      matching_indices <- rep(TRUE, length(line_list$mybrakes))
     }
     
+    # Extract matched breaks, labels, and colors
+    selected_breaks <- line_list$mybrakes[matching_indices]
+    selected_labels <- line_list$mylabels[matching_indices]
+    selected_colors <- line_list$mycolors[matching_indices]
     
-    vline_bins <<- vline_bins
-    valid_positions <<- valid_positions
-    line_list <<- line_list
+    # Verify all vectors have same length
+    if(length(selected_breaks) != length(selected_labels) || 
+       length(selected_breaks) != length(selected_colors)) {
+      warning("Length mismatch in breaks/labels/colors")
+      min_len <- min(length(selected_breaks), length(selected_labels), length(selected_colors))
+      selected_breaks <- selected_breaks[1:min_len]
+      selected_labels <- selected_labels[1:min_len]
+      selected_colors <- selected_colors[1:min_len]
+    }
     
+    # Add vertical lines
     for (i in seq_along(vline_bins)) {
       gp <- gp + 
-        geom_vline(xintercept = match(vline_bins[i], 
-                                      unique(sort(list_long_data_frame$bin_group))),
+        geom_vline(xintercept = match(vline_bins[i], all_bin_groups),
                    linewidth = line_list$mysize[1],
                    linetype = line_list$myline$use_virtical_line_type[i],
                    color = line_list$myline$use_virtical_line_color[i])
     }
-
-    # Use in scale_x_discrete
+    
+    # Apply x-axis scale with matched vectors
     gp <- gp + 
       scale_x_discrete(
-        breaks = as.character(valid_positions),
-        labels = line_list$mylabels
+        breaks = as.character(selected_breaks),
+        labels = selected_labels
       ) + 
       theme(
         axis.text.x = ggtext::element_markdown(
-          color = line_list$mycolors,  
+          color = selected_colors,  
           size = line_list$mysize[3],
           angle = -45,
           hjust = .1,
