@@ -720,7 +720,7 @@ server <- function(input, output, session) {
   # reactive Violin, sets Y axis min max ----
   observeEvent(reactive_values$Y_Axis_numbersViolin,
                ignoreInit = T, ignoreNULL = T, {
-    # print("violine min max set")
+    # print("violin min max set")
     my_step <-
       (max(reactive_values$Y_Axis_numbersViolin) - min(reactive_values$Y_Axis_numbersViolin)) /
       20
@@ -794,7 +794,7 @@ server <- function(input, output, session) {
                       Y_Axis_Label,
                       bin_step = input$VmergeBin,  # Aggregate bins to reduce clutter
                       plot_type = input$VplotType) 
-    LIST_DATA$STATE[2] <<- 1
+    
   })
   
   # reactive Plot_Options, triggers plot ----
@@ -864,8 +864,11 @@ server <- function(input, output, session) {
         input$checkboxlog2Violin
       )
     
+    LIST_DATA$STATE[2] <<- 2
+    
     reactive_values$Y_Axis_numbers_set_Violin <- c(reactive_values$Y_Axis_numbersViolin,input$VmergeBin,
-                                                   input$numericYRangeLowViolin,input$numericYRangeHighViolin)
+                                                   input$numericYRangeLowViolin,input$numericYRangeHighViolin,
+                                                   LIST_DATA$STATE[2])
     
   })
   
@@ -4593,7 +4596,6 @@ ui <- dashboardPage(
                 ),
                 value = "stats",
                 br(),
-                tags$small("!!!! Work in progress !!!"),
                 
                 div(style = "margin-top: -10px;",
                 hr()
@@ -4614,7 +4616,7 @@ ui <- dashboardPage(
                     div(style = "margin-top: 20px;",
                     awesomeCheckbox("checkboxlog2Violin", 
                                     label = "Log2 transform",
-                                    value = TRUE)
+                                    value = FALSE)
                   )),
                   column(
                     4,
@@ -4627,7 +4629,7 @@ ui <- dashboardPage(
                     4,
                     numericInput("VmergeBin", 
                                  label = "Aggregate bins:", 
-                                 value = 1)
+                                 value = 10)
                   )
                 ),
                 fluidRow(div(style = "margin-top: -10px; margin-bottom: -10px;",
