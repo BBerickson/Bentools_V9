@@ -1370,13 +1370,13 @@ GGplotBoxViolin <-
         
         # Check if TSS or pA falls in this range
         special_markers <- c()
-        if (tss_idx >= start_idx && tss_idx <= end_idx) {
+        if (!is.na(tss_idx) && length(tss_idx) > 0 && between(tss_idx, start_idx, end_idx)) {
           special_markers <- c(special_markers, LLset$mylabels[tss_idx])
           bin_color <- c(bin_color,original_colors[tss_idx]) %>% unique()
         }
-        if (pa_idx >= start_idx && pa_idx <= end_idx) {
+        if (!is.na(pa_idx) && length(pa_idx) > 0 && between(pa_idx, start_idx, end_idx)) {
           special_markers <- c(special_markers, LLset$mylabels[pa_idx])
-          bin_color <- c(bin_color,original_colors[pa_idx]) %>% unique()
+          bin_color <- c(bin_color, original_colors[pa_idx]) %>% unique()
         }
         
         if(length(bin_color)>1){
@@ -1474,9 +1474,6 @@ GGplotBoxViolin <-
     # Add vertical lines for regions (TSS, etc.)
     vline_positions <- line_list$myline$use_virtical_line
     vline_bins <- unique(floor(vline_positions / bin_step) * bin_step)
-    if(length(vline_bins)==1){
-      line_list$myline$use_virtical_line_color <- line_list$mycolors
-    } 
     
     for (i in seq_along(vline_bins)) {
       gp <- gp + 
