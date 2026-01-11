@@ -3147,9 +3147,7 @@ server <- function(input, output, session) {
     if (!is.null(input$pickergroupsample)) {
       LIST_DATA$meta_data <<- LIST_DATA$meta_data %>% 
         mutate(group = if_else(set %in% input$pickergroupsample,
-                               as_tibble(insert_line_breaks(gsub(",",":",input$textgroupname), 
-                                                            input$selectlegendnewline, 
-                                                            input$selectlegendnewlinespace))$value, group))
+                               gsub(",",":",input$textgroupname), group))
       updatePickerInput(session,
                         "pickergroupsample", selected = "",
                         options = list(title = "Select at least 2 files"))
