@@ -4050,7 +4050,6 @@ server <- function(input, output, session) {
                        input$selectlegendnewline, input$selectlegendnewlinespace
                      )
                  })
-    LD <<- LD
     if (!is_empty(LD$table_file)) {
       LIST_DATA <<- LD
       if(LIST_DATA$STATE[1] != 0){
