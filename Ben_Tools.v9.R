@@ -4486,11 +4486,10 @@ ui <- dashboardPage(
                 
                 hidden(div(
                   id = "hideplotgroup",
-                  selectInput("mygroup",
-                              label = "Plot Group:",
-                              choices = c("none", "groups"),
-                              selected = "none"
-                  )
+                  checkboxInput("mygroup",
+                                label = "Plot Group:",
+                                value = FALSE
+                                )
                 ))
               ),
               
@@ -4607,7 +4606,7 @@ ui <- dashboardPage(
                   block = TRUE,
                   icon = icon("chart-bar")
                 ),
-                
+                helpText("!! Work in progress !!"),
                 fluidRow(
                   column(
                     4,

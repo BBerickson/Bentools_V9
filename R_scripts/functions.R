@@ -790,7 +790,7 @@ CheckBoxOnOff <- function(check_box, list_data) {
 
 # input data list, output filtered and bound data with plot legend column
 Active_list_data <-
-  function(list_data, group="none", fulljoin=F,legend_brake=20,legend_brake_size=5) {
+  function(list_data, group=F, fulljoin=F,legend_brake=20,legend_brake_size=5) {
     table_file <- list_data$table_file
     gene_file <- list_data$gene_file
     meta_data <- list_data$meta_data
@@ -801,7 +801,7 @@ Active_list_data <-
       if (meta_data %>% dplyr::filter(gene_list == i & onoff != 0) %>% nrow() == 0) {
         next()
       } else {
-        if(group != "none"){
+        if(group){
           meta_data <- meta_data %>% group_by(group,gene_list) %>% 
             mutate(onoff=if_else(gene_list == i & any(onoff != 0),set,onoff)) %>% 
             ungroup()
@@ -856,7 +856,7 @@ ApplyMath <-
            relative_frequency = "none",
            normbin = 0,
            normmin = 0,
-           group="none",
+           group = FALSE,
            myabs = FALSE,
            binnorm = "divide") {
     # print("applymath fun")
@@ -906,7 +906,7 @@ ApplyMath <-
         select(-value2)
     }
     # finish making file ready for ggplot
-    if(group == "groups"){
+    if(group){
       list_data <- select(list_data, -plot_legend) %>% 
         # collapse plot_legend down to 1 per group
         right_join(.,distinct(list_data,group,gene_list,.keep_all = T) %>% 
@@ -954,14 +954,14 @@ ApplyTtest <-
            my_alt, 
            my_exact, 
            my_paired,
-           group = "none",
+           group = FALSE,
            legend_brake=20,
            legend_brake_size=5
            ) {
     # t.test comparing files in same gene list
     ttest <- NULL
     if(switchttest != "none"){
-      if(group == "groups"){
+      if(group){
         list_data <- list_data %>% 
           dplyr::mutate(set= gsub("\n", "", group)) 
       }
