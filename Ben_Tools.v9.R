@@ -2401,7 +2401,7 @@ server <- function(input, output, session) {
       LD$meta_data <- LD$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == names(LD$gene_file)[mylist] &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
+      list_data_frame <- Active_list_data(LD, group=FALSE, input$checkboxfull, 
                                           input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         withProgress(message = 'Calculation in progress',
@@ -2501,7 +2501,7 @@ server <- function(input, output, session) {
       LD$meta_data <- LD$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list %in% mylist &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
+      list_data_frame <- Active_list_data(LD, group=FALSE, input$checkboxfull, 
                                           input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         withProgress(message = 'Calculation in progress',
@@ -2766,7 +2766,7 @@ server <- function(input, output, session) {
       sortmin$meta_data <- sortmin$meta_data %>%
         dplyr::mutate(onoff=if_else(gene_list == mylist &
                                       set %in% input$sortSamples, set, "0"))
-      list_data_frame <- Active_list_data(sortmin, group="none", input$checkboxfull, 
+      list_data_frame <- Active_list_data(sortmin, group=FALSE, input$checkboxfull, 
                                           input$selectlegendnewline, input$selectlegendnewlinespace)
       if (!is_empty(list_data_frame)) {
         reactive_values$Plot_controler_sort_min <- ggplot()
@@ -3572,7 +3572,7 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
+                                  list_data_frame <- Active_list_data(LD, group=FALSE, input$checkboxfull, 
                                                                       input$selectlegendnewline, input$selectlegendnewlinespace)
                                   if (!is_empty(list_data_frame)) {
                                     if(input$clusterRF){
@@ -3731,7 +3731,7 @@ server <- function(input, output, session) {
                                 detail = 'This may take a while...',
                                 value = 0,
                                 {
-                                  list_data_frame <- Active_list_data(LD, group="none", input$checkboxfull, 
+                                  list_data_frame <- Active_list_data(LD, group=FALSE, input$checkboxfull, 
                                                                       input$selectlegendnewline, input$selectlegendnewlinespace)
                                   if (!is_empty(list_data_frame)) {
                                     
