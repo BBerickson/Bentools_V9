@@ -389,7 +389,7 @@ LoadGeneFile <-
         legend_nickname <- paste0(legend_nickname, "_intersected")
       } else {
         tablefile <- tablefile %>% filter(!gene %in% gene_names$gene) %>% filter(!gene %in% "gene")
-        gene_names <- MatchGenes(distinct(list_data$table_file), tablefile %>% select(gene)) %>% 
+        gene_names <- MatchGenes(distinct(list_data$table_file,gene), tablefile %>% distinct(gene)) %>% 
           bind_rows(gene_names,.) %>% distinct()
       }
       # tries to grep lists and find matches
