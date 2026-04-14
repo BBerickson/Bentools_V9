@@ -1170,9 +1170,9 @@ GGplotLineDot <-
     }
     gp <- gp + 
       geom_ribbon(aes(ymin=min,ymax=max,fill=set),linetype=0,alpha = 0.5) +
-      scale_color_manual(values = plot_options$mycol) +
-      scale_fill_manual(values = plot_options$mycol) +
-      scale_linetype_manual(values = plot_options$myline) +
+      scale_color_manual(values = setNames(plot_options$mycol, plot_options$set)) +
+      scale_fill_manual(values = setNames(plot_options$mycol, plot_options$set)) +
+      scale_linetype_manual(values = setNames(plot_options$myline, plot_options$set)) +
       ylab(use_y_label) +
       geom_vline(
         data = line_list$myline,

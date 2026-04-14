@@ -127,6 +127,7 @@ server <- function(input, output, session) {
                              mysize = c(2.0, 2.5, 13.0, 13.0, 10.0, 0.8, 20, 5),
                              myset = c(20, 40, 15, 45, 100, 5)),
     Picker_controler = NULL,
+    picker_order = list(),  # will store ordered selections per gene_file
     mymath = c("mean", "none", "0", "FALSE", "FALSE", "1", "80", "none"),
     ttest = NULL,
     ttest_values = c("none", "wilcox.test", "two.sided", "FALSE", "FALSE", "-log10", "fdr"),
@@ -2266,6 +2267,20 @@ server <- function(input, output, session) {
                    LIST_DATA$meta_data <<-
                      CheckBoxOnOff(checkboxonoff,
                                    LIST_DATA$meta_data)
+                   for (i in names(ttt)) {
+                     gene_name <- gsub("-bensspace2-", " ", gsub("-bensspace1-", "\n", i))
+                     ordered   <- reactive_values$picker_order[[gene_name]]
+                     if (!is.null(ordered) && length(ordered) > 0) {
+                       # get the rows for this gene_list, active ones sorted by picker order, inactive (0) last
+                       active   <- LIST_DATA$meta_data %>% filter(gene_list == gene_name, onoff != 0) %>%
+                         slice(match(ordered, set))
+                       inactive <- LIST_DATA$meta_data %>% filter(gene_list == gene_name, onoff == 0)
+                       
+                       LIST_DATA$meta_data <<- LIST_DATA$meta_data %>%
+                         filter(gene_list != gene_name) %>%
+                         bind_rows(active, inactive)
+                     }
+                   }
                    if (LIST_DATA$STATE[2] > 0) {
                      shinyjs::show("actionmyplotshow")
                      LIST_DATA$STATE[2] <<- 2
@@ -2366,10 +2381,27 @@ server <- function(input, output, session) {
         pickerlist[!str_detect(names(LIST_DATA$gene_file),"^Filter|^Gene_List_|^Ratio_|^Cluster_|^Groups_|^CDF")]
       })
       
+      # Tracks click order for each picker that helps set plot order ----
+      for (i in names(LIST_DATA$gene_file)) {
+        local({
+          picker_id <- gsub(" ", "-bensspace2-", gsub("\n", "-bensspace1-", i))
+          gene_name <- i
+          
+          observeEvent(input[[picker_id]], {
+            new_sel  <- input[[picker_id]]
+            prev_ord <- reactive_values$picker_order[[gene_name]] %||% character(0)
+            # Keep previously ordered items still selected, append newly added ones at end
+            reactive_values$picker_order[[gene_name]] <- c(
+              intersect(prev_ord, new_sel),  # retained, in their original order
+              setdiff(new_sel, prev_ord)     # newly checked, appended
+            )
+          }, ignoreNULL = FALSE, ignoreInit = TRUE)
+        })
+      }
+      
     })
   
   
-
   # filter sum tool action ----
   observeEvent(input$actionsorttool, {
     # print("sort tool")
