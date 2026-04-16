@@ -1159,6 +1159,15 @@ GGplotLineDot <-
           )
         )
     }
+    gp <- gp +
+      geom_vline(                          
+        data = line_list$myline,
+        aes(xintercept = use_virtical_line),
+        linewidth = line_list$mysize[1],
+        linetype = line_list$myline$use_virtical_line_type,
+        color = line_list$myline$use_virtical_line_color
+      )
+    
     if (use_smooth) {
       gp <- gp +
         geom_smooth(se = FALSE,
@@ -1174,13 +1183,6 @@ GGplotLineDot <-
       scale_fill_manual(values = setNames(plot_options$mycol, plot_options$set)) +
       scale_linetype_manual(values = setNames(plot_options$myline, plot_options$set)) +
       ylab(use_y_label) +
-      geom_vline(
-        data = line_list$myline,
-        aes(xintercept = use_virtical_line),
-        linewidth = line_list$mysize[1],
-        linetype = line_list$myline$use_virtical_line_type,
-        color = line_list$myline$use_virtical_line_color
-      ) +
       theme_bw() +
       theme(axis.title.x=element_blank(),
             axis.text.x=element_blank(),
@@ -1211,11 +1213,6 @@ GGplotLineDot <-
       gp2 <- ggplot(LIST_DATA$ttest, aes(y=p.value,x=bin,
                                          color=set,
                                          linetype = set)) + 
-        geom_line(linewidth = line_list$mysize[2],alpha=line_list$mysize[6]) +
-        scale_color_manual(values = use_col_tt) +
-        scale_linetype_manual(values = use_line_tt)+
-        geom_hline(yintercept = plot_ttest$hlineTT,color="blue") + 
-        theme_bw() +
         geom_vline(
           data = line_list$myline,
           aes(xintercept = use_virtical_line),
@@ -1223,6 +1220,11 @@ GGplotLineDot <-
           linetype = line_list$myline$use_virtical_line_type,
           color = line_list$myline$use_virtical_line_color
         ) +
+        geom_line(linewidth = line_list$mysize[2],alpha=line_list$mysize[6]) +
+        scale_color_manual(values = use_col_tt) +
+        scale_linetype_manual(values = use_line_tt)+
+        geom_hline(yintercept = plot_ttest$hlineTT,color="blue") + 
+        theme_bw() +
         xlab(paste(paste0(Sys.Date(),"\n"), paste(unique(
           plot_options$sub
         ), collapse = ",\n"), collapse = ", ")) +
