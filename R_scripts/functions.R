@@ -104,46 +104,64 @@ RgbToHex <- function(x,
 }
 
 # finds first partial match to gene list input 
-MatchGenes <- function(common_list, gene_list, bedfile = FALSE){
-  # print("gene match fun")
-  if(bedfile){
-    tablefile <- 
-      bed_intersect(group_by(gene_list,strand), group_by(common_list,strand),suffix = c("",".y")) %>% 
-      dplyr::filter(.overlap > 0) %>% 
-      group_by(gene.y) %>%
-      dplyr::filter(.overlap == max(.overlap)) %>%
-      group_by(gene) %>%
-      dplyr::filter(.overlap == max(.overlap)) %>%
-      ungroup() %>%
-      distinct(gene.y,.keep_all = T) %>%
-      distinct(gene,.keep_all = T) %>%
-      select(-.overlap,-.source) %>%
-      dplyr::rename(gene.x=gene.y) %>% select(!ends_with(".y")) %>%
-      full_join(.,gene_list,by=c("chrom","start","end","strand","gene")) %>% 
-      dplyr::rename(org_gene=gene,gene=gene.x) %>% 
-      dplyr::relocate(gene,chrom,start,end,org_gene,strand,.before = last_col()) %>%
+MatchGenes <- function(common_list, gene_list, bedfile = FALSE) {
+  
+  if (bedfile | all(names(gene_list) %in% c("chrom", "start", "end", "strand", "gene"))) {
+    # Pre-group once outside the pipe
+    gl_grouped <- group_by(gene_list, strand)
+    cl_grouped <- group_by(common_list, strand)
+    
+    tablefile <- bed_intersect(gl_grouped, cl_grouped, suffix = c("", ".y"),min_overlap = 1) %>%
+      dplyr::filter(.overlap / pmin(end - start, end.y - start.y) >= 0.9) %>% 
+      slice_max(.overlap, by = gene.y, n = 1, with_ties = FALSE) %>%
+      slice_max(.overlap, by = gene,   n = 1, with_ties = FALSE) %>%
+      select(-.overlap) %>%
+      dplyr::rename(gene.x = gene.y) %>%
+      select(!ends_with(".y")) %>%
+      full_join(gene_list, by = c("chrom", "start", "end", "strand", "gene")) %>%
+      dplyr::rename(org_gene = gene, gene = gene.x) %>%
+      dplyr::relocate(gene, chrom, start, end, org_gene, strand, .before = last_col()) %>%
       distinct()
+    
   } else {
-    if(str_detect(gene_list$gene[1],"\\|")){
-      tablefile <-
-        map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
+    
+    first_gene <- gene_list$gene[1]
+    
+    if (str_detect(first_gene, "\\|")) {
+      gene_list <- separate(gene_list, gene, into = c("temp", "gene"),
+                            sep = "\\|", extra = "drop")
+      
+      patterns  <- paste(gene_list$gene, collapse = "|")
+      matched   <- common_list$gene[str_detect(common_list$gene, patterns)]
+      
+      tablefile <- map(gene_list$gene, \(g) str_subset(matched, g)) %>%
         setNames(gene_list$gene)
-    } else if(str_detect(gene_list$gene[1],"_")){
-      tablefile <-
-        map(paste0(";", gene_list$gene,"\\|"), str_subset, string = common_list$gene) %>% 
+      
+    } else if (str_detect(first_gene, "_")) {
+      patterns  <- paste0(";", gene_list$gene, "\\|", collapse = "|")
+      matched   <- common_list$gene[str_detect(common_list$gene, patterns)]
+      tablefile <- map(gene_list$gene, \(g) str_subset(matched, paste0(";", g, "\\|"))) %>%
         setNames(gene_list$gene)
-    }else {
-      tablefile <-
-        map(paste0(gene_list$gene,"$"), str_subset, string = common_list$gene) %>% 
-        setNames(gene_list$gene)
+      
+    } else {
+      common_keys <- str_extract(common_list$gene, "[^;|]+$")
+      idx         <- match(gene_list$gene, common_keys)          
+      tablefile <- setNames(
+        lapply(seq_along(gene_list$gene), \(i)
+               if (!is.na(idx[i])) common_list$gene[idx[i]] else character(0)),
+        gene_list$gene
+      )
     }
-    tablefile <- map_df(tablefile, ~as.data.frame(.x), .id="gene") %>% 
-      distinct(gene,.keep_all = T) %>% 
-      full_join(.,gene_list,by="gene") %>% 
-      transmute(org_gene = gene, gene=.x) %>% 
+    
+    tablefile <- map_df(tablefile, as.data.frame, .id = "gene") %>%
+      setNames(c("gene", ".x")) %>%
+      distinct(gene, .keep_all = TRUE) %>%
+      full_join(gene_list, by = "gene") %>%
+      transmute(org_gene = gene, gene = .x) %>%
       dplyr::relocate(gene, org_gene, any_of("strand"), .before = last_col()) %>%
       distinct()
   }
+  
   return(tablefile)
 }
 
@@ -317,7 +335,7 @@ LoadGeneFile <-
       return()
     }
     legend_nickname <- last(str_split(file_name,"/",simplify = T)) %>% 
-      str_remove(., ".txt|.bed.gz|.bed") %>% str_replace("\\.","_")
+      str_remove(., ".tsv|.txt|.bed.gz|.bed") %>% str_replace("\\.","_")
     # checks if file with same nickname has already been loaded
     if (legend_nickname %in% names(list_data$gene_file)) {
       showModal(modalDialog(
@@ -333,7 +351,6 @@ LoadGeneFile <-
     num_col <-
       try(count_fields(file_path,
                        n_max = 1,
-                       skip = 1,
                        tokenizer = tokenizer_tsv()),silent = T)
     if ("try-error" %in% class(num_col) & num_col > 0) {
       showModal(modalDialog(
@@ -359,20 +376,26 @@ LoadGeneFile <-
       tablefile <-
         suppressMessages(read_tsv(file_path,
                                   comment = "#",
-                                  col_names = FALSE,
-                                  show_col_types = FALSE)) 
+                                  show_col_types = FALSE))
+      # check and see if gene column has a name, if not assume first column 
       if(!"gene" %in% names(tablefile)){
+        tablefile <-
+          suppressMessages(read_tsv(file_path,
+                                    comment = "#",
+                                    col_names = FALSE,
+                                    show_col_types = FALSE)) 
         names(tablefile)[1] <- "gene"
       }
+      
       tablefile <- tablefile %>% 
         distinct(gene,.keep_all = T) %>% mutate(gene=as.character(gene))
       # checks gene list is a subset of what has been loaded
     }
     
-    gene_names <- tablefile %>% select(gene) %>% 
-      semi_join(., distinct(list_data$table_file), by = "gene") %>% distinct(gene)
+    gene_names <- 
+      semi_join(distinct(tablefile,gene), distinct(list_data$table_file,gene), by = "gene")
     # test data is compatible with already loaded data
-    if (n_distinct(gene_names$gene, na.rm = T) == 0 | checkboxgenematch) {
+    if (n_distinct(gene_names$gene, na.rm = T) < n_distinct(tablefile$gene)/2 | checkboxgenematch) {
       showModal(
         modalDialog(
           title = "Information message",
@@ -389,7 +412,7 @@ LoadGeneFile <-
         legend_nickname <- paste0(legend_nickname, "_intersected")
       } else {
         tablefile <- tablefile %>% filter(!gene %in% gene_names$gene) %>% filter(!gene %in% "gene")
-        gene_names <- MatchGenes(distinct(list_data$table_file,gene), tablefile %>% distinct(gene)) %>% 
+        gene_names <- MatchGenes(distinct(list_data$table_file,chrom,start,end,gene,strand), distinct(tablefile,gene,.keep_all = T)) %>% 
           bind_rows(gene_names,.) %>% distinct()
       }
       # tries to grep lists and find matches
