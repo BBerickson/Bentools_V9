@@ -106,7 +106,7 @@ RgbToHex <- function(x,
 # finds first partial match to gene list input 
 MatchGenes <- function(common_list, gene_list, bedfile = FALSE) {
   
-  if (bedfile | all(names(gene_list) %in% c("chrom", "start", "end", "strand", "gene"))) {
+  if (bedfile | all(c("chrom", "start", "end", "strand", "gene") %in% names(gene_list))) {
     # Pre-group once outside the pipe
     gl_grouped <- group_by(gene_list, strand)
     cl_grouped <- group_by(common_list, strand)
@@ -1592,7 +1592,18 @@ YAxisLabel <-
            relative_frequency = "none",
            norm_bin = "NA",
            smoothed = F,
-           log_2 = F) {
+           log_2 = F,
+           ViolinPlot = F) {
+    if(ViolinPlot){
+      use_y_label <- "bin counts"
+      if(relative_frequency > 1){
+        use_y_label <- paste0("Aggregate(",use_y_label,")")
+      }
+      if (log_2) {
+        use_y_label <- paste0("log2(", use_y_label, ")")
+      }
+      return(use_y_label)
+    }
     use_y_label <- paste(use_math, "of bin counts")
     if (relative_frequency == "rel gene frequency") {
       use_y_label <- paste("RF per gene :", use_y_label)
