@@ -882,6 +882,7 @@ server <- function(input, output, session) {
       shinyjs::click("actionmyplot") 
       shinyjs::click("actionViolinPlot") 
     }
+    updateBoxSidebar(id = "sidebarmath")
   })
   
   # checks that number of names == position ----
@@ -2223,7 +2224,7 @@ server <- function(input, output, session) {
   output$plot <- renderPlot({
     reactive_values$Plot_controler
   })
-  # output$plot <- renderPlot({
+  # output$plot_violin <- renderPlot({
   #   reactive_values$Plot_controler_Violin
   # })
   output$plot1sort <- renderPlot({
