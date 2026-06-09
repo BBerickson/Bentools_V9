@@ -371,8 +371,8 @@ server <- function(input, output, session) {
                                                       LIST_DATA$meta_data_plot$x_plot_range[2],
                                                       slider = T)
       reactive_values$setsliders <- SlidersSetsInfo(reactive_values$slider_breaks, LIST_DATA$meta_data_plot$binning[1])
-      if(LIST_DATA$meta_data_plot$rnaseq){
-        updateAwesomeCheckbox(session,inputId = "checkboxfull",value = TRUE)
+      if(LIST_DATA$meta_data_plot$rnaseq){ # stranded data defaults 
+        #updateAwesomeCheckbox(session,inputId = "checkboxfull",value = TRUE)
         updateAwesomeRadio(session,inputId = "checkboxbin",selected = "subtract")
       }
     } 
