@@ -551,33 +551,39 @@ server <- function(input, output, session) {
              ".tsv")
     },
     content = function(file) {
-      new_comments <-
-        new_comments <- paste("#", Sys.Date(), "\n")
-      new_comments <-
-        c(new_comments,  paste("\n#", gsub("\nn = ", " n = ",  input$selectsave)))
-      new_comments <-
-        c(new_comments, paste("#", gsub(
-          "\nn = ", " n = ",
-          paste(LIST_DATA$gene_file[[input$selectsave]]$info$loaded_info)
-        )))
-      new_comments <-
-        c(new_comments, paste("#", 
-                              paste(LIST_DATA$gene_file[[input$selectsave]]$info$col_info)
-        ))
-      new_comments2 <-
-        inner_join(LIST_DATA$gene_file$Complete$full,LIST_DATA$gene_file[[input$selectsave]]$full)
-        LIST_DATA$gene_file[[input$selectsave]]$full
-      if(input$selectsave == "CDF Log2 PI Cumulative plot"){
-        new_comments2 <- new_comments2 %>% 
-          select(-plot_legend, -bin) %>% 
-          spread(set,value)
+      
+      # Helper: ensures every line in a string starts with #
+      comment_lines <- function(x) {
+        lines <- unlist(strsplit(x, "\n"))
+        lines <- lines[nzchar(trimws(lines))]          # drop blank lines
+        paste(ifelse(startsWith(trimws(lines), "#"), 
+                     lines, 
+                     paste("#", lines)), collapse = "\n")
       }
+      
+      new_comments <- paste("#", Sys.Date())
+      new_comments <- c(
+        new_comments,
+        comment_lines(input$selectsave),
+        comment_lines(paste(LIST_DATA$gene_file[[input$selectsave]]$info$loaded_info)),
+        comment_lines(paste(LIST_DATA$gene_file[[input$selectsave]]$info$col_info))
+      )
+      
+      new_comments2 <-
+        inner_join(LIST_DATA$gene_file$Complete$full,
+                   LIST_DATA$gene_file[[input$selectsave]]$full)
+      
+      if (input$selectsave == "CDF Log2 PI Cumulative plot") {
+        new_comments2 <- new_comments2 %>%
+          select(-plot_legend, -bin) %>%
+          spread(set, value)
+      }
+      
       write_lines(new_comments, file)
       write_tsv(new_comments2,
                 file,
                 col_names = TRUE,
-                append = T)
-      
+                append = TRUE)
     }
   )
   
