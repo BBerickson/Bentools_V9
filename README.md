@@ -51,7 +51,7 @@ https://github.com/BBerickson/Bentools_V9.git
 shiny::runApp()
 ```
 
-Or in RStudio, open `Ben_tools.v9.R` and click the "Run App" button.
+Or in RStudio, open `app.R` and click the "Run App" button.
 
 ## Usage Guide
 
