@@ -230,10 +230,15 @@ tableTestbin <- function(meta_data){
   # get info on file to help know what type it is
   # print("tableTestbin")
   rnaseq <- F
-  # test if file can be loaded in and has a deeptools .matrix header
-  read_test <-
-    try(read_tsv(meta_data$filepath,n_max = 1,col_names = F, show_col_types = FALSE),silent = T)
-  if ("try-error" %in% class(read_test) | !str_detect(read_test,"^@\\{")) {
+  # Read only the first two lines, once, through a single gz connection (gzfile
+  # transparently reads plain files too): line 1 is the deeptools @{...} header,
+  # line 2 is the first data row whose field count gives the number of columns.
+  head_lines <- tryCatch({
+    con <- gzfile(meta_data$filepath, "rt")
+    on.exit(close(con))
+    readLines(con, n = 2)
+  }, error = function(e) character(0))
+  if (length(head_lines) < 2 || !str_detect(head_lines[1], "^@\\{")) {
     showModal(modalDialog(
       title = "Information message",
       paste(meta_data$nick, "can't find file or not .matrix file"),
@@ -242,17 +247,12 @@ tableTestbin <- function(meta_data){
     ))
     return()
   }
-  num_bins <-
-    count_fields(meta_data$filepath,
-                 n_max = 1,
-                 skip = 1,
-                 tokenizer = tokenizer_tsv())
+  num_bins <- length(strsplit(head_lines[2], "\t", fixed = TRUE)[[1]])
   col_names <- c("chrom", "start", "end","gene", "value", "strand", 1:(num_bins - 6))
   mylist <- c("bin size","upstream","downstream","body","unscaled 5 prime","unscaled 3 prime")
-  
-  meta <- read_tsv(meta_data$filepath,n_max = 1,col_names = F, show_col_types = FALSE)
-  mm <- meta %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>% 
-    str_replace_all(.,fixed('\"'),"") 
+
+  mm <- head_lines[1] %>% str_remove_all("[@{}]|\\]|\\[") %>% str_split(",",simplify = T) %>%
+    str_replace_all(.,fixed('\"'),"")
   type <- mm[str_which(mm,"ref point")] %>% str_replace_all(., "ref point:", "")
   
   if(type == "TSS"){
@@ -298,15 +298,17 @@ LoadTableFile <-
   function(meta_data,
            bin_colname) {
     # print("LoadTableFile")
-    tablefile <- suppressMessages(
-      read_tsv(
-        meta_data$filepath,
-        comment = "#",
-        col_names = bin_colname$col_names,
-        skip = 1,
-        show_col_types = FALSE
-      )
+    # fread parses wide gz matrices much faster than read_tsv; skip=1 drops the
+    # @{...} header line, col.names supplies the deeptools column layout.
+    tablefile <- data.table::fread(
+      meta_data$filepath,
+      sep = "\t",
+      header = FALSE,
+      skip = 1,
+      col.names = bin_colname$col_names,
+      showProgress = FALSE
     ) %>%
+      as_tibble() %>%
       pivot_longer(cols = 7:(bin_colname$num_bins),
                    names_to = "bin",values_to = "score")
     
@@ -1027,21 +1029,19 @@ try_t_test <- function(db,my_set,my_math ="none",my_test="t.test",padjust="fdr",
     db2 <- dplyr::select(db, gene,bin,all_of(i)) %>% 
       rename(score.x=all_of(names(.)[3]), score.y=all_of(names(.)[4])) 
     
-    myTtest <- tibble(bin=NA,p.value=NA)
-    
-    for(t in unique(db2$bin)){
-      x.score <- dplyr::filter(db2, bin ==t)
-      y.score <- dplyr::filter(db2, bin ==t)
-      kk <- try(get(my_test)(x.score$score.x,y.score$score.y,
-                             alternative = alternative, 
-                             exact=exact, 
-                             paired=paired)$p.value)
-      if("try-error" %in% class(kk) | !is.numeric(kk)){
-        kk <-1
-      }
-      myTtest <- myTtest %>% add_row(bin = t, p.value=kk)
-    }
-    myTtest <- myTtest %>% dplyr::filter(!is.na(bin))
+    # one filter per bin (was two identical), into a preallocated vector rather
+    # than a reallocating add_row loop
+    bins <- unique(db2$bin)
+    test_fun <- get(my_test)
+    pvals <- vapply(bins, function(t) {
+      v <- dplyr::filter(db2, bin == t)
+      kk <- try(test_fun(v$score.x, v$score.y,
+                         alternative = alternative,
+                         exact = exact,
+                         paired = paired)$p.value, silent = TRUE)
+      if ("try-error" %in% class(kk) | !is.numeric(kk)) 1 else kk
+    }, numeric(1))
+    myTtest <- tibble(bin = bins, p.value = pvals)
     if(padjust != "NO"){
       myTtest <- myTtest %>% dplyr::mutate(p.value=p.adjust(p.value,method = padjust))
     }
@@ -1685,12 +1685,12 @@ FilterTop <-
       ))
       return(NULL)
     }
-    lc <- 0
-    outlist <- NULL
-    lapply(file_names, function(j) {
+    # build each file's ranked gene subset, then intersect them in one reduce
+    # (was a <<- inner_join accumulation across an lapply)
+    per_file <- lapply(file_names, function(j) {
       apply_bins <-
-        semi_join(dplyr::filter(list_data$table_file, set == j), 
-                  list_data$gene_file[[list_name]]$full, by = 'gene')  
+        semi_join(dplyr::filter(list_data$table_file, set == j),
+                  list_data$gene_file[[list_name]]$full, by = 'gene')
       apply_bins <- group_by(apply_bins, gene) %>%
         dplyr::filter(bin %in% min(start_end_bin):max(start_end_bin)) %>%
         summarise(mysums = sum(abs(score), na.rm = TRUE),.groups="drop") %>%
@@ -1716,16 +1716,11 @@ FilterTop <-
         num2 <-
           c(ceiling((gene_count) - (gene_count * max(.5, mynum / 100))), ceiling(gene_count * max(.5, mynum / 100)))
       }
-      outlist2 <- dplyr::mutate(apply_bins,!!j := myper) %>%
+      dplyr::mutate(apply_bins,!!j := myper) %>%
         dplyr::select(gene,!!j) %>%
         slice(num2[1]:num2[2])
-      if (lc > 0) {
-        outlist <<- inner_join(outlist, outlist2, by = 'gene')
-      } else {
-        outlist <<- outlist2
-      }
-      lc <<- lc + 1
     })
+    outlist <- reduce(per_file, inner_join, by = 'gene')
     if (length(outlist$gene) == 0) {
       return(NULL)
     }
@@ -1792,23 +1787,23 @@ FilterAverage <-
       ))
       return(NULL)
     }
-    lc <- 0
-    outlist <- NULL
-    lapply(file_names, function(j) {
+    # classify genes per file, then combine files with one reduce (was a <<-
+    # full_join accumulation across an lapply)
+    per_file <- lapply(file_names, function(j) {
       apply_bins <-
-        semi_join(dplyr::filter(list_data$table_file, set == j), 
-                  list_data$gene_file[[list_name]]$full, by = 'gene') %>% 
-        dplyr::filter(bin %in% min(start_end_bin):max(start_end_bin)) %>% 
-        filter(score != 0) 
-      
+        semi_join(dplyr::filter(list_data$table_file, set == j),
+                  list_data$gene_file[[list_name]]$full, by = 'gene') %>%
+        dplyr::filter(bin %in% min(start_end_bin):max(start_end_bin)) %>%
+        filter(score != 0)
+
       average_bins <- apply_bins %>%
         group_by(bin) %>%
         summarise(avg_score = get(mymath)(score, na.rm = TRUE), .groups = "drop")
-      
+
       # Classify genes (only considering non-zero bins)
-      gene_classification <- apply_bins %>%
+      apply_bins %>%
         left_join(average_bins, by = "bin") %>%
-        group_by(gene) %>% 
+        group_by(gene) %>%
         summarise(
           classification = case_when(
             all(score >= avg_score) ~ "All Above",
@@ -1817,18 +1812,14 @@ FilterAverage <-
           ),
           .groups = "drop"
         )
-      
-      if (lc > 0) {
-        outlist <<- full_join(outlist, gene_classification, by = 'gene') %>% 
-          group_by(gene) %>% 
-          mutate(classification = if_else(classification.x == classification.y,
-                                          classification.x,
-                                          "Mixed")) %>% 
-          select(gene,classification) %>% ungroup()
-      } else {
-        outlist <<- gene_classification
-      }
-      lc <<- lc + 1
+    })
+    outlist <- reduce(per_file, function(acc, gene_classification) {
+      full_join(acc, gene_classification, by = 'gene') %>%
+        group_by(gene) %>%
+        mutate(classification = if_else(classification.x == classification.y,
+                                        classification.x,
+                                        "Mixed")) %>%
+        select(gene,classification) %>% ungroup()
     })
     old_names <- grep("^Filter_all_bins", names(list_data$gene_file), value = T)
     if (length(old_names) > 0) {  # Check if ANY exist
@@ -2479,8 +2470,9 @@ FindClusters <- function(list_data,
     matrix_data[is.na(matrix_data)] <- 0
   }
   
-  # Remove genes with zero or near-zero variance
-  gene_vars <- apply(matrix_data, 1, var, na.rm = TRUE)
+  # Remove genes with zero or near-zero variance (rowVars is a vectorized C
+  # equivalent of apply(., 1, var) — same sample variance, far faster per row)
+  gene_vars <- matrixStats::rowVars(matrix_data, na.rm = TRUE)
   valid_genes <- gene_vars > 1e-10
   
   matrix_data_filtered <- matrix_data[valid_genes, ]

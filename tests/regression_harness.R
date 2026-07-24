@@ -156,6 +156,16 @@ if (!is.null(ft)) {
     new_list = new_list,
     n_genes = if (length(new_list)) n_distinct(ft$gene_file[[new_list[1]]]$full$gene) else 0L)
 }
+# multi-file FilterTop exercises the reduce(inner_join) path across samples
+two_samples <- unique(ld$table_file$set)[1:2]
+ftm <- tryCatch(FilterTop(ld, "Complete", two_samples, c(1, 40), "1:40", 50, "Top%"),
+                error = function(e) { message("FilterTop(multi): ", conditionMessage(e)); NULL })
+if (!is.null(ftm)) {
+  nl <- setdiff(names(ftm$gene_file), names(ld$gene_file))
+  fingerprint$filter_top_multi <- list(
+    n_cols = if (length(nl)) ncol(ftm$gene_file[[nl[1]]]$full) else 0L,
+    n_genes = if (length(nl)) n_distinct(ftm$gene_file[[nl[1]]]$full$gene) else 0L)
+}
 
 # ---- FilterPer (ratcheting while-loop; Phase 6 target) ----
 fper <- tryCatch(FilterPer(ld, "Complete", sample1, c(1, 40), c(10, 90), "per%", "1:40"),
@@ -194,6 +204,11 @@ list_sizes <- function(res, pattern) {
 fa <- tryCatch(FilterAverage(ld, "Complete", sample1, c(1, 40), "1:40", "mean"),
                error = function(e) { message("FilterAverage: ", conditionMessage(e)); NULL })
 if (!is.null(fa)) fingerprint$filter_average <- as.list(list_sizes(fa, "^Filter_all_bins"))
+
+# multi-file FilterAverage exercises the reduce(full_join + merge) path
+fam <- tryCatch(FilterAverage(ld, "Complete", unique(ld$table_file$set)[1:2], c(1, 40), "1:40", "mean"),
+                error = function(e) { message("FilterAverage(multi): ", conditionMessage(e)); NULL })
+if (!is.null(fam)) fingerprint$filter_average_multi <- as.list(list_sizes(fam, "^Filter_all_bins"))
 
 if (!is.null(fc$clust)) {
   cnl <- tryCatch(ClusterNumList(fc, "Complete", sample1, "1:80", 3),
