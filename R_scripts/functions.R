@@ -830,7 +830,7 @@ Active_list_data <-
       # checks to see if at least one file in list is active
       if (meta_data %>% dplyr::filter(gene_list == i & onoff != 0) %>% nrow() == 0) {
         next()
-      } else {
+      } else tryCatch({
         if(group){
           meta_data <- meta_data %>% group_by(group,gene_list) %>% 
             mutate(onoff=if_else(gene_list == i & any(onoff != 0),set,onoff)) %>% 
@@ -874,7 +874,13 @@ Active_list_data <-
                           sep = '\n')
           ) %>% dplyr::select(set,plot_legend,group)
         list_data_out[[i]] <- list_data_out[[i]] %>% inner_join(.,my_sel2,by="set")
-      }
+      }, error = function(e) {
+        # One problematic gene list (e.g. an odd size/shape from a tool) should
+        # not crash the whole plot: drop it and name it so the rest still render.
+        list_data_out[[i]] <<- NULL
+        message(sprintf("Active_list_data: skipping gene list '%s' — %s",
+                        i, conditionMessage(e)))
+      })
     }
     return(bind_rows(list_data_out))
   }
