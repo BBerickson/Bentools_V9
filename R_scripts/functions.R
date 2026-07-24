@@ -1705,8 +1705,8 @@ FilterTop <-
         } else {
           med <- median(apply_bins$myper)
           num2 <-
-            c(count(apply_bins, myper >= max(med, mynum / 100))[[2]][2],
-              count(apply_bins, myper <= min(med, (100 - mynum) / 100))[[2]][1])
+            c(dplyr::count(apply_bins, myper >= max(med, mynum / 100))[[2]][2],
+              dplyr::count(apply_bins, myper <= min(med, (100 - mynum) / 100))[[2]][1])
         }
       } else {
         num2 <-
