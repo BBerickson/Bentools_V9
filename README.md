@@ -14,30 +14,30 @@ This app takes DeepTools matrix files of DNAseq and RNAseq data to make publicat
 - RStudio
 - computeMatrix files from DeepTools (one sample per file)
 
-### Required Packages
+### Installing dependencies
+
+The app no longer auto-installs packages at launch. Install them once, either way:
+
+**Recommended — reproducible versions with renv.** If `renv.lock` is present:
 
 ```r
-install.packages(c(
-    "tidyverse",
-    "shiny",
-    "shinydashboard",
-    "shinydashboardPlus",
-    "shinycssloaders",
-    "shinyWidgets",
-    "shinyjs",
-    "RColorBrewer",
-    "colourpicker",
-    "colorspace",
-    "DT",
-    "patchwork",
-    "zip",
-    "ggpubr",
-    "ggtext",
-    "fastcluster",
-    "dendextend",
-    "valr"
-  ))
+renv::restore()
 ```
+
+To create/refresh `renv.lock` yourself (one-time, reorganizes the project library
+and adds an renv autoloader to `.Rprofile`):
+
+```r
+source("renv_setup.R")   # then commit the generated renv.lock
+```
+
+**Or — plain install** (no version pinning):
+
+```r
+source("setup.R")
+```
+
+`setup.R` installs everything from CRAN plus Bioconductor's `GenomicRanges` (needed by `valr`).
 
 ## Running the App Locally
 
@@ -46,7 +46,7 @@ https://github.com/BBerickson/Bentools_V9.git
 
 2. paste URL 'https://github.com/BBerickson/Bentools_V9.git', set project name and location -> Create
 
-3. Run the app:
+3. Install dependencies (see above), then run the app:
 ```r
 shiny::runApp()
 ```

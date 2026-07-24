@@ -1,47 +1,49 @@
 # Created by Benjamin Erickson BBErickson@gmail.com
 
-# program for loading packages ----
-my_packages <- function(x) {
-  for (i in x) {
-    #  require returns TRUE invisibly if it was able to load package
-    if (!require(i , character.only = TRUE)) {
-      #  If package was not able to be loaded then re-install
-      if(i == "valr"){
-        if (!require("BiocManager", quietly = TRUE))
-          install.packages("BiocManager")
-        BiocManager::install("GenomicRanges")
-      }
-      install.packages(i , dependencies = TRUE,)
-      print(paste("installing ", i, " : please wait"))
-    }
-    #  Load package after installing
-    require(i , character.only = TRUE)
-  }
-}
+# Packages required by the app. See setup.R for a one-time install helper, or use
+# renv::restore() if you have the committed renv.lock. Packages are NOT installed
+# automatically at launch (that silently mutated the user's library); if any are
+# missing the app stops with a clear message telling you how to install them.
+kRequiredPackages <- c(
+  "tidyverse",
+  "shiny",
+  "shinydashboard",
+  "shinydashboardPlus",
+  "shinycssloaders",
+  "shinyWidgets",
+  "shinyjs",
+  "RColorBrewer",
+  "colourpicker",
+  "colorspace",
+  "DT",
+  "patchwork",
+  "zip",
+  "ggpubr",
+  "ggtext",
+  "fastcluster",
+  "dendextend",
+  "valr",
+  "data.table",
+  "matrixStats"
+)
 
-# run load needed packages using my_packages(x) ----
-suppressPackageStartupMessages(my_packages(
-  c(
-    "tidyverse",
-    "shiny",
-    "shinydashboard",
-    "shinydashboardPlus",
-    "shinycssloaders",
-    "shinyWidgets",
-    "shinyjs",
-    "RColorBrewer",
-    "colourpicker",
-    "colorspace",
-    "DT",
-    "patchwork",
-    "zip",
-    "ggpubr",
-    "ggtext",
-    "fastcluster",
-    "dendextend",
-    "valr"
+# load packages, or stop with actionable guidance if any are missing ----
+local({
+  missing <- kRequiredPackages[
+    !vapply(kRequiredPackages, requireNamespace, logical(1), quietly = TRUE)
+  ]
+  if (length(missing)) {
+    stop(
+      "Missing required package(s): ", paste(missing, collapse = ", "), ".\n",
+      "Install them once with:  source(\"setup.R\")\n",
+      "or, if using renv:       renv::restore()",
+      call. = FALSE
+    )
+  }
+  suppressPackageStartupMessages(
+    invisible(lapply(kRequiredPackages, library, character.only = TRUE))
   )
-))
+})
 
 source("R_scripts/functions.R", local = TRUE)
 
