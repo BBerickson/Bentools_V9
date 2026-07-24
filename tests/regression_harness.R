@@ -156,6 +156,15 @@ if (!is.null(ft)) {
     new_list = new_list,
     n_genes = if (length(new_list)) n_distinct(ft$gene_file[[new_list[1]]]$full$gene) else 0L)
 }
+# "Middle%" (filter-between) exercises the count() path that must resolve to
+# dplyr::count, not matrixStats::count
+ftmid <- tryCatch(FilterTop(ld, "Complete", sample1, c(1, 40), "1:40", 50, "Middle%"),
+                  error = function(e) { message("FilterTop(middle): ", conditionMessage(e)); NULL })
+if (!is.null(ftmid)) {
+  nlm <- setdiff(names(ftmid$gene_file), names(ld$gene_file))
+  fingerprint$filter_top_middle <- list(
+    n_genes = if (length(nlm)) n_distinct(ftmid$gene_file[[nlm[1]]]$full$gene) else 0L)
+}
 # multi-file FilterTop exercises the reduce(inner_join) path across samples
 two_samples <- unique(ld$table_file$set)[1:2]
 ftm <- tryCatch(FilterTop(ld, "Complete", two_samples, c(1, 40), "1:40", 50, "Top%"),

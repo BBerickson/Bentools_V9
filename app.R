@@ -8,7 +8,8 @@
 # renv::restore() if you have the committed renv.lock. Packages are NOT installed
 # automatically at launch (that silently mutated the user's library); if any are
 # missing the app stops with a clear message telling you how to install them.
-kRequiredPackages <- c(
+# Packages that are attached (library()) — the app calls these unqualified.
+kAttachedPackages <- c(
   "tidyverse",
   "shiny",
   "shinydashboard",
@@ -26,15 +27,19 @@ kRequiredPackages <- c(
   "ggtext",
   "fastcluster",
   "dendextend",
-  "valr",
-  "data.table",
-  "matrixStats"
+  "valr"
 )
+# Packages used only via pkg::fun() — NOT attached, so they can't mask dplyr
+# verbs. matrixStats exports count()/... and data.table exports between()/
+# first()/last()/... which would shadow the tidyverse functions this app relies
+# on if attached.
+kNamespacedPackages <- c("data.table", "matrixStats")
 
 # load packages, or stop with actionable guidance if any are missing ----
 local({
-  missing <- kRequiredPackages[
-    !vapply(kRequiredPackages, requireNamespace, logical(1), quietly = TRUE)
+  all_pkgs <- c(kAttachedPackages, kNamespacedPackages)
+  missing <- all_pkgs[
+    !vapply(all_pkgs, requireNamespace, logical(1), quietly = TRUE)
   ]
   if (length(missing)) {
     stop(
@@ -45,7 +50,7 @@ local({
     )
   }
   suppressPackageStartupMessages(
-    invisible(lapply(kRequiredPackages, library, character.only = TRUE))
+    invisible(lapply(kAttachedPackages, library, character.only = TRUE))
   )
 })
 
