@@ -82,12 +82,7 @@ server <- function(input, output, session) {
         list(className = 'dt-center ', targets = "_all"),
         list(
           targets = 0,
-          render = JS(
-            "function(data, type, row, meta) {",
-            "return type === 'display' && data.length > 25 ?",
-            "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
-            "}"
-          )
+          render = trunc_render(25, 27)
         )
       )
     )
@@ -390,12 +385,7 @@ server <- function(input, output, session) {
           list(className = 'dt-center ', targets = "_all"),
           list(
             targets = 0,
-            render = JS(
-              "function(data, type, row, meta) {",
-              "return type === 'display' && data.length > 25 ?",
-              "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
-              "}"
-            )
+            render = trunc_render(25, 27)
           )
         )
       )
@@ -1464,12 +1454,7 @@ server <- function(input, output, session) {
             list(className = 'dt-center ', targets = "_all"),
             list(
               targets = 0,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "return type === 'display' && data.length > 25 ?",
-                "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
-                "}"
-              )
+              render = trunc_render(25, 27)
             )
           )
         )
@@ -3024,12 +3009,7 @@ server <- function(input, output, session) {
             list(className = 'dt-center ', targets = "_all"),
             list(
               targets = 0,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "return type === 'display' && data.length > 35 ?",
-                "'<span title=\"' + data + '\">' + data.substr(0, 37) + '...</span>' : data;",
-                "}"
-              )
+              render = trunc_render(35, 37)
             )
           )
         )
@@ -3134,12 +3114,7 @@ server <- function(input, output, session) {
             list(className = 'dt-center ', targets = "_all"),
             list(
               targets = 0,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "return type === 'display' && data.length > 35 ?",
-                "'<span title=\"' + data + '\">' + data.substr(0, 37) + '...</span>' : data;",
-                "}"
-              )
+              render = trunc_render(35, 37)
             )
           )
         )
@@ -3209,12 +3184,7 @@ server <- function(input, output, session) {
             list(className = 'dt-center ', targets = "_all"),
             list(
               targets = 0,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "return type === 'display' && data.length > 35 ?",
-                "'<span title=\"' + data + '\">' + data.substr(0, 37) + '...</span>' : data;",
-                "}"
-              )
+              render = trunc_render(35, 37)
             )
           )
         )
@@ -3372,12 +3342,7 @@ server <- function(input, output, session) {
                                list(className = 'dt-center ', targets = "_all"),
                                list(
                                  targets = 0,
-                                 render = JS(
-                                   "function(data, type, row, meta) {",
-                                   "return type === 'display' && data.length > 44 ?",
-                                   "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
-                                   "}"
-                                 )
+                                 render = trunc_render(44, 39)
                                )
                              )
                            )
@@ -3431,12 +3396,7 @@ server <- function(input, output, session) {
                                list(className = 'dt-center ', targets = "_all"),
                                list(
                                  targets = 0,
-                                 render = JS(
-                                   "function(data, type, row, meta) {",
-                                   "return type === 'display' && data.length > 44 ?",
-                                   "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
-                                   "}"
-                                 )
+                                 render = trunc_render(44, 39)
                                )
                              )
                            )
@@ -3492,12 +3452,7 @@ server <- function(input, output, session) {
                                list(className = 'dt-center ', targets = "_all"),
                                list(
                                  targets = 0,
-                                 render = JS(
-                                   "function(data, type, row, meta) {",
-                                   "return type === 'display' && data.length > 44 ?",
-                                   "'<span title=\"' + data + '\">' + data.substr(0, 39) + '...</span>' : data;",
-                                   "}"
-                                 )
+                                 render = trunc_render(44, 39)
                                )
                              )
                            )
@@ -3653,12 +3608,7 @@ server <- function(input, output, session) {
                          list(className = 'dt-center ', targets = "_all"),
                          list(
                            targets = 0,
-                           render = JS(
-                             "function(data, type, row, meta) {",
-                             "return type === 'display' && data.length > 25 ?",
-                             "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
-                             "}"
-                           )
+                           render = trunc_render(25, 27)
                          )
                        )
                      )
@@ -3810,12 +3760,7 @@ server <- function(input, output, session) {
                          list(className = 'dt-center ', targets = "_all"),
                          list(
                            targets = 0,
-                           render = JS(
-                             "function(data, type, row, meta) {",
-                             "return type === 'display' && data.length > 25 ?",
-                             "'<span title=\"' + data + '\">' + data.substr(0, 27) + '...</span>' : data;",
-                             "}"
-                           )
+                           render = trunc_render(25, 27)
                          )
                        )
                      )
@@ -4190,12 +4135,7 @@ server <- function(input, output, session) {
             list(className = 'dt-center ', targets = "_all"),
             list(
               targets = 0,
-              render = JS(
-                "function(data, type, row, meta) {",
-                "return type === 'display' && data.length > 64 ?",
-                "'<span title=\"' + data + '\">' + data.substr(0, 59) + '...</span>' : data;",
-                "}"
-              )
+              render = trunc_render(64, 59)
             ),
             list(targets = -0, width = 5)
           )

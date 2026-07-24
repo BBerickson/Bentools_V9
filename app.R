@@ -63,6 +63,7 @@ options(shiny.maxRequestSize = 500 * 1024 ^ 2)
 # would build the UI before its packages are loaded. Explicit sourcing here keeps
 # load order deterministic.
 source("R_scripts/globals.R", local = TRUE)
+source("R_scripts/utils.R", local = TRUE)
 source("R_scripts/functions.R", local = TRUE)
 source("R_scripts/ui.R", local = TRUE)
 source("R_scripts/server.R", local = TRUE)
