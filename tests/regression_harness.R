@@ -139,6 +139,50 @@ if (!is.null(fg$groupies)) {
   fingerprint$find_groups <- "ran"
 }
 
+# stable per-column numeric aggregate (sorted names -> order-independent)
+nsum <- function(df) {
+  num <- df[, vapply(df, is.numeric, logical(1)), drop = FALSE]
+  if (!ncol(num)) return(list())
+  as.list(round(vapply(num[order(names(num))], function(x) sum(x, na.rm = TRUE),
+                       numeric(1)), 3))
+}
+
+# ---- FilterTop (lapply/inner_join accumulation; Phase 6 target) ----
+ft <- tryCatch(FilterTop(ld, "Complete", sample1, c(1, 40), "1:40", 50, "top%"),
+               error = function(e) { message("FilterTop: ", conditionMessage(e)); NULL })
+if (!is.null(ft)) {
+  new_list <- setdiff(names(ft$gene_file), names(ld$gene_file))
+  fingerprint$filter_top <- list(
+    new_list = new_list,
+    n_genes = if (length(new_list)) n_distinct(ft$gene_file[[new_list[1]]]$full$gene) else 0L)
+}
+
+# ---- FilterPer (ratcheting while-loop; Phase 6 target) ----
+fper <- tryCatch(FilterPer(ld, "Complete", sample1, c(1, 40), c(10, 90), "per%", "1:40"),
+                 error = function(e) { message("FilterPer: ", conditionMessage(e)); NULL })
+if (!is.null(fper$sortplot)) {
+  fingerprint$filter_per <- c(list(n_rows = nrow(fper$sortplot)), nsum(fper$sortplot))
+}
+
+# ---- MakeGroupFile (grow-in-loop bind_rows; Phase 6 target) ----
+mgf <- tryCatch(MakeGroupFile(ld, "mean"),
+                error = function(e) { message("MakeGroupFile: ", conditionMessage(e)); NULL })
+if (!is.null(mgf$table_file)) {
+  new_sets <- setdiff(unique(mgf$table_file$set), unique(ld$table_file$set))
+  fingerprint$make_group_file <- list(
+    new_sets = new_sets,
+    new_rows = sum(mgf$table_file$set %in% new_sets),
+    new_score_sum = rs(mgf$table_file$score[mgf$table_file$set %in% new_sets]))
+}
+
+# ---- ApplyTtest / try_t_test (add_row bin loop; Phase 6 target) ----
+att <- tryCatch(
+  ApplyTtest(active, "by files", "-log10", "wilcox.test", "fdr", "two.sided", "FALSE", "FALSE"),
+  error = function(e) { message("ApplyTtest: ", conditionMessage(e)); NULL })
+if (!is.null(att) && is.data.frame(att)) {
+  fingerprint$apply_ttest <- c(list(n_rows = nrow(att)), nsum(att))
+}
+
 # ---- report ----
 cat("\n===== BenTools data-layer fingerprint =====\n")
 str(fingerprint, max.level = 3, digits.d = 6)
