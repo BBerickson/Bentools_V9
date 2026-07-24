@@ -96,6 +96,10 @@ fingerprint$load <- list(
   score_sum = rs(ld$table_file$score),
   complete_genes = n_distinct(ld$gene_file$Complete$full$gene)
 )
+# column types matter downstream (e.g. Active_list_data's grouped mutates); guard them
+fingerprint$load_types <- as.list(vapply(
+  ld$table_file[c("chrom","start","end","gene","value","strand","bin","score","set")],
+  function(x) class(x)[1], character(1)))
 
 # ---- Load a real gene list as a second gene_file entry ----
 ld2 <- tryCatch(

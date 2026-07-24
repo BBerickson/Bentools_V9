@@ -313,8 +313,13 @@ LoadTableFile <-
                    names_to = "bin",values_to = "score")
     
     tablefile %>%
+      # fread infers integer for start/end/value where read_tsv used double;
+      # coerce back so table_file column types match the original loader exactly.
       dplyr::mutate(bin = as.numeric(bin),
                     score = as.numeric(score),
+                    start = as.numeric(start),
+                    end = as.numeric(end),
+                    value = as.numeric(value),
                     set = meta_data$nick) %>%
       dplyr::mutate(score = na_if(score,Inf)) %>%
       replace_na(list(score = 0)) %>%
