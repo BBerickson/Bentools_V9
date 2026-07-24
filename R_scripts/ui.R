@@ -103,6 +103,20 @@ ui <- dashboardPage(
                              selectInput("selectsave", "", choices = "select list", ),
                              downloadButton("downloadGeneList", "Save List"),
                              helpText("save windowed bedGraph file(s)")
+                           ),
+                           box(
+                             status = "navy",
+                             solidHeader = TRUE,
+                             title = "keep data in R",
+                             width = 6,
+                             align = "center",
+                             checkboxInput(
+                               "keepDataGlobal",
+                               "Keep loaded data (LIST_DATA) in R after the app closes",
+                               value = FALSE
+                             ),
+                             actionButton("exportDataNow", "Export to R now", icon = icon("share")),
+                             helpText("makes the loaded data available as LIST_DATA in your R console for further analysis")
                            )
                          )))
               ),

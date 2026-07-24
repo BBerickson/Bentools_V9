@@ -2,8 +2,6 @@
 
 # server ----
 server <- function(input, output, session) {
-  # remove on non-local deployment
-  session$onSessionEnded(stopApp)
 
   # Per-session data store. Previously a cross-session global (assigned with
   # <<- at top level), which meant concurrent users shared and corrupted each
@@ -34,6 +32,33 @@ server <- function(input, output, session) {
     #     1 = hidden plot button, reactive for plot enabled
     #     2 = on/off reactive picker changed, shows plot button, reactive for plot disabled
   )
+
+  # Optional: expose this session's data in the global R workspace so it can be
+  # inspected/processed in the console (the old behaviour, now opt-in via the
+  # "keep data in R" controls on the Load Data > SAVE tab). Off by default.
+  keep_data_global <- FALSE
+  export_list_data <- function() {
+    assign("LIST_DATA", LIST_DATA, envir = globalenv())
+  }
+  session$onSessionEnded(function() {
+    if (isTRUE(keep_data_global)) export_list_data()
+    stopApp()
+  })
+  # checkbox: remember the choice and snapshot the current data immediately
+  observeEvent(input$keepDataGlobal, {
+    keep_data_global <<- isTRUE(input$keepDataGlobal)
+    if (keep_data_global) export_list_data()
+  }, ignoreInit = TRUE)
+  # button: push the current data to the R console on demand
+  observeEvent(input$exportDataNow, {
+    export_list_data()
+    showModal(modalDialog(
+      title = "Exported to R",
+      "The loaded data is now available in your R console as LIST_DATA.",
+      size = "s",
+      easyClose = TRUE
+    ))
+  })
 
   tt <- tibble(gene="chr1:10-100-;NM_Name|YFG",bin=1:3,score=c(.1,2,2.2))
   dt2 <- datatable(
