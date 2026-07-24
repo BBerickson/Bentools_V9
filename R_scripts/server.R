@@ -760,9 +760,10 @@ server <- function(input, output, session) {
         input$checkboxlog2,
         Y_Axis_Label,
         input$sliderplotOccupancy,
-        input$checkboxauc
+        input$checkboxauc,
+        ttest_data = LIST_DATA$ttest
       )
-    
+
     LIST_DATA$STATE[2] <<- 1
   })
   

@@ -183,6 +183,30 @@ if (!is.null(att) && is.data.frame(att)) {
   fingerprint$apply_ttest <- c(list(n_rows = nrow(att)), nsum(att))
 }
 
+# ---- Phase-5 decoupled functions (read list_data, not the global) ----
+# sizes of the new gene lists a tool appends, keyed by list name
+list_sizes <- function(res, pattern) {
+  nm <- grep(pattern, names(res$gene_file), value = TRUE)
+  setNames(as.integer(vapply(nm, function(n) n_distinct(res$gene_file[[n]]$full$gene),
+                             integer(1))), sub("\n.*$", "", nm))[order(sub("\n.*$", "", nm))]
+}
+
+fa <- tryCatch(FilterAverage(ld, "Complete", sample1, c(1, 40), "1:40", "mean"),
+               error = function(e) { message("FilterAverage: ", conditionMessage(e)); NULL })
+if (!is.null(fa)) fingerprint$filter_average <- as.list(list_sizes(fa, "^Filter_all_bins"))
+
+if (!is.null(fc$clust)) {
+  cnl <- tryCatch(ClusterNumList(fc, "Complete", sample1, "1:80", 3),
+                  error = function(e) { message("ClusterNumList: ", conditionMessage(e)); NULL })
+  if (!is.null(cnl)) fingerprint$cluster_num_list <- as.list(list_sizes(cnl, "^Cluster_"))
+}
+
+if (!is.null(fg$groupies)) {
+  gnl <- tryCatch(GroupsNumList(fg, "Complete", sample1, "1:80", 3),
+                  error = function(e) { message("GroupsNumList: ", conditionMessage(e)); NULL })
+  if (!is.null(gnl)) fingerprint$groups_num_list <- as.list(list_sizes(gnl, "^Groups_"))
+}
+
 # ---- report ----
 cat("\n===== BenTools data-layer fingerprint =====\n")
 str(fingerprint, max.level = 3, digits.d = 6)

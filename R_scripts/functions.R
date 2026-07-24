@@ -1149,8 +1149,9 @@ GGplotLineDot <-
            use_log2,
            use_y_label,
            plot_occupancy,
-           auc = FALSE) {
-    plot_options <- list_long_data_frame %>% 
+           auc = FALSE,
+           ttest_data = NULL) {
+    plot_options <- list_long_data_frame %>%
       distinct(set,plot_legend) %>% right_join(plot_options,.,by="set") %>% 
       dplyr::rename(plot_legend=plot_legend.y) %>% dplyr::select(-plot_legend.x) %>% 
       dplyr::mutate(set = plot_legend) %>% distinct(.,set,.keep_all = T)
@@ -1228,12 +1229,12 @@ GGplotLineDot <-
                  label = plot_options$AUC)
       
     }
-    if(!is_empty(LIST_DATA$ttest)){
+    if(!is_empty(ttest_data)){
       use_col_tt <- plot_ttest$options_main_tt$mycol
       use_line_tt <- plot_ttest$options_main_tt$myline
       names(use_col_tt) <- plot_ttest$options_main_tt$set
       names(use_line_tt) <- plot_ttest$options_main_tt$set
-      gp2 <- ggplot(LIST_DATA$ttest, aes(y=p.value,x=bin,
+      gp2 <- ggplot(ttest_data, aes(y=p.value,x=bin,
                                          color=set,
                                          linetype = set)) + 
         geom_vline(
@@ -1829,7 +1830,7 @@ FilterAverage <-
       }
       lc <<- lc + 1
     })
-    old_names <- grep("^Filter_all_bins", names(LIST_DATA$gene_file), value = T)
+    old_names <- grep("^Filter_all_bins", names(list_data$gene_file), value = T)
     if (length(old_names) > 0) {  # Check if ANY exist
       # remove old gene lists
       for (name in old_names) {
@@ -2537,7 +2538,7 @@ ClusterNumList <- function(list_data,
     ))
     return(NULL)
   }
-  if (n_distinct(LIST_DATA$clust$full) < as.numeric(my_num)) {
+  if (n_distinct(list_data$clust$full) < as.numeric(my_num)) {
     showModal(modalDialog(
       title = "Information message",
       paste("Can't make more clusters than number of genes"),
@@ -2633,7 +2634,7 @@ GroupsNumList <- function(list_data,
     ))
     return(NULL)
   }
-  if (n_distinct(LIST_DATA$groupies$full) < as.numeric(my_num)) {
+  if (n_distinct(list_data$groupies$full) < as.numeric(my_num)) {
     showModal(modalDialog(
       title = "Information message",
       paste("Can't make more groups than number of genes"),
