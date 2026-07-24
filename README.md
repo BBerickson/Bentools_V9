@@ -53,6 +53,42 @@ shiny::runApp()
 
 Or in RStudio, open `app.R` and click the "Run App" button.
 
+## Project structure
+
+The app was originally a single ~5,700-line script; it is now split for maintainability:
+
+```
+app.R                     entry point: loads packages, sources R_scripts/, starts the app
+R_scripts/
+  globals.R               shared constants (kBrewerList)
+  ui.R                    dashboardPage UI
+  server.R                server(): per-session data store (LIST_DATA) + all observers
+  functions.R             data-layer helpers (parse/filter/cluster/plot)
+setup.R                   one-time CRAN + Bioconductor install
+renv_setup.R              opt-in: adopt renv and write renv.lock
+tests/
+  regression_harness.R    headless data-layer fingerprint check (see below)
+  golden_fingerprint.rds  captured baseline
+  SMOKE_TEST.md           manual UI checklist
+test_files/               example .matrix.gz files + gene list
+```
+
+Notes:
+- Helpers live in `R_scripts/` (not `R/`) on purpose — Shiny auto-sources a top-level
+  `R/` directory before `app.R` runs, which would build the UI before packages load.
+- `LIST_DATA` is a per-session store defined inside `server()` (not a global), so
+  concurrent users don't share state.
+- `data.table` and `matrixStats` are used only via `pkg::fun()` and deliberately not
+  attached, so they can't mask tidyverse verbs (e.g. `count`, `between`, `first`).
+
+### Regression check
+
+After changing data-layer code, confirm the numeric outputs are unchanged:
+
+```bash
+Rscript tests/regression_harness.R --check
+```
+
 ## Usage Guide
 
 ### Loading Test Data
