@@ -4,6 +4,37 @@
 server <- function(input, output, session) {
   # remove on non-local deployment
   session$onSessionEnded(stopApp)
+
+  # Per-session data store. Previously a cross-session global (assigned with
+  # <<- at top level), which meant concurrent users shared and corrupted each
+  # other's data. Defining it here scopes it to this session; the existing
+  # `LIST_DATA$... <<- ...` writes in observers resolve to this local binding.
+  LIST_DATA <- list(
+    table_file = NULL,
+    # gene bin score set
+    gene_file = NULL,
+    # holds $Complete genes from files and $gene file(s)
+    meta_data = NULL,
+    # for holding meta data gene file(s) [c("gene_list", "count", "set", "color", plot?, "legend", "plot_legend")]
+    ttest = NULL,
+    # t.test results $full is for numbers $meta_data for holding plotting options
+    meta_data_plot = list(
+      binning = c(543,100,1500,3500,2000,500,500,500), # type, bp/bin, before, after, body, un5, un3, spacing
+      binning2 = c(543,100,1500,3500,2000,500,500,500), # save for reset
+      rnaseq = FALSE, # T/F rnaseq data type?
+      landmarks = c(15, 45, 20, 40,  5), # tssbin, tesbin, body1bin, body2bin, bin spacing
+      tss_tes = c("TSS", "pA"), # tss and tes labels
+      x_plot_range = c(0, 0) # number of bins
+    ),
+    # info of matrix and lines and lables settings
+    STATE = c(0, 0) # flow control
+    # [1] 1 = at least one file has been loaded and lets reactive fill in info
+    #
+    # [2] 0 = first time switching tab auto plotting
+    #     1 = hidden plot button, reactive for plot enabled
+    #     2 = on/off reactive picker changed, shows plot button, reactive for plot disabled
+  )
+
   tt <- tibble(gene="chr1:10-100-;NM_Name|YFG",bin=1:3,score=c(.1,2,2.2))
   dt2 <- datatable(
     tt,

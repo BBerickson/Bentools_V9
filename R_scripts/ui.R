@@ -765,7 +765,7 @@ ui <- dashboardPage(
             status = "primary",
             column(width = 6,
                    pickerInput("sortGeneList", label = "select list",
-                               choices = (LIST_DATA$meta_data)),
+                               choices = NULL),
                    div(
                      style = "margin-bottom: -20px;",
                      sliderTextInput(
@@ -1064,7 +1064,7 @@ ui <- dashboardPage(
               solidHeader = T,
               width = 6,
               pickerInput("clusterGeneList", label = "select list",
-                          choices = (LIST_DATA$meta_data)),
+                          choices = NULL),
               pickerInput("clusterSamples", label = "select sample",
                           choices = "select sample",selected = "select sample",
                           multiple = F
@@ -1133,7 +1133,7 @@ ui <- dashboardPage(
               solidHeader = T,
               width = 6,
               pickerInput("groupiesGeneList", label = "select list",
-                          choices = (LIST_DATA$meta_data)),
+                          choices = NULL),
               pickerInput("groupiesSamples", label = "select sample",
                           choices = "select sample",selected = "select sample",
                           multiple = F
