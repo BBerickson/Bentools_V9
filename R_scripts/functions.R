@@ -230,14 +230,13 @@ tableTestbin <- function(meta_data){
   # get info on file to help know what type it is
   # print("tableTestbin")
   rnaseq <- F
-  # Read only the first two lines, once, through a single gz connection (gzfile
-  # transparently reads plain files too): line 1 is the deeptools @{...} header,
-  # line 2 is the first data row whose field count gives the number of columns.
-  head_lines <- tryCatch({
-    con <- gzfile(meta_data$filepath, "rt")
-    on.exit(close(con))
-    readLines(con, n = 2)
-  }, error = function(e) character(0))
+  # Read only the first two lines: line 1 is the deeptools @{...} header, line 2
+  # is the first data row whose field count gives the number of columns.
+  # read_lines handles local files, gzip, AND http/ftp URLs (remote matrices
+  # loaded via a .url.txt list) — gzfile() cannot open URLs.
+  head_lines <- tryCatch(
+    suppressWarnings(readr::read_lines(meta_data$filepath, n_max = 2, progress = FALSE)),
+    error = function(e) character(0))
   if (length(head_lines) < 2 || !str_detect(head_lines[1], "^@\\{")) {
     showModal(modalDialog(
       title = "Information message",
@@ -298,17 +297,31 @@ LoadTableFile <-
   function(meta_data,
            bin_colname) {
     # print("LoadTableFile")
-    # fread parses wide gz matrices much faster than read_tsv; skip=1 drops the
-    # @{...} header line, col.names supplies the deeptools column layout.
-    tablefile <- data.table::fread(
-      meta_data$filepath,
-      sep = "\t",
-      header = FALSE,
-      skip = 1,
-      col.names = bin_colname$col_names,
-      showProgress = FALSE
-    ) %>%
-      as_tibble() %>%
+    # Local files: data.table::fread parses wide gz matrices much faster than
+    # read_tsv. Remote files (http/ftp URLs from a .url.txt list): fall back to
+    # read_tsv, which streams URLs reliably. skip=1 drops the @{...} header line;
+    # col.names/col_names supply the deeptools column layout.
+    is_url <- grepl("^(https?|ftp)://", meta_data$filepath)
+    raw <- if (is_url) {
+      suppressMessages(read_tsv(
+        meta_data$filepath,
+        comment = "#",
+        col_names = bin_colname$col_names,
+        skip = 1,
+        show_col_types = FALSE
+      ))
+    } else {
+      data.table::fread(
+        meta_data$filepath,
+        sep = "\t",
+        header = FALSE,
+        skip = 1,
+        col.names = bin_colname$col_names,
+        showProgress = FALSE
+      ) %>%
+        as_tibble()
+    }
+    tablefile <- raw %>%
       pivot_longer(cols = 7:(bin_colname$num_bins),
                    names_to = "bin",values_to = "score")
     
