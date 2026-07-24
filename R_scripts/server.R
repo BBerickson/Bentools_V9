@@ -191,7 +191,11 @@ server <- function(input, output, session) {
                        } else {
                          oo <- "0"
                        }
-                       LIST_DATA$table_file <<- distinct(bind_rows(LIST_DATA$table_file, LD)) %>% filter(!is.na(set))
+                       # each LD is already distinct(gene, bin) per set and set
+                       # names are made unique above, so a whole-table distinct()
+                       # here only re-scans the growing table for no effect (O(N^2)
+                       # over the number of files loaded) -- just bind.
+                       LIST_DATA$table_file <<- bind_rows(LIST_DATA$table_file, LD) %>% filter(!is.na(set))
                        LIST_DATA$gene_file$Complete$info <<- tibble(loaded_info = paste("all loaded genes",
                                                                                         Sys.Date()))
                        LIST_DATA$meta_data <<- distinct(bind_rows(LIST_DATA$meta_data,tibble(
