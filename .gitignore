@@ -1,5 +1,16 @@
 .Rproj.user
 .Rhistory
 .RData
+.RDataTmp*
 .Ruserdata
 .positai
+.DS_Store
+
+# renv: keep renv.lock + settings, ignore the local library/cache
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/python/
+renv/sandbox/
+renv/staging/
