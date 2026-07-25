@@ -37,7 +37,7 @@ source("renv_setup.R")   # then commit the generated renv.lock
 source("setup.R")
 ```
 
-`setup.R` installs everything from CRAN plus Bioconductor's `GenomicRanges` (needed by `valr`).
+`setup.R` installs everything from CRAN (including `valr`, which is a CRAN package — no Bioconductor needed).
 
 ## Running the App Locally
 
@@ -64,7 +64,7 @@ R_scripts/
   ui.R                    dashboardPage UI
   server.R                server(): per-session data store (LIST_DATA) + all observers
   functions.R             data-layer helpers (parse/filter/cluster/plot)
-setup.R                   one-time CRAN + Bioconductor install
+setup.R                   one-time CRAN install of all dependencies
 renv_setup.R              opt-in: adopt renv and write renv.lock
 tests/
   regression_harness.R    headless data-layer fingerprint check (see below)
