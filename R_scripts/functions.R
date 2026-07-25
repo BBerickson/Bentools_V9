@@ -1661,10 +1661,15 @@ FilterSepSize <-
            minsize = 0,
            maxsize = 0,
            stranded = F){
+    # empty numeric inputs arrive as NA; treat as 0 (no filter on that dimension)
+    if (is.na(separation)) separation <- 0
+    if (is.na(minsize))    minsize    <- 0
+    if (is.na(maxsize))    maxsize    <- 0
+    # no thresholds set -> nothing to filter, return every gene
     if(sum(separation,minsize,maxsize) == 0){
-      return(tibble(gene=list()))
+      return(dplyr::select(genelist, gene, chrom, start, end, strand))
     }
-    outlist <- genelist %>% 
+    outlist <- genelist %>%
       dplyr::mutate(value2 = end-start)
     if(separation > 0){
       if(stranded){

@@ -2856,22 +2856,22 @@ server <- function(input, output, session) {
     genesep <- floor(input$geneSeparation)
     my_name <- "Complete_filtered"
     mysub <- "Complete_filtered:"
-    if(!is.numeric(genesep) || genesep < 0){
-      updateNumericInput(session, "geneSizeMin", value = 0)
+    if(is.na(genesep) || !is.numeric(genesep) || genesep < 0){
+      updateNumericInput(session, "geneSeparation", value = 0)
       genesep <- 0
     } else {
       mysub <- paste(mysub, "gene sep >", genesep)
     }
     genesizemin <- floor(input$geneSizeMin)
-    if(!is.numeric(genesizemin) || genesizemin <= 0){
+    if(is.na(genesizemin) || !is.numeric(genesizemin) || genesizemin <= 0){
       updateNumericInput(session, "geneSizeMin", value = 0)
       genesizemin <- 0
     } else {
       mysub <- paste(mysub, "gene length >", genesizemin)
     }
     genesizemax <- floor(input$geneSizeMax)
-    if(!is.numeric(genesizemax) || genesizemax <= 0){
-      updateNumericInput(session, "geneSizeMMax", value = 0)
+    if(is.na(genesizemax) || !is.numeric(genesizemax) || genesizemax <= 0){
+      updateNumericInput(session, "geneSizeMax", value = 0)
       genesizemax <- 0
     }  else {
       mysub <- paste(mysub, "gene length <", genesizemax)

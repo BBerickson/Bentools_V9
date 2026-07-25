@@ -111,9 +111,14 @@ gl_name <- setdiff(names(ld$gene_file), "Complete")
 fingerprint$genelists <- names(ld$gene_file)
 
 # ---- FilterSepSize (pure) ----
-fss <- FilterSepSize(distinct(ld$table_file, gene, chrom, start, end, strand),
-                     separation = 500, minsize = 1000, maxsize = 0, stranded = FALSE)
-fingerprint$filter_sep_size <- list(n_genes = n_distinct(fss$gene))
+fss_coords <- distinct(ld$table_file, gene, chrom, start, end, strand)
+fss <- FilterSepSize(fss_coords, separation = 500, minsize = 1000, maxsize = 0, stranded = FALSE)
+fingerprint$filter_sep_size <- list(
+  n_genes = n_distinct(fss$gene),
+  # no thresholds -> all genes returned (not empty)
+  all_zero_genes = n_distinct(FilterSepSize(fss_coords, 0, 0, 0, FALSE)$gene),
+  # empty/NA thresholds treated as 0 (no crash, all genes)
+  all_na_genes = n_distinct(FilterSepSize(fss_coords, NA, NA, NA, FALSE)$gene))
 
 # ---- Active_list_data + ApplyMath (per-refresh hot path) ----
 active <- Active_list_data(ld, group = FALSE, fulljoin = FALSE)
